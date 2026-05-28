@@ -1,0 +1,220 @@
+/**
+ * POST /api/figma-files/:id/sync
+ * Syncs all comments for a Figma file.
+ * Accepts user session OR cron secret.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { fetchComments } from "@/lib/figma/sync";
+import { classifyComment } from "@/lib/ai/classify";
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: figmaFileId } = await params;
+  const admin = createAdminClient();
+
+  // Auth: user session OR cron secret
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.get("authorization");
+  const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+
+  if (!isCron) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Load file
+  const { data: file } = await admin
+    .from("figma_files")
+    .select("*, project:projects(id, name, workspace_id)")
+    .eq("id", figmaFileId)
+    .single();
+
+  if (!file) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  if (!file.figma_pat) return NextResponse.json({ error: "No PAT configured" }, { status: 400 });
+
+  const pat: string = file.figma_pat;
+  const fileKey: string = file.figma_file_key;
+  const workspaceId: string = file.workspace_id;
+  const projectId: string = (file.project as { id: string }).id;
+
+  // Mark syncing
+  await admin.from("figma_files").update({ sync_status: "syncing" }).eq("id", figmaFileId);
+
+  try {
+    // 1. Fetch all comments from Figma
+    const allComments = await fetchComments(fileKey, pat);
+    console.log(`[sync] file=${figmaFileId} total=${allComments.length} comments`);
+
+    // 2. Split top-level vs replies
+    // Top-level: parent_id is null
+    // Replies: parent_id = order_id of the parent comment
+    const topLevel = allComments.filter(c => !c.parent_id);
+    const replies = allComments.filter(c => !!c.parent_id);
+
+    // 3. Get already-synced comment IDs
+    const { data: existing } = await admin
+      .from("figma_comments")
+      .select("figma_comment_id")
+      .eq("figma_file_id", figmaFileId);
+
+    const existingIds = new Set((existing ?? []).map(c => c.figma_comment_id as string));
+
+    // 4. Find new top-level comments
+    const newTopLevel = topLevel.filter(c => !existingIds.has(c.id));
+    console.log(`[sync] new top-level comments: ${newTopLevel.length}`);
+
+    if (newTopLevel.length === 0) {
+      // Still sync new replies to existing threads
+      await syncNewReplies(admin, replies, existingIds, figmaFileId, workspaceId);
+      await admin.from("figma_files").update({
+        sync_status: "idle",
+        last_synced_at: new Date().toISOString(),
+      }).eq("id", figmaFileId);
+      return NextResponse.json({ added: 0, replies_added: 0, total: topLevel.length });
+    }
+
+    // 6. Insert new top-level comments + their feedback_items
+    // Note: previews are fetched lazily via /api/feedback/:id/preview to avoid rate limits
+    let added = 0;
+    for (const comment of newTopLevel) {
+      const nodeId = comment.client_meta?.node_id ?? null;
+      const previewUrl = null; // fetched lazily on first open
+
+      // Insert comment
+      const { data: newComment, error: commentErr } = await admin
+        .from("figma_comments")
+        .insert({
+          figma_file_id: figmaFileId,
+          workspace_id: workspaceId,
+          figma_comment_id: comment.id,
+          figma_order_id: comment.order_id,
+          parent_figma_comment_id: null,
+          author_name: comment.user.handle,
+          author_avatar: comment.user.img_url,
+          author_email: comment.user.email ?? null,
+          raw_content: comment.message,
+          figma_node_id: nodeId,
+          figma_created_at: comment.created_at,
+          resolved_at: comment.resolved_at ?? null,
+        })
+        .select()
+        .single();
+
+      if (commentErr || !newComment) {
+        console.error("[sync] failed to insert comment", comment.id, commentErr);
+        continue;
+      }
+
+      // AI classification
+      const ai = await classifyComment(comment.message);
+
+      // Insert feedback_item with AI data
+      await admin.from("feedback_items").insert({
+        figma_comment_id: (newComment as { id: string }).id,
+        workspace_id: workspaceId,
+        project_id: projectId,
+        status: "open",
+        priority: ai?.priority ?? "medium",
+        ai_summary: ai?.summary ?? null,
+        ai_classification: ai?.classification ?? null,
+        ai_confidence: ai?.confidence ?? null,
+        ai_key_question: ai?.key_question ?? null,
+        ai_tags: ai?.tags ?? null,
+        ai_risk_flag: ai?.risk_flag ?? false,
+        ai_vague_flag: ai?.vague_flag ?? false,
+        ai_vague_reason: ai?.vague_reason ?? null,
+        figma_node_id: nodeId,
+        figma_preview_url: previewUrl,
+      });
+
+      // Insert replies for this comment
+      const commentReplies = replies.filter(r => r.parent_id === comment.order_id);
+      for (const reply of commentReplies) {
+        if (!existingIds.has(reply.id)) {
+          await admin.from("figma_comments").insert({
+            figma_file_id: figmaFileId,
+            workspace_id: workspaceId,
+            figma_comment_id: reply.id,
+            figma_order_id: reply.order_id,
+            parent_figma_comment_id: comment.id,
+            author_name: reply.user.handle,
+            author_avatar: reply.user.img_url,
+            author_email: reply.user.email ?? null,
+            raw_content: reply.message,
+            figma_node_id: null,
+            figma_created_at: reply.created_at,
+            resolved_at: reply.resolved_at ?? null,
+          });
+        }
+      }
+
+      added++;
+    }
+
+    // 7. Sync new replies to existing threads
+    const repliesAdded = await syncNewReplies(admin, replies, existingIds, figmaFileId, workspaceId);
+
+    // 8. Previews are fetched lazily — no backfill needed here
+
+    // 9. Mark idle
+    await admin.from("figma_files").update({
+      sync_status: "idle",
+      last_synced_at: new Date().toISOString(),
+    }).eq("id", figmaFileId);
+
+    return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length });
+
+  } catch (e) {
+    console.error("[sync] error", e);
+    await admin.from("figma_files").update({ sync_status: "error" }).eq("id", figmaFileId);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Sync failed" },
+      { status: 500 }
+    );
+  }
+}
+
+async function syncNewReplies(
+  admin: ReturnType<typeof createAdminClient>,
+  replies: Awaited<ReturnType<typeof fetchComments>>,
+  existingIds: Set<string>,
+  figmaFileId: string,
+  workspaceId: string
+): Promise<number> {
+  let count = 0;
+  for (const reply of replies) {
+    if (existingIds.has(reply.id)) continue;
+
+    // Find parent comment in DB by its order_id
+    const { data: parent } = await admin
+      .from("figma_comments")
+      .select("id")
+      .eq("figma_order_id", reply.parent_id ?? "")
+      .eq("figma_file_id", figmaFileId)
+      .single();
+
+    if (!parent) continue;
+
+    await admin.from("figma_comments").insert({
+      figma_file_id: figmaFileId,
+      workspace_id: workspaceId,
+      figma_comment_id: reply.id,
+      figma_order_id: reply.order_id,
+      parent_figma_comment_id: (parent as { id: string }).id,
+      author_name: reply.user.handle,
+      author_avatar: reply.user.img_url,
+      author_email: reply.user.email ?? null,
+      raw_content: reply.message,
+      figma_node_id: null,
+      figma_created_at: reply.created_at,
+      resolved_at: reply.resolved_at ?? null,
+    });
+    count++;
+  }
+  return count;
+}
+

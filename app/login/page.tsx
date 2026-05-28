@@ -17,7 +17,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex items-center gap-3 mb-10 justify-center">
-          <div className="w-9 h-9 rounded-xl bg-violet-600 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-zinc-700 flex items-center justify-center">
             <span className="text-white font-bold text-lg">m</span>
           </div>
           <span className="text-white font-bold text-xl tracking-tight">memry.team</span>
