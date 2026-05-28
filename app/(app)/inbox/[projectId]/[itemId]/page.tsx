@@ -15,8 +15,14 @@ interface FigmaComment {
   id: string; author_name: string; author_avatar: string | null;
   raw_content: string; figma_created_at: string;
   figma_comment_id: string; figma_order_id: string;
-  page_name: string | null;
+  page_name: string | null; frame_name: string | null;
   figma_file: FigmaFile | null;
+}
+interface DesignReference {
+  id: string; file_key: string; node_id: string;
+  frame_name: string | null; page_name: string | null;
+  thumbnail_url: string | null;
+  preview_status: "pending" | "ready" | "failed" | "stale";
 }
 interface FeedbackItem {
   id: string; status: string; priority: string;
@@ -26,6 +32,7 @@ interface FeedbackItem {
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string;
   figma_comment: FigmaComment | null;
+  design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
   replies: Reply[];
 }
@@ -64,34 +71,88 @@ function Avatar({ name, size = "md" }: { name?: string | null; size?: "sm" | "md
 
 // ─── Design Context Preview ───────────────────────────────────────────────────
 
+function FigmaLogoMini() {
+  return (
+    <svg width="10" height="14" viewBox="0 0 38 57" fill="none">
+      <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
+      <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
+      <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
+      <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
+      <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
+    </svg>
+  );
+}
+
+function PreviewStatusPill({ status }: { status: DesignReference["preview_status"] }) {
+  const map = {
+    pending: { label: "Generating…", cls: "bg-yellow-50 text-yellow-600" },
+    ready:   { label: "Preview ready", cls: "bg-emerald-50 text-emerald-600" },
+    failed:  { label: "Preview unavailable", cls: "bg-red-50 text-red-500" },
+    stale:   { label: "Stale — will refresh", cls: "bg-gray-100 text-muted" },
+  };
+  const { label, cls } = map[status] ?? map.pending;
+  return (
+    <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 function DesignContextPreview({ item }: { item: FeedbackItem }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  const dr = item.design_reference;
   const fc = item.figma_comment;
-  const figmaUrl = fc?.figma_file
-    ? `https://www.figma.com/file/${fc.figma_file.figma_file_key}${item.figma_node_id ? `?node-id=${item.figma_node_id}` : ""}`
+  const fileKey = dr?.file_key ?? fc?.figma_file?.figma_file_key ?? null;
+  const nodeId = dr?.node_id ?? item.figma_node_id ?? null;
+  const frameName = dr?.frame_name ?? fc?.frame_name ?? null;
+  const pageName = dr?.page_name ?? fc?.page_name ?? null;
+  const fileName = fc?.figma_file?.name ?? null;
+  const thumbUrl = (dr?.preview_status === "ready" ? dr.thumbnail_url : null)
+    ?? item.figma_preview_url ?? null;
+
+  const figmaUrl = fileKey
+    ? `https://www.figma.com/file/${fileKey}${nodeId ? `?node-id=${encodeURIComponent(nodeId)}` : ""}`
     : null;
 
   return (
     <div className="border border-border rounded-panel overflow-hidden bg-paper">
+
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Design Context</span>
-        <button onClick={() => setExpanded(e => !e)} className="text-muted hover:text-ink transition-colors">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Frame Preview</span>
+          {dr && <PreviewStatusPill status={dr.preview_status} />}
+        </div>
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="text-muted hover:text-ink transition-colors"
+          title={expanded ? "Collapse" : "Expand"}
+        >
           <ZoomIn size={13} />
         </button>
       </div>
 
       {/* Preview image */}
-      <div className={`relative bg-surface overflow-hidden transition-all duration-200 ${expanded ? "h-72" : "h-48"}`}>
-        {item.figma_preview_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={item.figma_preview_url}
-            alt="Figma frame"
-            className="w-full h-full object-cover"
-          />
+      <div className={`relative bg-[#F0F0F0] overflow-hidden transition-all duration-200 ${expanded ? "h-72" : "h-52"}`}>
+        {thumbUrl && !imgError ? (
+          <>
+            {!imgLoaded && <div className="absolute inset-0 skeleton" />}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={thumbUrl}
+              alt={frameName ?? "Figma frame"}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgError(true)}
+              loading="lazy"
+            />
+          </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <svg width="24" height="34" viewBox="0 0 38 57" fill="none" className="opacity-10">
+          <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-20">
+            <svg width="28" height="40" viewBox="0 0 38 57" fill="none">
               <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
               <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
               <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
@@ -102,31 +163,40 @@ function DesignContextPreview({ item }: { item: FeedbackItem }) {
         )}
       </div>
 
-      {/* File info */}
-      <div className="px-4 py-3 space-y-1.5 border-t border-border">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-caption text-muted min-w-0">
-            <svg width="8" height="11" viewBox="0 0 38 57" fill="none" className="shrink-0 opacity-50">
-              <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
-              <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
-              <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
-              <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
-              <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
-            </svg>
-            <span className="truncate">{item.project?.name ?? "—"}</span>
-            {fc?.figma_file?.name && <><span className="opacity-40">·</span><span className="truncate">{fc.figma_file.name}</span></>}
+      {/* Frame info card */}
+      <div className="px-4 py-3 space-y-2">
+        {/* Frame name + breadcrumb */}
+        <div>
+          {frameName ? (
+            <p className="text-body font-semibold text-ink truncate">{frameName}</p>
+          ) : (
+            <p className="text-body text-muted italic">Unknown frame</p>
+          )}
+          <div className="flex items-center gap-1 mt-0.5 text-caption text-muted overflow-hidden">
+            <FigmaLogoMini />
+            {pageName && <><span className="truncate">{pageName}</span><span className="opacity-40">/</span></>}
+            {fileName && <span className="truncate">{fileName}</span>}
           </div>
         </div>
-        {item.figma_node_id && (
-          <div className="flex items-center justify-between">
-            <span className="text-caption text-muted font-mono">Frame {item.figma_node_id}</span>
-            {figmaUrl && (
-              <a href={figmaUrl} target="_blank" rel="noreferrer"
-                className="flex items-center gap-1 text-caption text-muted hover:text-ink transition-colors">
-                View in Figma <ExternalLink size={10} />
-              </a>
-            )}
-          </div>
+
+        {/* Comment snippet */}
+        {fc?.raw_content && (
+          <p className="text-caption text-muted italic line-clamp-2 border-l-2 border-border pl-2">
+            &ldquo;{fc.raw_content.slice(0, 120)}{fc.raw_content.length > 120 ? "…" : ""}&rdquo;
+          </p>
+        )}
+
+        {/* Open in Figma */}
+        {figmaUrl && (
+          <a
+            href={figmaUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-border text-body font-medium text-muted hover:text-ink hover:border-ink/30 transition-colors"
+          >
+            <ExternalLink size={12} />
+            Open in Figma
+          </a>
         )}
       </div>
     </div>

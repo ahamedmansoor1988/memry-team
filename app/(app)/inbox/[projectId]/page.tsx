@@ -11,8 +11,12 @@ interface FigmaComment {
   id: string; author_name: string; author_avatar: string | null;
   raw_content: string; figma_created_at: string;
   figma_comment_id: string; figma_order_id: string;
-  page_name: string | null;
+  page_name: string | null; frame_name: string | null;
   figma_file: FigmaFile | null;
+}
+interface DesignReference {
+  id: string; frame_name: string | null; page_name: string | null;
+  thumbnail_url: string | null; preview_status: string;
 }
 interface FeedbackItem {
   id: string; status: string; priority: string;
@@ -22,6 +26,7 @@ interface FeedbackItem {
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string;
   figma_comment: FigmaComment | null;
+  design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
   replies: Reply[];
 }
@@ -159,7 +164,7 @@ function CommentCard({ item, onSelect }: {
           {replyCount > 0 && <><span>·</span><span>{replyCount} {replyCount === 1 ? "reply" : "replies"}</span></>}
         </div>
 
-        {/* Breadcrumb: Project / File / Page */}
+        {/* Breadcrumb: Page / Frame */}
         <div className="flex items-center gap-1 text-caption text-muted overflow-hidden">
           <svg width="8" height="11" viewBox="0 0 38 57" fill="none" className="shrink-0 opacity-40">
             <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
@@ -168,16 +173,22 @@ function CommentCard({ item, onSelect }: {
             <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
             <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
           </svg>
-          <span className="shrink-0">{item.project?.name ?? "—"}</span>
-          {fc?.figma_file?.name && (
-            <><span className="opacity-40 shrink-0">/</span><span className="truncate">{
+          {/* Page name */}
+          {(item.design_reference?.page_name ?? fc?.page_name) && (
+            <span className="shrink-0 truncate">{item.design_reference?.page_name ?? fc?.page_name}</span>
+          )}
+          {/* Frame name */}
+          {(item.design_reference?.frame_name ?? fc?.frame_name) && (
+            <><span className="opacity-40 shrink-0">/</span>
+            <span className="truncate font-medium text-ink/70">{item.design_reference?.frame_name ?? fc?.frame_name}</span></>
+          )}
+          {/* Fallback: file name */}
+          {!(item.design_reference?.page_name ?? fc?.page_name) && fc?.figma_file?.name && (
+            <span className="truncate">{
               /^\w{22}$/.test(fc.figma_file.name)
                 ? `File (${fc.figma_file.figma_file_key.slice(0,8)}…)`
                 : fc.figma_file.name
-            }</span></>
-          )}
-          {fc?.page_name && (
-            <><span className="opacity-40 shrink-0">/</span><span className="truncate">{fc.page_name}</span></>
+            }</span>
           )}
         </div>
 

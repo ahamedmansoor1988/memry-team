@@ -197,19 +197,20 @@ async function syncFile(
   const topLevel = allComments.filter(c => !c.parent_id);
   const replies   = allComments.filter(c => !!c.parent_id);
 
-  // 2b. Fetch page structure to map node_id → page name (depth=1 = pages only)
+  // 2b. Fetch page structure to map node_id → page name + frame name (depth=2)
   const nodeToPage = new Map<string, string>();
+  const nodeToFrame = new Map<string, string>();
   try {
-    const fileDoc = await figmaGet<{ document?: { children?: { id: string; name: string; children?: { id: string }[] }[] } }>(
+    const fileDoc = await figmaGet<{ document?: { children?: { id: string; name: string; children?: { id: string; name: string }[] }[] } }>(
       `/files/${file.key}?depth=2`,
       pat,
     );
     for (const page of fileDoc.document?.children ?? []) {
+      nodeToPage.set(page.id, page.name);
       for (const node of page.children ?? []) {
         nodeToPage.set(node.id, page.name);
+        nodeToFrame.set(node.id, node.name);
       }
-      // Also map the page itself
-      nodeToPage.set(page.id, page.name);
     }
   } catch (e) {
     console.warn(`[team-sync] could not fetch page structure for ${file.name}:`, e);
@@ -282,6 +283,7 @@ async function syncFile(
     const mentionsMe = figmaUserId ? detectMention(comment.message, figmaUserId) : false;
     const nodeId = comment.client_meta?.node_id ?? null;
     const pageName = nodeId ? (nodeToPage.get(nodeId) ?? null) : null;
+    const frameName = nodeId ? (nodeToFrame.get(nodeId) ?? null) : null;
     const previewUrl = nodeId ? (previewUrls.get(nodeId) ?? null) : null;
 
     const { data: newComment, error: commentErr } = await admin
@@ -302,6 +304,7 @@ async function syncFile(
         mentions_me: mentionsMe,
         project_name: file.projectName,
         ...(pageName ? { page_name: pageName } : {}),
+        ...(frameName ? { frame_name: frameName } : {}),
       })
       .select("id")
       .single();
@@ -312,6 +315,26 @@ async function syncFile(
     }
 
     const figmaCommentDbId = (newComment as { id: string }).id;
+
+    // Upsert design_reference for this frame (shared cache per node_id)
+    let designReferenceId: string | null = null;
+    if (nodeId) {
+      const { data: dr } = await admin
+        .from("design_references")
+        .upsert({
+          workspace_id: workspaceId,
+          file_key: file.key,
+          node_id: nodeId,
+          frame_name: frameName,
+          page_name: pageName,
+          thumbnail_url: previewUrl ?? null,
+          preview_status: previewUrl ? "ready" : "pending",
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "workspace_id,file_key,node_id" })
+        .select("id")
+        .single();
+      if (dr) designReferenceId = (dr as { id: string }).id;
+    }
 
     // AI classify
     const ai = await classifyComment(comment.message).catch(() => null);
@@ -331,8 +354,8 @@ async function syncFile(
       ai_vague_flag: ai?.vague_flag ?? false,
       ai_vague_reason: ai?.vague_reason ?? null,
       figma_node_id: nodeId,
-      // Use node-level preview if available, fall back to file thumbnail
       figma_preview_url: previewUrl ?? file.thumbnailUrl ?? null,
+      ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
     });
 
     // Post to Slack if this needs a decision and bot is configured

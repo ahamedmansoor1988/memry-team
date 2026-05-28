@@ -26,10 +26,14 @@ export async function GET(req: Request) {
       id, status, priority, ai_summary, ai_classification,
       ai_key_question, ai_tags, ai_risk_flag, ai_vague_flag,
       figma_node_id, figma_preview_url, created_at,
+      design_reference:design_references(
+        id, file_key, node_id, frame_name, page_name,
+        thumbnail_url, preview_status
+      ),
       figma_comment:figma_comments(
         id, author_name, author_avatar, raw_content,
         figma_created_at, parent_figma_comment_id,
-        figma_comment_id, figma_order_id, page_name,
+        figma_comment_id, figma_order_id, page_name, frame_name,
         figma_file:figma_files(id, name, figma_file_key)
       ),
       project:projects(id, name)
@@ -62,10 +66,26 @@ export async function GET(req: Request) {
     : { data: [] };
 
   const itemsWithReplies = items.map(item => {
+    // Normalize joins — Supabase can return them as array or object
     const fc = Array.isArray(item.figma_comment) ? item.figma_comment[0] : item.figma_comment;
+    const dr = Array.isArray(item.design_reference) ? item.design_reference[0] : item.design_reference;
     const fcId = (fc as { id?: string } | null)?.id;
     const itemReplies = (replies ?? []).filter(r => r.parent_figma_comment_id === fcId);
-    return { ...item, replies: itemReplies };
+
+    // Resolve best preview URL: design_reference thumbnail > figma_preview_url
+    const drAny = dr as Record<string, unknown> | null;
+    const resolvedPreviewUrl =
+      (drAny?.preview_status === "ready" && drAny?.thumbnail_url)
+        ? String(drAny.thumbnail_url)
+        : (item.figma_preview_url ?? null);
+
+    return {
+      ...item,
+      figma_comment: fc,          // always a single object, never array
+      design_reference: dr ?? null,
+      figma_preview_url: resolvedPreviewUrl,
+      replies: itemReplies,
+    };
   });
 
   return NextResponse.json({ items: itemsWithReplies });
