@@ -199,10 +199,23 @@ async function syncFile(
 
   // NOTE: we intentionally do NOT fetch file structure (?depth=2) or node images
   // during sync. Those calls hammer the Figma rate limit (60 req/min per PAT).
-  // Frame names, page names, and preview thumbnails are populated later by the
+  // Frame names, page names, and frame thumbnails are populated later by the
   // dedicated enrichment job: POST /api/figma/enrich-previews
   const nodeToPage = new Map<string, string>();
   const nodeToFrame = new Map<string, string>();
+
+  // Fetch file-level thumbnail via public redirect (no rate-limit quota used)
+  // Used as placeholder until the enrichment job fetches frame-specific images
+  let fileThumbnailUrl: string | null = file.thumbnailUrl ?? null;
+  if (!fileThumbnailUrl) {
+    try {
+      const thumbRes = await fetch(`https://www.figma.com/file/${file.key}/thumbnail`, {
+        redirect: "follow",
+        headers: { "User-Agent": "memry-team-bot/1.0" },
+      });
+      if (thumbRes.ok) fileThumbnailUrl = thumbRes.url;
+    } catch { /* non-blocking */ }
+  }
 
   // 3. Get existing comment IDs
   const { data: existing } = await admin
@@ -326,7 +339,7 @@ async function syncFile(
       ai_vague_flag: ai?.vague_flag ?? false,
       ai_vague_reason: ai?.vague_reason ?? null,
       figma_node_id: nodeId,
-      figma_preview_url: file.thumbnailUrl ?? null,  // file-level thumbnail as initial placeholder
+      figma_preview_url: fileThumbnailUrl,  // file-level thumbnail as initial placeholder
       ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
     });
 

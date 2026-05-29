@@ -45,6 +45,24 @@ async function figmaGetWithRetry<T>(
   return null;
 }
 
+/**
+ * Fetch the file-level thumbnail URL via the public Figma redirect.
+ * Does NOT use the rate-limited Images API.
+ * Returns the final S3 URL (valid ~7 days) or null.
+ */
+async function getFileThumbnail(fileKey: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.figma.com/file/${fileKey}/thumbnail`, {
+      redirect: "follow",
+      headers: { "User-Agent": "memry-team-bot/1.0" },
+    });
+    if (res.ok) return res.url; // final URL after redirect
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export interface EnrichResult {
@@ -104,7 +122,12 @@ export async function enrichPreviews(
 
     await sleep(DELAY_MS); // space out after the file structure call
 
-    // ── Step B: Fetch node images ONE AT A TIME ──────────────────────────────
+    // ── Step B: File-level thumbnail fallback (no rate limit) ───────────────
+    // Fetch once per file — used when Images API is rate limited
+    const fileThumbnailUrl = await getFileThumbnail(fileKey);
+    await sleep(300); // small gap after the redirect request
+
+    // ── Step C: Fetch node images ONE AT A TIME ──────────────────────────────
     for (const dr of records) {
       result.processed++;
 
@@ -117,8 +140,11 @@ export async function enrichPreviews(
         pat,
       );
 
-      const thumbnailUrl = imgData?.images?.[dr.node_id] ?? null;
+      // Use node thumbnail if available, otherwise fall back to file thumbnail
+      const thumbnailUrl = imgData?.images?.[dr.node_id] ?? fileThumbnailUrl ?? null;
 
+      // "ready" = we have a usable image (frame or file level)
+      // "failed" = no image at all
       const status = thumbnailUrl ? "ready" : "failed";
 
       await admin
