@@ -1,12 +1,15 @@
 /**
  * POST /api/figma/enrich-previews
- * Fetches frame names + thumbnail URLs for pending design_references.
- * Rate-limited: 1 node per ~1.2s, retries on 429.
- * Call manually from Integrations or after sync.
+ *
+ * Manually trigger the preview enrichment job for the current user's workspace.
+ * Processes up to 20 pending/failed records per call.
+ *
+ * Safe to call multiple times — records locked as "generating" prevent double-processing.
+ * Never called during comment sync.
  */
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { enrichPreviews } from "@/lib/figma/enrich-previews";
+import { enrichPreviews, getPreviewMetrics } from "@/lib/figma/enrich-previews";
 
 export async function POST() {
   const supabase = await createClient();
@@ -29,53 +32,43 @@ export async function POST() {
     .eq("id", workspaceId)
     .single();
 
-  if (!(ws as { figma_pat?: string } | null)?.figma_pat) {
-    return NextResponse.json({ error: "Figma PAT not configured" }, { status: 400 });
-  }
+  const pat = (ws as { figma_pat?: string } | null)?.figma_pat;
+  if (!pat) return NextResponse.json({ error: "Figma PAT not configured" }, { status: 400 });
 
-  // Count how many are pending before we start
+  // Count pending before we start
   const { count: pendingCount } = await admin
     .from("design_references")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
-    .in("preview_status", ["pending", "stale"]);
+    .in("preview_status", ["pending", "failed", "stale"])
+    .or("preview_next_retry_at.is.null,preview_next_retry_at.lte." + new Date().toISOString());
 
   if (!pendingCount) {
-    return NextResponse.json({ ok: true, message: "Nothing to enrich", processed: 0 });
-  }
-
-  const pat = (ws as { figma_pat: string }).figma_pat;
-
-  // Quick check: is the Images API currently rate limited?
-  const { data: firstDr } = await admin
-    .from("design_references")
-    .select("file_key, node_id")
-    .eq("workspace_id", workspaceId)
-    .in("preview_status", ["pending", "stale"])
-    .limit(1)
-    .single();
-
-  if (firstDr) {
-    const probeRes = await fetch(
-      `https://api.figma.com/v1/images/${firstDr.file_key}?ids=${encodeURIComponent(firstDr.node_id)}&format=png&scale=1`,
-      { headers: { "X-Figma-Token": pat } }
-    );
-    if (probeRes.status === 429) {
-      const retryAfter = parseInt(probeRes.headers.get("retry-after") ?? "3600");
-      const retryAfterHours = Math.ceil(retryAfter / 3600);
-      return NextResponse.json({
-        ok: false,
-        retryAfterHours,
-        message: `Figma Images API rate limited. Retry in ~${retryAfterHours} hour${retryAfterHours !== 1 ? "s" : ""}.`,
-      });
-    }
+    const metrics = await getPreviewMetrics(workspaceId);
+    return NextResponse.json({ ok: true, message: "Nothing to process", processed: 0, metrics });
   }
 
   const result = await enrichPreviews(workspaceId, pat, 20);
+  const metrics = await getPreviewMetrics(workspaceId);
+
+  if (result.rateLimitedUntil) {
+    const retryAfterMs = new Date(result.rateLimitedUntil).getTime() - Date.now();
+    const retryAfterHours = Math.ceil(retryAfterMs / 3600000);
+    return NextResponse.json({
+      ok: false,
+      rateLimited: true,
+      retryAfterHours,
+      retryAfterUntil: result.rateLimitedUntil,
+      message: `Figma Images API rate limited. Retry in ~${retryAfterHours}h.`,
+      ...result,
+      metrics,
+    });
+  }
 
   return NextResponse.json({
     ok: true,
     pending_before: pendingCount,
     ...result,
+    metrics,
   });
 }

@@ -84,32 +84,45 @@ function Avatar({ name, size = "md" }: { name?: string | null; size?: "sm" | "md
 
 // ─── Figma static preview ─────────────────────────────────────────────────────
 
-function FigmaPreview({ previewUrl, previewStatus }: {
+function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
   previewUrl?: string | null;
   previewStatus?: string | null;
+  frameName?: string | null;
+  fileName?: string | null;
 }) {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
 
-  // Pending: show animated skeleton with label
+  // No image: show frame identity card
   if (!previewUrl || errored) {
-    const isPending = !previewUrl && previewStatus !== "failed";
+    const isFailed = previewStatus === "failed";
     return (
-      <div className="w-full h-full bg-[#F5F5F5] flex flex-col items-center justify-center gap-1.5 rounded-l-panel">
-        {isPending ? (
-          <>
+      <div className="w-full h-full bg-[#F5F5F5] flex flex-col justify-between p-3 rounded-l-panel overflow-hidden">
+        {/* Top: FRAME type label */}
+        <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-gray-400">
+          {isFailed ? "Preview unavailable" : "FRAME"}
+        </span>
+
+        {/* Middle: frame name */}
+        <div className="flex-1 flex items-center justify-center">
+          {frameName ? (
+            <span className="text-[13px] font-semibold text-gray-500 text-center leading-tight px-1 break-all">
+              {frameName}
+            </span>
+          ) : (
             <div className="w-8 h-8 rounded-lg skeleton" />
-            <span className="text-[9px] font-medium text-gray-300 uppercase tracking-wider">Generating…</span>
-          </>
-        ) : (
-          <svg width="18" height="26" viewBox="0 0 38 57" fill="none" className="opacity-10">
-            <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
-            <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
-            <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
-            <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
-            <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
-          </svg>
-        )}
+          )}
+        </div>
+
+        {/* Bottom: file name + status */}
+        <div className="space-y-1">
+          {fileName && (
+            <p className="text-[8px] text-gray-400 truncate leading-tight">{fileName}</p>
+          )}
+          <p className={`text-[8px] font-medium uppercase tracking-wide ${isFailed ? "text-red-400" : "text-gray-400"}`}>
+            {isFailed ? "Failed" : "Generating…"}
+          </p>
+        </div>
       </div>
     );
   }
@@ -120,7 +133,7 @@ function FigmaPreview({ previewUrl, previewStatus }: {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={previewUrl}
-        alt="Figma frame preview"
+        alt={frameName ?? "Figma frame preview"}
         className={`w-full h-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
         onLoad={() => setLoaded(true)}
         onError={() => setErrored(true)}
@@ -155,6 +168,8 @@ function CommentCard({ item, onSelect }: {
         <FigmaPreview
           previewUrl={item.figma_preview_url}
           previewStatus={item.design_reference?.preview_status}
+          frameName={item.design_reference?.frame_name ?? item.figma_comment?.frame_name}
+          fileName={item.figma_comment?.figma_file?.name}
         />
       </div>
 

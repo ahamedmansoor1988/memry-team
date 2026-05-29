@@ -34,9 +34,16 @@ export async function POST(
     .single();
 
   if (!file) return NextResponse.json({ error: "File not found" }, { status: 404 });
-  if (!file.figma_pat) return NextResponse.json({ error: "No PAT configured" }, { status: 400 });
 
-  const pat: string = file.figma_pat;
+  // Always use workspace PAT — figma_files.figma_pat may be stale/revoked
+  const { data: ws } = await admin
+    .from("workspaces")
+    .select("figma_pat")
+    .eq("id", file.workspace_id)
+    .single();
+
+  const pat: string | null = (ws as { figma_pat?: string } | null)?.figma_pat ?? file.figma_pat ?? null;
+  if (!pat) return NextResponse.json({ error: "No PAT configured" }, { status: 400 });
   const fileKey: string = file.figma_file_key;
   const workspaceId: string = file.workspace_id;
   const projectId: string = (file.project as { id: string }).id;
@@ -50,8 +57,8 @@ export async function POST(
     console.log(`[sync] file=${figmaFileId} total=${allComments.length} comments`);
 
     // 2. Split top-level vs replies
-    // Top-level: parent_id is null
-    // Replies: parent_id = order_id of the parent comment
+    // Top-level: parent_id is "" (empty string)
+    // Replies:   parent_id = figma comment ID of the parent (NOT order_id)
     const topLevel = allComments.filter(c => !c.parent_id);
     const replies = allComments.filter(c => !!c.parent_id);
 
@@ -131,16 +138,18 @@ export async function POST(
         figma_preview_url: previewUrl,
       });
 
-      // Insert replies for this comment
-      const commentReplies = replies.filter(r => r.parent_id === comment.order_id);
+      // Insert replies for this new comment.
+      // reply.parent_id = parent's comment ID (not order_id).
+      const figmaCommentDbId = (newComment as { id: string }).id;
+      const commentReplies = replies.filter(r => r.parent_id === comment.id);
       for (const reply of commentReplies) {
         if (!existingIds.has(reply.id)) {
-          await admin.from("figma_comments").insert({
+          const { error: replyErr } = await admin.from("figma_comments").insert({
             figma_file_id: figmaFileId,
             workspace_id: workspaceId,
             figma_comment_id: reply.id,
             figma_order_id: reply.order_id,
-            parent_figma_comment_id: comment.id,
+            parent_figma_comment_id: figmaCommentDbId,  // DB uuid, not Figma ID
             author_name: reply.user.handle,
             author_avatar: reply.user.img_url,
             author_email: reply.user.email ?? null,
@@ -149,6 +158,8 @@ export async function POST(
             figma_created_at: reply.created_at,
             resolved_at: reply.resolved_at ?? null,
           });
+          if (replyErr) console.error("[sync] failed reply insert", reply.id, replyErr);
+          else existingIds.add(reply.id); // prevent syncNewReplies double-inserting
         }
       }
 
@@ -160,10 +171,11 @@ export async function POST(
 
     // 8. Previews are fetched lazily — no backfill needed here
 
-    // 9. Mark idle
+    // 9. Mark idle — also refresh figma_pat so stale token never re-appears
     await admin.from("figma_files").update({
       sync_status: "idle",
       last_synced_at: new Date().toISOString(),
+      figma_pat: pat,
     }).eq("id", figmaFileId);
 
     return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length });
@@ -189,11 +201,11 @@ async function syncNewReplies(
   for (const reply of replies) {
     if (existingIds.has(reply.id)) continue;
 
-    // Find parent comment in DB by its order_id
+    // Find parent comment in DB by its figma_comment_id (reply.parent_id = parent's comment ID)
     const { data: parent } = await admin
       .from("figma_comments")
       .select("id")
-      .eq("figma_order_id", reply.parent_id ?? "")
+      .eq("figma_comment_id", reply.parent_id ?? "")
       .eq("figma_file_id", figmaFileId)
       .single();
 

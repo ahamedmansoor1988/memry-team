@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
   HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
-  Activity, ZoomIn,
+  Activity, ZoomIn, MessageSquare, Clock,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -98,108 +98,211 @@ function PreviewStatusPill({ status }: { status: DesignReference["preview_status
   );
 }
 
-function DesignContextPreview({ item }: { item: FeedbackItem }) {
+// ── Generic frame name detection ─────────────────────────────────────────────
+// Frames named "001", "Frame 3", "Screen 2" etc. are structural IDs, not context.
+// When detected, we derive a more meaningful label from page name + frame name.
+
+const GENERIC_FRAME_RE = /^(frame|screen|artboard|page|group|component|f|s)\s*\d+$|^\d+$|^-?\d+(\.\d+)?$/i;
+
+function isGenericName(name: string | null): boolean {
+  if (!name) return true;
+  return GENERIC_FRAME_RE.test(name.trim());
+}
+
+/** Returns the best human-readable label for the frame. */
+function resolveDisplayName(
+  frameName: string | null,
+  pageName: string | null,
+): { primary: string; isGeneric: boolean } {
+  const generic = isGenericName(frameName);
+  if (!generic && frameName) return { primary: frameName, isGeneric: false };
+
+  // Name is generic — build a better label from page context
+  if (pageName && frameName) return { primary: `${pageName} · ${frameName}`, isGeneric: true };
+  if (pageName) return { primary: pageName, isGeneric: true };
+  if (frameName) return { primary: frameName, isGeneric: true };
+  return { primary: "Unknown frame", isGeneric: true };
+}
+
+// ── Design context card ───────────────────────────────────────────────────────
+
+function DesignContextPreview({ item, frameCommentCount }: {
+  item: FeedbackItem;
+  frameCommentCount: number;
+}) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genMsg, setGenMsg] = useState<string | null>(null);
+
+  async function handleGeneratePreview(e: React.MouseEvent) {
+    e.preventDefault(); // card is a link — stop navigation
+    setGenerating(true);
+    setGenMsg(null);
+    try {
+      const res = await fetch("/api/figma/enrich-previews", { method: "POST" });
+      const data = await res.json() as {
+        ok: boolean; enriched?: number; processed?: number;
+        retryAfterHours?: number; message?: string;
+      };
+      if (!data.ok && data.retryAfterHours) {
+        setGenMsg(`Rate limited — retry in ~${data.retryAfterHours}h`);
+      } else if (data.enriched && data.enriched > 0) {
+        setGenMsg("Preview ready — reload to see it");
+      } else {
+        setGenMsg(data.message ?? "Nothing to generate");
+      }
+    } catch {
+      setGenMsg("Request failed");
+    }
+    setGenerating(false);
+  }
 
   const dr = item.design_reference;
   const fc = item.figma_comment;
-  const fileKey = dr?.file_key ?? fc?.figma_file?.figma_file_key ?? null;
-  const nodeId = dr?.node_id ?? item.figma_node_id ?? null;
+  const fileKey   = dr?.file_key ?? fc?.figma_file?.figma_file_key ?? null;
+  const nodeId    = dr?.node_id ?? item.figma_node_id ?? null;
   const frameName = dr?.frame_name ?? fc?.frame_name ?? null;
-  const pageName = dr?.page_name ?? fc?.page_name ?? null;
-  const fileName = fc?.figma_file?.name ?? null;
-  const thumbUrl = (dr?.preview_status === "ready" ? dr.thumbnail_url : null)
-    ?? item.figma_preview_url ?? null;
+  const pageName  = dr?.page_name  ?? fc?.page_name  ?? null;
+  const fileName  = fc?.figma_file?.name ?? null;
+  const previewStatus = dr?.preview_status ?? "pending";
+  const thumbUrl  = (previewStatus === "ready" ? dr?.thumbnail_url : null) ?? item.figma_preview_url ?? null;
+  const showImage = !!thumbUrl && !imgError;
 
+  // Figma deep link: goes directly to the node, not just the file
   const figmaUrl = fileKey
-    ? `https://www.figma.com/file/${fileKey}${nodeId ? `?node-id=${encodeURIComponent(nodeId)}` : ""}`
+    ? `https://www.figma.com/design/${fileKey}${nodeId ? `?node-id=${encodeURIComponent(nodeId)}` : ""}`
     : null;
 
+  const { primary: displayName, isGeneric } = resolveDisplayName(frameName, pageName);
+
+  // Last activity = most recent of: comment created, last reply
+  const allTimes = [
+    fc?.figma_created_at,
+    ...((item.replies ?? []).map(r => r.figma_created_at)),
+  ].filter(Boolean) as string[];
+  const lastActivityAt = allTimes.length
+    ? allTimes.reduce((latest, t) => (t > latest ? t : latest))
+    : item.created_at;
+
   return (
-    <div className="border border-border rounded-panel overflow-hidden bg-paper">
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Frame Preview</span>
-          {dr && <PreviewStatusPill status={dr.preview_status} />}
-        </div>
-        <button
-          onClick={() => setExpanded(e => !e)}
-          className="text-muted hover:text-ink transition-colors"
-          title={expanded ? "Collapse" : "Expand"}
+    <a
+      href={figmaUrl ?? "#"}
+      target={figmaUrl ? "_blank" : undefined}
+      rel="noreferrer"
+      className="block border border-border rounded-panel overflow-hidden bg-paper hover:border-ink/20 hover:shadow-sm transition-all group"
+      onClick={figmaUrl ? undefined : e => e.preventDefault()}
+    >
+      {/* ── Preview image ── */}
+      {showImage ? (
+        <div
+          className={`relative bg-[#F0F0F0] overflow-hidden transition-all duration-200 ${expanded ? "h-64" : "h-44"}`}
+          onClick={e => { e.preventDefault(); setExpanded(v => !v); }}
         >
-          <ZoomIn size={13} />
-        </button>
-      </div>
-
-      {/* Preview image */}
-      <div className={`relative bg-[#F0F0F0] overflow-hidden transition-all duration-200 ${expanded ? "h-72" : "h-52"}`}>
-        {thumbUrl && !imgError ? (
-          <>
-            {!imgLoaded && <div className="absolute inset-0 skeleton" />}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={thumbUrl}
-              alt={frameName ?? "Figma frame"}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgError(true)}
-              loading="lazy"
-            />
-          </>
-        ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center gap-2 opacity-20">
-            <svg width="28" height="40" viewBox="0 0 38 57" fill="none">
-              <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
-              <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
-              <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
-              <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
-              <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
-            </svg>
+          {!imgLoaded && <div className="absolute inset-0 skeleton" />}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbUrl!}
+            alt={displayName}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+          {/* Expand hint */}
+          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="bg-black/40 text-white rounded p-1 flex items-center">
+              <ZoomIn size={11} />
+            </span>
           </div>
-        )}
-      </div>
-
-      {/* Frame info card */}
-      <div className="px-4 py-3 space-y-2">
-        {/* Frame name + breadcrumb */}
-        <div>
-          {frameName ? (
-            <p className="text-body font-semibold text-ink truncate">{frameName}</p>
-          ) : (
-            <p className="text-body text-muted italic">Unknown frame</p>
+        </div>
+      ) : (
+        /* No-image placeholder — still shows all context */
+        <div className="bg-[#F7F7F8] px-4 pt-4 pb-3 border-b border-border">
+          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400 block mb-1">
+            {previewStatus === "failed" ? "Preview unavailable" : "Frame"}
+          </span>
+          <p className="text-[20px] font-bold text-gray-700 leading-tight mb-0.5 break-words">
+            {displayName}
+          </p>
+          {isGeneric && frameName && pageName && (
+            <p className="text-[10px] text-gray-400">Frame {frameName}</p>
           )}
+        </div>
+      )}
+
+      {/* ── Context rows ── */}
+      <div className="px-4 py-3 space-y-2.5">
+
+        {/* Primary label (below image) + breadcrumb */}
+        <div>
+          {/* Display name */}
+          <p className="text-body font-semibold text-ink leading-snug break-words">
+            {displayName}
+          </p>
+          {/* Breadcrumb: page / file */}
           <div className="flex items-center gap-1 mt-0.5 text-caption text-muted overflow-hidden">
             <FigmaLogoMini />
-            {pageName && <><span className="truncate">{pageName}</span><span className="opacity-40">/</span></>}
+            {pageName && (
+              <><span className="truncate">{pageName}</span><span className="opacity-40 shrink-0">/</span></>
+            )}
             {fileName && <span className="truncate">{fileName}</span>}
           </div>
         </div>
 
-        {/* Comment snippet */}
-        {fc?.raw_content && (
-          <p className="text-caption text-muted italic line-clamp-2 border-l-2 border-border pl-2">
-            &ldquo;{fc.raw_content.slice(0, 120)}{fc.raw_content.length > 120 ? "…" : ""}&rdquo;
-          </p>
+        {/* Divider */}
+        <div className="border-t border-border" />
+
+        {/* Activity */}
+        <div className="flex items-center justify-between text-caption text-muted">
+          <span className="flex items-center gap-1.5">
+            <MessageSquare size={11} className="shrink-0" />
+            <span>
+              {frameCommentCount === 1
+                ? "1 comment on this frame"
+                : `${frameCommentCount} comments on this frame`}
+            </span>
+          </span>
+          <span className="flex items-center gap-1 shrink-0 ml-2">
+            <Clock size={10} className="shrink-0" />
+            <span>{timeAgo(lastActivityAt)}</span>
+          </span>
+        </div>
+
+        {/* Generate preview — only when no image, not failed permanently */}
+        {!showImage && previewStatus !== "ready" && (
+          <div className="space-y-1">
+            <button
+              onClick={handleGeneratePreview}
+              disabled={generating}
+              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-ink text-paper text-body font-medium hover:opacity-80 disabled:opacity-40 transition-opacity"
+            >
+              {generating
+                ? <><span className="w-3 h-3 rounded-full border-2 border-paper/30 border-t-paper animate-spin" />Generating…</>
+                : "Generate Frame Preview"}
+            </button>
+            {genMsg && (
+              <p className={`text-caption text-center ${
+                genMsg.includes("Rate") ? "text-orange-500"
+                : genMsg.includes("ready") ? "text-emerald-600"
+                : "text-muted"
+              }`}>
+                {genMsg}
+              </p>
+            )}
+          </div>
         )}
 
-        {/* Open in Figma */}
+        {/* Open in Figma row — only when figmaUrl known */}
         {figmaUrl && (
-          <a
-            href={figmaUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-border text-body font-medium text-muted hover:text-ink hover:border-ink/30 transition-colors"
-          >
-            <ExternalLink size={12} />
-            Open in Figma
-          </a>
+          <div className="flex items-center gap-1 text-caption text-muted group-hover:text-ink transition-colors">
+            <ExternalLink size={10} className="shrink-0" />
+            <span>Open in Figma</span>
+          </div>
         )}
       </div>
-    </div>
+    </a>
   );
 }
 
@@ -264,6 +367,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   const router = useRouter();
 
   const [item, setItem] = useState<FeedbackItem | null>(null);
+  const [frameCommentCount, setFrameCommentCount] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"thread" | "resolved">("thread");
 
@@ -285,9 +389,15 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
     fetch(`/api/feedback?projectId=${projectId}`)
       .then(r => r.json())
       .then((d: { items?: FeedbackItem[] }) => {
-        const found = (d.items ?? []).find(i => i.id === itemId) ?? null;
+        const all = d.items ?? [];
+        const found = all.find(i => i.id === itemId) ?? null;
         setItem(found);
-        if (found) setLocalReplies(found.replies ?? []);
+        if (found) {
+          setLocalReplies(found.replies ?? []);
+          // Count all top-level comments on the same frame (same node_id)
+          const sameFrame = all.filter(i => i.figma_node_id && i.figma_node_id === found.figma_node_id);
+          setFrameCommentCount(sameFrame.length);
+        }
         setLoading(false);
       });
   }, [projectId, itemId]);
@@ -606,7 +716,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
       {/* ── Right: context sidebar ── */}
       <div className="w-80 shrink-0 overflow-y-auto bg-paper border-l border-border hidden lg:block">
         <div className="p-4 space-y-4">
-          <DesignContextPreview item={item} />
+          <DesignContextPreview item={item} frameCommentCount={frameCommentCount} />
           <ActivityLog item={item} />
         </div>
       </div>

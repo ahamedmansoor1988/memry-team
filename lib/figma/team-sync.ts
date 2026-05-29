@@ -65,11 +65,6 @@ export async function listTeamFiles(teamId: string, pat: string): Promise<TeamFi
   );
   const all: TeamFile[] = [];
   for (const project of team.projects ?? []) {
-    // Skip Figma's default "Team project" — it only holds shared libraries, not design files
-    if (project.name === "Team project") {
-      console.log(`[team-sync] skipping shared library project: ${project.name}`);
-      continue;
-    }
     try {
       const proj = await figmaGet<{ files: FigmaFile[] }>(
         `/projects/${project.id}/files`,
@@ -194,8 +189,10 @@ async function syncFile(
   );
   const allComments = data.comments ?? [];
 
+  // Figma: parent_id is empty string "" for top-level, comment ID for replies
   const topLevel = allComments.filter(c => !c.parent_id);
   const replies   = allComments.filter(c => !!c.parent_id);
+  console.log(`[team-sync] ${file.name}: ${allComments.length} total comments — ${topLevel.length} parents, ${replies.length} replies`);
 
   // NOTE: we intentionally do NOT fetch file structure (?depth=2) or node images
   // during sync. Those calls hammer the Figma rate limit (60 req/min per PAT).
@@ -204,18 +201,10 @@ async function syncFile(
   const nodeToPage = new Map<string, string>();
   const nodeToFrame = new Map<string, string>();
 
-  // Fetch file-level thumbnail via public redirect (no rate-limit quota used)
-  // Used as placeholder until the enrichment job fetches frame-specific images
-  let fileThumbnailUrl: string | null = file.thumbnailUrl ?? null;
-  if (!fileThumbnailUrl) {
-    try {
-      const thumbRes = await fetch(`https://www.figma.com/file/${file.key}/thumbnail`, {
-        redirect: "follow",
-        headers: { "User-Agent": "memry-team-bot/1.0" },
-      });
-      if (thumbRes.ok) fileThumbnailUrl = thumbRes.url;
-    } catch { /* non-blocking */ }
-  }
+  // NOTE: No file thumbnail, no Images API call.
+  // figma_preview_url starts as null and is populated ONLY by the enrichment job.
+  // This ensures sync never shows wrong/file-level images in the UI.
+  const fileThumbnailUrl: string | null = null;
 
   // 3. Get existing comment IDs
   const { data: existing } = await admin
@@ -371,11 +360,12 @@ async function syncFile(
         .catch(e => console.warn("[team-sync] Slack post failed (non-critical):", e));
     }
 
-    // Insert replies belonging to this new comment
-    const commentReplies = replies.filter(r => r.parent_id === comment.order_id);
+    // Insert replies belonging to this new comment.
+    // Figma reply.parent_id = parent's comment ID (e.g. "1779913087"), NOT order_id.
+    const commentReplies = replies.filter(r => r.parent_id === comment.id);
     for (const reply of commentReplies) {
       if (!existingIds.has(reply.id)) {
-        await admin.from("figma_comments").insert({
+        const { error: replyErr } = await admin.from("figma_comments").insert({
           figma_file_id: figmaFileId,
           workspace_id: workspaceId,
           figma_comment_id: reply.id,
@@ -391,24 +381,32 @@ async function syncFile(
           mentions_me: figmaUserId ? detectMention(reply.message, figmaUserId) : false,
           project_name: file.projectName,
         });
-        repliesAdded++;
+        if (replyErr) {
+          console.error("[team-sync] failed reply insert", reply.id, replyErr);
+        } else {
+          repliesAdded++;
+        }
       }
     }
 
     added++;
   }
 
-  // Sync new replies to already-existing threads
+  // Sync new replies to already-existing threads.
+  // reply.parent_id = parent's figma_comment_id (NOT figma_order_id).
   for (const reply of replies) {
     if (existingIds.has(reply.id)) continue;
     const { data: parent } = await admin
       .from("figma_comments")
       .select("id")
-      .eq("figma_order_id", reply.parent_id ?? "")
+      .eq("figma_comment_id", reply.parent_id ?? "")   // ← was figma_order_id (wrong)
       .eq("figma_file_id", figmaFileId)
       .maybeSingle();
-    if (!parent) continue;
-    await admin.from("figma_comments").insert({
+    if (!parent) {
+      console.warn(`[team-sync] reply ${reply.id} — parent ${reply.parent_id} not found in DB, skipping`);
+      continue;
+    }
+    const { error: replyErr } = await admin.from("figma_comments").insert({
       figma_file_id: figmaFileId,
       workspace_id: workspaceId,
       figma_comment_id: reply.id,
@@ -424,7 +422,11 @@ async function syncFile(
       mentions_me: figmaUserId ? detectMention(reply.message, figmaUserId) : false,
       project_name: file.projectName,
     });
-    repliesAdded++;
+    if (replyErr) {
+      console.error("[team-sync] failed reply insert (existing thread)", reply.id, replyErr);
+    } else {
+      repliesAdded++;
+    }
   }
 
   await admin.from("figma_files").update({
@@ -433,6 +435,7 @@ async function syncFile(
     figma_pat: pat, // keep PAT fresh
   }).eq("id", figmaFileId);
 
+  console.log(`[team-sync] ${file.name}: added ${added} parents, ${repliesAdded} replies, deleted ${deleted}`);
   return { fileKey: file.key, fileName: file.name, added, repliesAdded, deleted, total: topLevel.length };
 }
 

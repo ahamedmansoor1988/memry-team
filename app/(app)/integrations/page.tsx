@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { CheckCircle2, Clock, RefreshCw, Loader2, Save } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle } from "lucide-react";
 
 function FigmaLogo() {
   return (
@@ -31,6 +31,25 @@ interface FigmaSettings {
   figma_user_id: string;
 }
 
+interface PreviewMetrics {
+  total: number;
+  ready: number;
+  pending: number;
+  generating: number;
+  failed: number;
+  stale: number;
+  errorBreakdown: Partial<Record<string, number>>;
+  nextRetryAt: string | null;
+}
+
+const ERROR_LABELS: Record<string, string> = {
+  rate_limited:      "Rate Limited",
+  node_missing:      "Node Missing",
+  permission_denied: "Permission Denied",
+  images_api_error:  "Images API Error",
+  unknown:           "Unknown Error",
+};
+
 export default function IntegrationsPage() {
   // Figma team settings
   const [figma, setFigma] = useState<FigmaSettings>({ figma_team_id: "", figma_pat: "", figma_user_id: "" });
@@ -46,6 +65,8 @@ export default function IntegrationsPage() {
   // Preview enrichment
   const [enriching, setEnriching] = useState(false);
   const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<PreviewMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
 
   // Slack Bot
   const [slackBotToken, setSlackBotToken] = useState("");
@@ -54,6 +75,15 @@ export default function IntegrationsPage() {
   const [slackSaving, setSlackSaving] = useState(false);
   const [slackMsg, setSlackMsg] = useState<string | null>(null);
   const [slackConnected, setSlackConnected] = useState(false);
+
+  const loadMetrics = useCallback(() => {
+    setMetricsLoading(true);
+    fetch("/api/figma/preview-metrics")
+      .then(r => r.json())
+      .then((d: PreviewMetrics) => { setMetrics(d); })
+      .catch(() => null)
+      .finally(() => setMetricsLoading(false));
+  }, []);
 
   useEffect(() => {
     fetch("/api/integrations/settings")
@@ -66,6 +96,7 @@ export default function IntegrationsPage() {
             figma_user_id: d.figma_user_id as string ?? "",
           });
           setFigmaConnected(true);
+          loadMetrics();
         }
         if (d.slack_bot_token) {
           setSlackConnected(true);
@@ -74,7 +105,7 @@ export default function IntegrationsPage() {
         if (d.last_synced_at) setLastSynced(d.last_synced_at as string);
       })
       .catch(() => null);
-  }, []);
+  }, [loadMetrics]);
 
   async function saveFigmaSettings() {
     if (!figma.figma_team_id.trim() || !figma.figma_pat.trim()) return;
@@ -100,15 +131,19 @@ export default function IntegrationsPage() {
     setEnrichMsg(null);
     try {
       const res = await fetch("/api/figma/enrich-previews", { method: "POST" });
-      const data = await res.json() as { ok?: boolean; enriched?: number; failed?: number; processed?: number; message?: string; error?: string; retryAfterHours?: number };
+      const data = await res.json() as {
+        ok?: boolean; enriched?: number; failed?: number; processed?: number;
+        message?: string; error?: string; retryAfterHours?: number; metrics?: PreviewMetrics;
+      };
+      if (data.metrics) setMetrics(data.metrics);
       if (data.error) {
         setEnrichMsg(`⚠ ${data.error}`);
       } else if (data.retryAfterHours) {
-        setEnrichMsg(`⚠ Figma rate limited — retry in ~${data.retryAfterHours}h`);
+        setEnrichMsg(`⚠ Rate limited — retry in ~${data.retryAfterHours}h`);
       } else if (data.message) {
         setEnrichMsg(`✓ ${data.message}`);
       } else {
-        setEnrichMsg(`✓ ${data.enriched ?? 0} frame previews generated`);
+        setEnrichMsg(`✓ ${data.enriched ?? 0} preview${(data.enriched ?? 0) !== 1 ? "s" : ""} generated, ${data.failed ?? 0} failed`);
       }
     } catch {
       setEnrichMsg("Failed — check your PAT and try again");
@@ -237,9 +272,83 @@ export default function IntegrationsPage() {
               </p>
             )}
             {enrichMsg && (
-              <p className={`text-xs mb-4 ${enrichMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
+              <p className={`text-xs mb-3 ${enrichMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
                 {enrichMsg}
               </p>
+            )}
+
+            {/* ── Preview metrics panel ── */}
+            {figmaConnected && (
+              <div className="mb-5 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Frame Previews</span>
+                  <button
+                    onClick={loadMetrics}
+                    disabled={metricsLoading}
+                    className="text-gray-300 hover:text-gray-500 transition-colors"
+                    title="Refresh metrics"
+                  >
+                    <RefreshCw size={11} className={metricsLoading ? "animate-spin" : ""} />
+                  </button>
+                </div>
+
+                {metrics ? (
+                  <div className="px-4 py-3 space-y-3">
+                    {/* Stat row */}
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { label: "Total",   value: metrics.total,     color: "text-gray-600" },
+                        { label: "Ready",   value: metrics.ready,     color: "text-emerald-600" },
+                        { label: "Pending", value: metrics.pending + metrics.generating, color: "text-yellow-600" },
+                        { label: "Failed",  value: metrics.failed,    color: "text-red-500" },
+                      ].map(stat => (
+                        <div key={stat.label} className="bg-white rounded-lg border border-gray-100 px-3 py-2 text-center">
+                          <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
+                          <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400 mt-0.5">{stat.label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Progress bar */}
+                    {metrics.total > 0 && (
+                      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.round((metrics.ready / metrics.total) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Error breakdown — only show if there are failures */}
+                    {metrics.failed > 0 && Object.keys(metrics.errorBreakdown).length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1">
+                          <AlertTriangle size={9} /> Failure reasons
+                        </p>
+                        {Object.entries(metrics.errorBreakdown).map(([reason, count]) => (
+                          <div key={reason} className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500">{ERROR_LABELS[reason] ?? reason}</span>
+                            <span className="text-xs font-semibold text-red-400">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Next retry time */}
+                    {metrics.nextRetryAt && (
+                      <p className="text-[10px] text-gray-400">
+                        Next auto-retry: {new Date(metrics.nextRetryAt) > new Date()
+                          ? relativeTime(metrics.nextRetryAt) + " from now"
+                          : "due now"}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="px-4 py-4 flex items-center justify-center">
+                    <span className="text-xs text-gray-400">{metricsLoading ? "Loading…" : "No data"}</span>
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="space-y-3 border-t border-gray-100 pt-5">
