@@ -7,7 +7,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { syncTeam } from "@/lib/figma/team-sync";
-import { backfillPreviews } from "@/lib/figma/preview-backfill";
 
 export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
@@ -83,10 +82,9 @@ export async function POST(req: NextRequest) {
     workspace.figma_user_id as string | null,
   );
 
-  // Backfill any items that are missing preview screenshots
-  await backfillPreviews(workspaceId, workspace.figma_pat as string).catch(
-    e => console.warn("[pull] backfill-previews failed:", e)
-  );
+  // NOTE: preview enrichment (frame names + thumbnails) is intentionally NOT
+  // called here. It runs via POST /api/figma/enrich-previews which has proper
+  // rate limiting. Calling it here was causing 429s on the entire Figma PAT.
 
   return NextResponse.json({ ok: true, ...result });
 }

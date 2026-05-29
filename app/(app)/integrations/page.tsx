@@ -43,6 +43,10 @@ export default function IntegrationsPage() {
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
 
+  // Preview enrichment
+  const [enriching, setEnriching] = useState(false);
+  const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
+
   // Slack Bot
   const [slackBotToken, setSlackBotToken] = useState("");
   const [slackChannelId, setSlackChannelId] = useState("");
@@ -89,6 +93,26 @@ export default function IntegrationsPage() {
       setFigmaMsg(data.error ?? "Failed to save");
     }
     setFigmaSaving(false);
+  }
+
+  async function handleEnrichPreviews() {
+    setEnriching(true);
+    setEnrichMsg(null);
+    try {
+      const res = await fetch("/api/figma/enrich-previews", { method: "POST" });
+      const data = await res.json() as { ok?: boolean; enriched?: number; failed?: number; processed?: number; message?: string; error?: string };
+      if (data.error) {
+        setEnrichMsg(`⚠ ${data.error}`);
+      } else if (data.message) {
+        setEnrichMsg(`✓ ${data.message}`);
+      } else {
+        setEnrichMsg(`✓ ${data.enriched ?? 0} previews generated (${data.failed ?? 0} failed)`);
+      }
+    } catch {
+      setEnrichMsg("Failed — check your PAT and try again");
+    } finally {
+      setEnriching(false);
+    }
   }
 
   async function handleSync() {
@@ -183,20 +207,36 @@ export default function IntegrationsPage() {
                 </div>
               </div>
               {figmaConnected && (
-                <button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors flex-shrink-0"
-                >
-                  {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                  {syncing ? "Syncing…" : "Sync now"}
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={handleSync}
+                    disabled={syncing}
+                    className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors"
+                  >
+                    {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                    {syncing ? "Syncing…" : "Sync now"}
+                  </button>
+                  <button
+                    onClick={handleEnrichPreviews}
+                    disabled={enriching}
+                    title="Fetch frame preview images from Figma (rate-limited: ~1/sec)"
+                    className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors"
+                  >
+                    {enriching ? <Loader2 size={13} className="animate-spin" /> : <span className="text-xs">🖼</span>}
+                    {enriching ? "Fetching…" : "Get Previews"}
+                  </button>
+                </div>
               )}
             </div>
 
             {syncMsg && (
-              <p className={`text-xs mb-4 ${syncMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
+              <p className={`text-xs mb-2 ${syncMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
                 {syncMsg}
+              </p>
+            )}
+            {enrichMsg && (
+              <p className={`text-xs mb-4 ${enrichMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
+                {enrichMsg}
               </p>
             )}
 

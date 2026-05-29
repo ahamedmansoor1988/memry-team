@@ -197,24 +197,12 @@ async function syncFile(
   const topLevel = allComments.filter(c => !c.parent_id);
   const replies   = allComments.filter(c => !!c.parent_id);
 
-  // 2b. Fetch page structure to map node_id → page name + frame name (depth=2)
+  // NOTE: we intentionally do NOT fetch file structure (?depth=2) or node images
+  // during sync. Those calls hammer the Figma rate limit (60 req/min per PAT).
+  // Frame names, page names, and preview thumbnails are populated later by the
+  // dedicated enrichment job: POST /api/figma/enrich-previews
   const nodeToPage = new Map<string, string>();
   const nodeToFrame = new Map<string, string>();
-  try {
-    const fileDoc = await figmaGet<{ document?: { children?: { id: string; name: string; children?: { id: string; name: string }[] }[] } }>(
-      `/files/${file.key}?depth=2`,
-      pat,
-    );
-    for (const page of fileDoc.document?.children ?? []) {
-      nodeToPage.set(page.id, page.name);
-      for (const node of page.children ?? []) {
-        nodeToPage.set(node.id, page.name);
-        nodeToFrame.set(node.id, node.name);
-      }
-    }
-  } catch (e) {
-    console.warn(`[team-sync] could not fetch page structure for ${file.name}:`, e);
-  }
 
   // 3. Get existing comment IDs
   const { data: existing } = await admin
@@ -260,31 +248,11 @@ async function syncFile(
   let repliesAdded = 0;
   const deleted = deletedRows.length;
 
-  // Batch-fetch node thumbnail URLs from Figma Images API for all new top-level comments
-  const nodeIds = newTopLevel.map(c => c.client_meta?.node_id).filter(Boolean) as string[];
-  const previewUrls = new Map<string, string>();
-  if (nodeIds.length > 0) {
-    try {
-      // Figma Images API accepts up to 100 node IDs; chunk if needed
-      const chunk = nodeIds.slice(0, 100);
-      const imgData = await figmaGet<{ images?: Record<string, string | null>; err?: string }>(
-        `/images/${file.key}?ids=${encodeURIComponent(chunk.join(","))}&format=png&scale=1`,
-        pat,
-      );
-      for (const [nid, url] of Object.entries(imgData.images ?? {})) {
-        if (url) previewUrls.set(nid, url);
-      }
-    } catch (e) {
-      console.warn(`[team-sync] could not fetch node images for ${file.name}:`, e);
-    }
-  }
-
   for (const comment of newTopLevel) {
     const mentionsMe = figmaUserId ? detectMention(comment.message, figmaUserId) : false;
     const nodeId = comment.client_meta?.node_id ?? null;
     const pageName = nodeId ? (nodeToPage.get(nodeId) ?? null) : null;
     const frameName = nodeId ? (nodeToFrame.get(nodeId) ?? null) : null;
-    const previewUrl = nodeId ? (previewUrls.get(nodeId) ?? null) : null;
 
     const { data: newComment, error: commentErr } = await admin
       .from("figma_comments")
@@ -316,24 +284,28 @@ async function syncFile(
 
     const figmaCommentDbId = (newComment as { id: string }).id;
 
-    // Upsert design_reference for this frame (shared cache per node_id)
+    // Upsert design_reference — thumbnail fetching happens later via enrich-previews
     let designReferenceId: string | null = null;
     if (nodeId) {
-      const { data: dr } = await admin
-        .from("design_references")
-        .upsert({
-          workspace_id: workspaceId,
-          file_key: file.key,
-          node_id: nodeId,
-          frame_name: frameName,
-          page_name: pageName,
-          thumbnail_url: previewUrl ?? null,
-          preview_status: previewUrl ? "ready" : "pending",
-          updated_at: new Date().toISOString(),
-        }, { onConflict: "workspace_id,file_key,node_id" })
-        .select("id")
-        .single();
-      if (dr) designReferenceId = (dr as { id: string }).id;
+      try {
+        const { data: dr } = await admin
+          .from("design_references")
+          .upsert({
+            workspace_id: workspaceId,
+            file_key: file.key,
+            node_id: nodeId,
+            frame_name: frameName,  // null until enrichment runs
+            page_name: pageName,    // null until enrichment runs
+            thumbnail_url: null,
+            preview_status: "pending",
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "workspace_id,file_key,node_id" })
+          .select("id")
+          .single();
+        if (dr) designReferenceId = (dr as { id: string }).id;
+      } catch (e) {
+        console.warn("[team-sync] design_references upsert failed (migration not run?):", e);
+      }
     }
 
     // AI classify
@@ -354,7 +326,7 @@ async function syncFile(
       ai_vague_flag: ai?.vague_flag ?? false,
       ai_vague_reason: ai?.vague_reason ?? null,
       figma_node_id: nodeId,
-      figma_preview_url: previewUrl ?? file.thumbnailUrl ?? null,
+      figma_preview_url: file.thumbnailUrl ?? null,  // file-level thumbnail as initial placeholder
       ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
     });
 
