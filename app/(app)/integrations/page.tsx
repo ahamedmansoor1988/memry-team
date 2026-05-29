@@ -100,13 +100,15 @@ export default function IntegrationsPage() {
     setEnrichMsg(null);
     try {
       const res = await fetch("/api/figma/enrich-previews", { method: "POST" });
-      const data = await res.json() as { ok?: boolean; enriched?: number; failed?: number; processed?: number; message?: string; error?: string };
+      const data = await res.json() as { ok?: boolean; enriched?: number; failed?: number; processed?: number; message?: string; error?: string; retryAfterHours?: number };
       if (data.error) {
         setEnrichMsg(`⚠ ${data.error}`);
+      } else if (data.retryAfterHours) {
+        setEnrichMsg(`⚠ Figma rate limited — retry in ~${data.retryAfterHours}h`);
       } else if (data.message) {
         setEnrichMsg(`✓ ${data.message}`);
       } else {
-        setEnrichMsg(`✓ ${data.enriched ?? 0} previews generated (${data.failed ?? 0} failed)`);
+        setEnrichMsg(`✓ ${data.enriched ?? 0} frame previews generated`);
       }
     } catch {
       setEnrichMsg("Failed — check your PAT and try again");

@@ -45,6 +45,32 @@ export async function POST() {
   }
 
   const pat = (ws as { figma_pat: string }).figma_pat;
+
+  // Quick check: is the Images API currently rate limited?
+  const { data: firstDr } = await admin
+    .from("design_references")
+    .select("file_key, node_id")
+    .eq("workspace_id", workspaceId)
+    .in("preview_status", ["pending", "stale"])
+    .limit(1)
+    .single();
+
+  if (firstDr) {
+    const probeRes = await fetch(
+      `https://api.figma.com/v1/images/${firstDr.file_key}?ids=${encodeURIComponent(firstDr.node_id)}&format=png&scale=1`,
+      { headers: { "X-Figma-Token": pat } }
+    );
+    if (probeRes.status === 429) {
+      const retryAfter = parseInt(probeRes.headers.get("retry-after") ?? "3600");
+      const retryAfterHours = Math.ceil(retryAfter / 3600);
+      return NextResponse.json({
+        ok: false,
+        retryAfterHours,
+        message: `Figma Images API rate limited. Retry in ~${retryAfterHours} hour${retryAfterHours !== 1 ? "s" : ""}.`,
+      });
+    }
+  }
+
   const result = await enrichPreviews(workspaceId, pat, 20);
 
   return NextResponse.json({
