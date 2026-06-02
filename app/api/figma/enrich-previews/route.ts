@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
   const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  console.log(`[enrich-previews] received request isCron=${!!isCron} hasAuth=${!!authHeader}`);
 
   let workspaceId: string;
   let pat: string;

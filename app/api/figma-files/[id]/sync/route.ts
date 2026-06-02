@@ -242,25 +242,28 @@ export async function POST(
 
 /**
  * Fire-and-forget: trigger background preview enrichment for a single workspace.
- * Uses setTimeout(0) so the enrich HTTP request is dispatched after the current
- * sync response is prepared — the outer Vercel function returns first, and
- * /api/figma/enrich-previews gets its own independent 10-second budget.
+ *
+ * IMPORTANT: fetch() is called directly — NOT inside setTimeout.
+ * setTimeout(0) queues a macrotask. In Vercel's Lambda runtime, the execution
+ * context is frozen after the HTTP response is sent. The macrotask queue is
+ * never drained, so setTimeout callbacks never fire. Calling fetch() synchronously
+ * before the return establishes a pending TCP connection that keeps the Lambda
+ * event loop alive until the request is delivered.
  *
  * Safe to call even when there is nothing to process — the enrich route exits
  * early after a single DB count query if no pending records are found.
  */
 function fireBackgroundEnrich(appUrl: string, cronSecret: string, workspaceId: string): void {
   if (!cronSecret) return; // No secret configured — skip; manual button still works
-  setTimeout(() => {
-    fetch(`${appUrl}/api/figma/enrich-previews`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        authorization: `Bearer ${cronSecret}`,
-      },
-      body: JSON.stringify({ workspaceId }),
-    }).catch(e => console.warn("[sync] background enrich-previews failed to start:", e));
-  }, 0);
+  console.log(`[sync] firing background enrich for workspace=${workspaceId}`);
+  fetch(`${appUrl}/api/figma/enrich-previews`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      authorization: `Bearer ${cronSecret}`,
+    },
+    body: JSON.stringify({ workspaceId }),
+  }).catch(e => console.warn("[sync] background enrich-previews failed:", e));
 }
 
 async function syncNewReplies(
