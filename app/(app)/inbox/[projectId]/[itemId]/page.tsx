@@ -253,6 +253,19 @@ function DesignContextPreview({ item, frameCommentCount }: {
   const thumbUrl  = (previewStatus === "ready" ? dr?.thumbnail_url : null) ?? item.figma_preview_url ?? null;
   const showImage = !!thumbUrl && !imgError;
 
+  // DEBUG — remove once gray-placeholder bug is identified
+  console.log("[preview:detail]", {
+    itemId: item.id,
+    nodeId,
+    previewStatus,
+    drThumbnailUrl: dr?.thumbnail_url ?? null,
+    figmaPreviewUrl: item.figma_preview_url ?? null,
+    thumbUrl,
+    showImage,
+    imgLoaded,
+    imgError,
+  });
+
   // Figma deep link: goes directly to the node, not just the file
   const figmaUrl = fileKey
     ? `https://www.figma.com/design/${fileKey}${nodeId ? `?node-id=${encodeURIComponent(nodeId)}` : ""}`
@@ -289,8 +302,8 @@ function DesignContextPreview({ item, frameCommentCount }: {
             src={thumbUrl!}
             alt={displayName}
             className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgError(true)}
+            onLoad={() => { console.log("[preview:detail] onLoad fired", thumbUrl); setImgLoaded(true); }}
+            onError={() => { console.log("[preview:detail] onError fired", thumbUrl); setImgError(true); }}
             loading="lazy"
           />
           {/* Expand hint */}

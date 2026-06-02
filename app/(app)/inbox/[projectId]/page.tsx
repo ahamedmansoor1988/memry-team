@@ -114,6 +114,9 @@ function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
 
+  // DEBUG — remove once gray-placeholder bug is identified
+  console.log("[preview:list]", { previewUrl: previewUrl ?? null, previewStatus: previewStatus ?? null, frameName: frameName ?? null, loaded, errored });
+
   // No image: show frame identity card
   if (!previewUrl || errored) {
     const isFailed = previewStatus === "failed";
@@ -159,8 +162,8 @@ function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
         src={previewUrl}
         alt={frameName ?? "Figma frame preview"}
         className={`w-full h-full object-cover transition-opacity duration-200 ${loaded ? "opacity-100" : "opacity-0"}`}
-        onLoad={() => setLoaded(true)}
-        onError={() => setErrored(true)}
+        onLoad={() => { console.log("[preview:list] onLoad fired", previewUrl); setLoaded(true); }}
+        onError={() => { console.log("[preview:list] onError fired", previewUrl); setErrored(true); }}
         loading="lazy"
       />
     </div>
