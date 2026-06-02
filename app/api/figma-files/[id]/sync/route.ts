@@ -19,6 +19,7 @@ export async function POST(
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
   const isCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app";
 
   if (!isCron) {
     const supabase = await createClient();
@@ -81,6 +82,8 @@ export async function POST(
         sync_status: "idle",
         last_synced_at: new Date().toISOString(),
       }).eq("id", figmaFileId);
+      // Fire background preview generation for any pending records from prior syncs
+      fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
       return NextResponse.json({ added: 0, replies_added: 0, total: topLevel.length });
     }
 
@@ -211,14 +214,18 @@ export async function POST(
     // 7. Sync new replies to existing threads
     const repliesAdded = await syncNewReplies(admin, replies, existingIds, figmaFileId, workspaceId);
 
-    // 8. Previews are fetched lazily — no backfill needed here
-
-    // 9. Mark idle — also refresh figma_pat so stale token never re-appears
+    // 8. Mark idle — also refresh figma_pat so stale token never re-appears
     await admin.from("figma_files").update({
       sync_status: "idle",
       last_synced_at: new Date().toISOString(),
       figma_pat: pat,
     }).eq("id", figmaFileId);
+
+    // 9. Fire background preview generation for newly-queued design_references.
+    // Fire-and-forget: each enrich-previews call gets its own Vercel 10s budget.
+    // Processes up to 5 records per call; remaining records are handled on the
+    // next sync cycle (~5 min later via ambient sync).
+    fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
 
     return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length });
 
@@ -231,6 +238,29 @@ export async function POST(
     await admin.from("figma_files").update({ sync_status: nextStatus }).eq("id", figmaFileId);
     return NextResponse.json({ error: msg }, { status: isRateLimit ? 429 : 500 });
   }
+}
+
+/**
+ * Fire-and-forget: trigger background preview enrichment for a single workspace.
+ * Uses setTimeout(0) so the enrich HTTP request is dispatched after the current
+ * sync response is prepared — the outer Vercel function returns first, and
+ * /api/figma/enrich-previews gets its own independent 10-second budget.
+ *
+ * Safe to call even when there is nothing to process — the enrich route exits
+ * early after a single DB count query if no pending records are found.
+ */
+function fireBackgroundEnrich(appUrl: string, cronSecret: string, workspaceId: string): void {
+  if (!cronSecret) return; // No secret configured — skip; manual button still works
+  setTimeout(() => {
+    fetch(`${appUrl}/api/figma/enrich-previews`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        authorization: `Bearer ${cronSecret}`,
+      },
+      body: JSON.stringify({ workspaceId }),
+    }).catch(e => console.warn("[sync] background enrich-previews failed to start:", e));
+  }, 0);
 }
 
 async function syncNewReplies(
