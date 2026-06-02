@@ -117,11 +117,14 @@ function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
   // No image: show frame identity card
   if (!previewUrl || errored) {
     const isFailed = previewStatus === "failed";
+    const topLabel    = errored ? "Load error"    : isFailed ? "Preview unavailable" : "FRAME";
+    const bottomLabel = errored ? "Load error"    : isFailed ? "Failed"              : "Generating…";
+    const labelColor  = errored || isFailed ? "text-red-400" : "text-gray-400";
     return (
       <div className="w-full h-full bg-[#F5F5F5] flex flex-col justify-between p-3 rounded-l-panel overflow-hidden">
         {/* Top: FRAME type label */}
-        <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-gray-400">
-          {isFailed ? "Preview unavailable" : "FRAME"}
+        <span className={`text-[8px] font-bold uppercase tracking-[0.12em] ${errored ? "text-red-400" : "text-gray-400"}`}>
+          {topLabel}
         </span>
 
         {/* Middle: frame name */}
@@ -140,8 +143,8 @@ function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
           {fileName && (
             <p className="text-[8px] text-gray-400 truncate leading-tight">{fileName}</p>
           )}
-          <p className={`text-[8px] font-medium uppercase tracking-wide ${isFailed ? "text-red-400" : "text-gray-400"}`}>
-            {isFailed ? "Failed" : "Generating…"}
+          <p className={`text-[8px] font-medium uppercase tracking-wide ${labelColor}`}>
+            {bottomLabel}
           </p>
         </div>
       </div>

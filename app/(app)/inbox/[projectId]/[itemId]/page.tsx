@@ -304,7 +304,7 @@ function DesignContextPreview({ item, frameCommentCount }: {
         /* No-image placeholder — still shows all context */
         <div className="bg-[#F7F7F8] px-4 pt-4 pb-3 border-b border-border">
           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400 block mb-1">
-            {previewStatus === "failed" ? "Preview unavailable" : "Frame"}
+            {imgError ? "Preview failed to load" : previewStatus === "failed" ? "Preview unavailable" : "Frame"}
           </span>
           <p className="text-[20px] font-bold text-gray-700 leading-tight mb-0.5 break-words">
             {displayName}
@@ -353,8 +353,18 @@ function DesignContextPreview({ item, frameCommentCount }: {
           </span>
         </div>
 
-        {/* Generate preview — only when no image, not failed permanently */}
-        {!showImage && previewStatus !== "ready" && (
+        {/* Retry loading — image URL exists but browser failed to load it */}
+        {imgError && thumbUrl && (
+          <button
+            onClick={() => setImgError(false)}
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
+          >
+            Retry loading preview
+          </button>
+        )}
+
+        {/* Generate preview — no URL exists yet and not already ready */}
+        {!showImage && !imgError && previewStatus !== "ready" && (
           <div className="space-y-1">
             <button
               onClick={handleGeneratePreview}

@@ -86,10 +86,14 @@ interface FileImagesResult {
 }
 
 /**
- * Fetch PNG thumbnails for multiple nodes from the same file in a single
+ * Fetch JPEG thumbnails for multiple nodes from the same file in a single
  * Figma Images API call.
  *
- * GET /v1/images/{key}?ids={id1},{id2},...&format=png&scale=1
+ * GET /v1/images/{key}?ids={id1},{id2},...&format=jpg&scale=0.5
+ *
+ * format=jpg  — lossy compression; ~10-20x smaller than PNG for UI frames
+ * scale=0.5   — half linear resolution; a 1440px frame becomes 720px wide,
+ *               a 375px mobile frame becomes 187px — still readable at card size
  *
  * Quota impact: 1 Images API call regardless of how many nodes are in nodeIds.
  */
@@ -102,7 +106,7 @@ async function fetchFileImages(
     // Figma accepts comma-separated IDs; do NOT encode the commas
     const idsParam = nodeIds.map(id => encodeURIComponent(id)).join(",");
     const res = await fetch(
-      `${FIGMA_API}/images/${fileKey}?ids=${idsParam}&format=png&scale=1`,
+      `${FIGMA_API}/images/${fileKey}?ids=${idsParam}&format=jpg&scale=0.5`,
       { headers: figmaHeaders(pat) },
     );
 
