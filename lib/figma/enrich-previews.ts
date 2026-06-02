@@ -1,7 +1,7 @@
 /**
  * Preview enrichment job — populates design_references with:
- *   - frame_name + page_name  (from /files/{key}/nodes?ids={node_id})
- *   - thumbnail_url           (from /images/{key}?ids={node_id})
+ *   - frame_name + page_name  (from /files/{key}/nodes?ids={node_ids})
+ *   - thumbnail_url           (from /images/{key}?ids={node_ids})
  *
  * Production-safe contract:
  *   - NEVER called during comment sync
@@ -26,7 +26,7 @@ import { figmaHeaders } from "./api";
 
 const FIGMA_API = "https://api.figma.com/v1";
 
-// Delay between each node-image request (~50/min; Figma limit is 60/min)
+// Delay between each file-batch request (~50/min; Figma limit is 60/min)
 const INTER_REQUEST_MS = 1200;
 
 // Maximum lifetime retries before giving up permanently
@@ -61,81 +61,118 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-interface ImagesFetchResult {
-  url: string | null;
+/**
+ * Figma Images API returns node IDs with colons (e.g. "1779:134") in the
+ * response keys, but the request sometimes uses hyphens.  Try both forms.
+ */
+function resolveImageUrl(
+  images: Record<string, string | null>,
+  nodeId: string,
+): string | null {
+  const colon = nodeId.replace(/-/g, ":");
+  const hyphen = nodeId.replace(/:/g, "-");
+  return images[nodeId] ?? images[colon] ?? images[hyphen] ?? null;
+}
+
+// ── Batched Figma API fetchers ────────────────────────────────────────────────
+
+interface FileImagesResult {
+  /** Per-node image URLs; null for a specific node means that node is missing/invisible */
+  urls: Record<string, string | null> | null;
+  /** Batch-level error (applies to ALL nodes) */
   error: PreviewErrorReason | null;
   /** Only set when rate_limited — seconds to wait */
   retryAfterSeconds?: number;
 }
 
-async function fetchNodeImage(
+/**
+ * Fetch PNG thumbnails for multiple nodes from the same file in a single
+ * Figma Images API call.
+ *
+ * GET /v1/images/{key}?ids={id1},{id2},...&format=png&scale=1
+ *
+ * Quota impact: 1 Images API call regardless of how many nodes are in nodeIds.
+ */
+async function fetchFileImages(
   fileKey: string,
-  nodeId: string,
+  nodeIds: string[],
   pat: string,
-): Promise<ImagesFetchResult> {
+): Promise<FileImagesResult> {
   try {
+    // Figma accepts comma-separated IDs; do NOT encode the commas
+    const idsParam = nodeIds.map(id => encodeURIComponent(id)).join(",");
     const res = await fetch(
-      `${FIGMA_API}/images/${fileKey}?ids=${encodeURIComponent(nodeId)}&format=png&scale=1`,
+      `${FIGMA_API}/images/${fileKey}?ids=${idsParam}&format=png&scale=1`,
       { headers: figmaHeaders(pat) },
     );
 
     if (res.status === 429) {
       const retryAfterSeconds = parseInt(res.headers.get("retry-after") ?? "3600");
-      return { url: null, error: "rate_limited", retryAfterSeconds };
+      return { urls: null, error: "rate_limited", retryAfterSeconds };
     }
 
     if (!res.ok) {
-      return { url: null, error: categorizeHttpError(res.status) };
-    }
-
-    const data = await res.json() as { images?: Record<string, string | null>; err?: string };
-
-    // Figma can return 200 but with a null URL for the node (e.g. invisible/deleted node)
-    const url = data.images?.[nodeId] ?? null;
-    if (!url) {
-      return { url: null, error: "node_missing" };
-    }
-
-    return { url, error: null };
-  } catch {
-    return { url: null, error: "unknown" };
-  }
-}
-
-interface NodeInfoResult {
-  frameName: string | null;
-  pageName: string | null;
-  error: PreviewErrorReason | null;
-}
-
-async function fetchNodeInfo(
-  fileKey: string,
-  nodeId: string,
-  pat: string,
-): Promise<NodeInfoResult> {
-  try {
-    const res = await fetch(
-      `${FIGMA_API}/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=1`,
-      { headers: figmaHeaders(pat) },
-    );
-
-    if (!res.ok) {
-      return { frameName: null, pageName: null, error: categorizeHttpError(res.status) };
+      return { urls: null, error: categorizeHttpError(res.status) };
     }
 
     const data = await res.json() as {
-      nodes?: Record<string, { document?: { name?: string; type?: string } }>;
-      name?: string; // top-level = file name, not useful for page
+      images?: Record<string, string | null>;
+      err?: string;
     };
 
-    const doc = data.nodes?.[nodeId]?.document;
-    return {
-      frameName: doc?.name ?? null,
-      pageName: null, // /nodes endpoint doesn't expose parent page — populated by /files?depth=2 when quota allows
-      error: null,
-    };
+    if (data.err) {
+      // Figma returns 200 with an err field for certain server-side failures
+      return { urls: null, error: "images_api_error" };
+    }
+
+    return { urls: data.images ?? {}, error: null };
   } catch {
-    return { frameName: null, pageName: null, error: "unknown" };
+    return { urls: null, error: "unknown" };
+  }
+}
+
+interface NodeInfoMap {
+  [nodeId: string]: { frameName: string | null; pageName: string | null };
+}
+
+/**
+ * Fetch frame/page names for multiple nodes from the same file in a single
+ * Figma nodes API call.
+ *
+ * GET /v1/files/{key}/nodes?ids={id1},{id2},...&depth=1
+ *
+ * Returns a map of nodeId → { frameName, pageName }.
+ * Missing nodes get null values; errors return an empty map.
+ */
+async function fetchFileNodeInfos(
+  fileKey: string,
+  nodeIds: string[],
+  pat: string,
+): Promise<NodeInfoMap> {
+  try {
+    const idsParam = nodeIds.map(id => encodeURIComponent(id)).join(",");
+    const res = await fetch(
+      `${FIGMA_API}/files/${fileKey}/nodes?ids=${idsParam}&depth=1`,
+      { headers: figmaHeaders(pat) },
+    );
+
+    if (!res.ok) return {};
+
+    const data = await res.json() as {
+      nodes?: Record<string, { document?: { name?: string; type?: string } } | null>;
+    };
+
+    const result: NodeInfoMap = {};
+    for (const nodeId of nodeIds) {
+      const doc = data.nodes?.[nodeId]?.document;
+      result[nodeId] = {
+        frameName: doc?.name ?? null,
+        pageName: null, // /nodes endpoint doesn't expose parent page
+      };
+    }
+    return result;
+  } catch {
+    return {};
   }
 }
 
@@ -231,116 +268,204 @@ export async function enrichPreviews(
     .update({ preview_status: "generating", preview_last_attempt_at: now, updated_at: now })
     .in("id", eligibleIds);
 
-  // ── 2. Process each record ────────────────────────────────────────────────
+  // ── 2. Group eligible records by file_key ─────────────────────────────────
+  //    One Images API call per file instead of one per node.
+  //    Typical saving: N nodes on K files → K calls (vs N calls before).
 
+  const byFile = new Map<string, typeof eligible>();
   for (const dr of eligible) {
-    result.processed++;
+    const group = byFile.get(dr.file_key) ?? [];
+    group.push(dr);
+    byFile.set(dr.file_key, group);
+  }
 
-    // ── 2a. Fetch frame/page names if missing ────────────────────────────
-    let frameName = dr.frame_name;
-    let pageName = dr.page_name;
+  const totalFiles = byFile.size;
+  const totalNodes = eligible.length;
+  const callsSaved = totalNodes - totalFiles;
+  console.log(
+    `[enrich-previews] batching workspace=${workspaceId}` +
+    ` files=${totalFiles} nodes=${totalNodes} images_api_calls=1_per_file calls_saved=${callsSaved}`,
+  );
 
-    if (!frameName) {
-      const info = await fetchNodeInfo(dr.file_key, dr.node_id, pat);
-      if (info.frameName) frameName = info.frameName;
-      if (info.pageName) pageName = info.pageName;
+  // ── 3. Process each file group ────────────────────────────────────────────
+  // Convert to array so we can slice for remainder tracking without Map iteration.
+
+  const fileEntries = Array.from(byFile.entries());
+
+  for (let fileIdx = 0; fileIdx < fileEntries.length; fileIdx++) {
+    const [fileKey, records] = fileEntries[fileIdx];
+    const nodeIds = records.map(r => r.node_id);
+    result.processed += records.length;
+
+    console.log(
+      `[enrich-previews] file=${fileKey}` +
+      ` node_count=${nodeIds.length} images_api_calls=1 calls_saved=${nodeIds.length - 1}`,
+    );
+
+    // ── 3a. Batch-fetch frame names for nodes that are missing them ────────
+    const missingInfoIds = records
+      .filter(r => !r.frame_name)
+      .map(r => r.node_id);
+
+    let nodeInfoMap: NodeInfoMap = {};
+    if (missingInfoIds.length > 0) {
+      nodeInfoMap = await fetchFileNodeInfos(fileKey, missingInfoIds, pat);
       await sleep(INTER_REQUEST_MS / 2); // small gap after metadata call
     }
 
-    // ── 2b. Fetch the PNG thumbnail ──────────────────────────────────────
-    const imgResult = await fetchNodeImage(dr.file_key, dr.node_id, pat);
+    // ── 3b. Batch-fetch PNG thumbnails for all nodes in this file ──────────
+    const imgResult = await fetchFileImages(fileKey, nodeIds, pat);
 
-    if (imgResult.url) {
-      // ── SUCCESS ──────────────────────────────────────────────────────
-      await admin
-        .from("design_references")
-        .update({
-          frame_name: frameName,
-          page_name: pageName,
-          thumbnail_url: imgResult.url,
-          preview_status: "ready",
-          preview_error_reason: null,
-          preview_retry_count: 0,
-          preview_next_retry_at: null,
-          updated_at: now,
-        })
-        .eq("id", dr.id);
+    if (imgResult.error === "rate_limited") {
+      // Account-level quota exhausted — stop all further processing
+      const retryAfterSeconds = imgResult.retryAfterSeconds ?? 3600;
+      const rateLimitedUntil = new Date(Date.now() + retryAfterSeconds * 1000).toISOString();
+      result.rateLimitedUntil = rateLimitedUntil;
 
-      // Propagate to feedback_items
-      await admin
-        .from("feedback_items")
-        .update({ figma_preview_url: imgResult.url })
-        .eq("design_reference_id", dr.id);
-
-      // Propagate frame/page names to figma_comments
-      if (frameName || pageName) {
-        await admin
-          .from("figma_comments")
-          .update({
-            ...(frameName ? { frame_name: frameName } : {}),
-            ...(pageName ? { page_name: pageName } : {}),
-          })
-          .eq("figma_node_id", dr.node_id)
-          .eq("workspace_id", workspaceId);
-      }
-
-      result.enriched++;
-      console.log(`[enrich-previews] ✓ ${dr.file_key}/${dr.node_id} → ${frameName ?? "?"}`);
-
-    } else {
-      // ── FAILURE ──────────────────────────────────────────────────────
-      const retryCount = (dr.preview_retry_count ?? 0) + 1;
-      const isExhausted = retryCount >= MAX_RETRIES;
-      const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
-      const nextRetryAt = isExhausted ? null : hoursFromNow(backoffHours);
-
-      // If rate-limited, honour Figma's Retry-After header
-      const rateLimitedUntil = imgResult.error === "rate_limited" && imgResult.retryAfterSeconds
-        ? new Date(Date.now() + imgResult.retryAfterSeconds * 1000).toISOString()
-        : null;
-
-      if (rateLimitedUntil) {
-        // Override all records in this run to not retry until Figma says so
-        result.rateLimitedUntil = rateLimitedUntil;
-      }
-
-      await admin
-        .from("design_references")
-        .update({
-          frame_name: frameName ?? dr.frame_name,
-          page_name: pageName ?? dr.page_name,
-          preview_status: isExhausted ? "failed" : "failed",
-          preview_error_reason: imgResult.error,
-          preview_retry_count: retryCount,
-          preview_next_retry_at: rateLimitedUntil ?? nextRetryAt,
-          updated_at: now,
-        })
-        .eq("id", dr.id);
-
-      result.failed++;
       console.warn(
-        `[enrich-previews] ✗ ${dr.file_key}/${dr.node_id} — ${imgResult.error}` +
-        (retryCount < MAX_RETRIES
-          ? ` — retry ${retryCount}/${MAX_RETRIES} at ${nextRetryAt}`
-          : ` — EXHAUSTED after ${retryCount} attempts`),
+        `[enrich-previews] rate-limited file=${fileKey}` +
+        ` retry_after=${retryAfterSeconds}s until=${rateLimitedUntil}`,
       );
 
-      // If rate-limited, stop processing further records in this run —
-      // the quota is account-level, so all subsequent calls will also 429.
-      if (imgResult.error === "rate_limited") {
-        // Mark remaining un-processed eligible records back to "pending"
-        const remainingIds = eligible.slice(eligible.indexOf(dr) + 1).map(r => r.id);
-        if (remainingIds.length) {
+      // Write rate-limit failure for all nodes in this batch
+      for (const dr of records) {
+        const retryCount = (dr.preview_retry_count ?? 0) + 1;
+        const isExhausted = retryCount >= MAX_RETRIES;
+        const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
+        await admin
+          .from("design_references")
+          .update({
+            preview_status: "failed",
+            preview_error_reason: "rate_limited",
+            preview_retry_count: retryCount,
+            preview_next_retry_at: isExhausted ? null : rateLimitedUntil ?? hoursFromNow(backoffHours),
+            updated_at: now,
+          })
+          .eq("id", dr.id);
+        result.failed++;
+      }
+
+      // Mark all remaining file groups (not yet started) back to pending
+      const remainingIds = fileEntries
+        .slice(fileIdx + 1)
+        .flatMap(([, recs]) => recs.map(r => r.id));
+      if (remainingIds.length) {
+        await admin
+          .from("design_references")
+          .update({ preview_status: "pending", updated_at: now })
+          .in("id", remainingIds);
+      }
+      break;
+    }
+
+    if (imgResult.error && !imgResult.urls) {
+      // Batch-level error (non-rate-limit): all nodes in file fail together
+      console.warn(`[enrich-previews] batch error file=${fileKey} error=${imgResult.error}`);
+      for (const dr of records) {
+        const retryCount = (dr.preview_retry_count ?? 0) + 1;
+        const isExhausted = retryCount >= MAX_RETRIES;
+        const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
+        const nextRetryAt = isExhausted ? null : hoursFromNow(backoffHours);
+        const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name;
+        const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name;
+        await admin
+          .from("design_references")
+          .update({
+            frame_name: frameName,
+            page_name: pageName,
+            preview_status: "failed",
+            preview_error_reason: imgResult.error,
+            preview_retry_count: retryCount,
+            preview_next_retry_at: nextRetryAt,
+            updated_at: now,
+          })
+          .eq("id", dr.id);
+        result.failed++;
+        console.warn(
+          `[enrich-previews] ✗ ${fileKey}/${dr.node_id} — ${imgResult.error}` +
+          (retryCount < MAX_RETRIES
+            ? ` — retry ${retryCount}/${MAX_RETRIES} at ${nextRetryAt}`
+            : ` — EXHAUSTED after ${retryCount} attempts`),
+        );
+      }
+      await sleep(INTER_REQUEST_MS);
+      continue;
+    }
+
+    // ── 3c. Distribute per-node results from the batch response ───────────
+    for (const dr of records) {
+      const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name ?? null;
+      const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name  ?? null;
+      const url = resolveImageUrl(imgResult.urls ?? {}, dr.node_id);
+
+      if (url) {
+        // ── SUCCESS ────────────────────────────────────────────────────
+        await admin
+          .from("design_references")
+          .update({
+            frame_name: frameName,
+            page_name: pageName,
+            thumbnail_url: url,
+            preview_status: "ready",
+            preview_error_reason: null,
+            preview_retry_count: 0,
+            preview_next_retry_at: null,
+            updated_at: now,
+          })
+          .eq("id", dr.id);
+
+        // Propagate to feedback_items
+        await admin
+          .from("feedback_items")
+          .update({ figma_preview_url: url })
+          .eq("design_reference_id", dr.id);
+
+        // Propagate frame/page names to figma_comments
+        if (frameName || pageName) {
           await admin
-            .from("design_references")
-            .update({ preview_status: "pending", updated_at: now })
-            .in("id", remainingIds);
+            .from("figma_comments")
+            .update({
+              ...(frameName ? { frame_name: frameName } : {}),
+              ...(pageName  ? { page_name:  pageName  } : {}),
+            })
+            .eq("figma_node_id", dr.node_id)
+            .eq("workspace_id", workspaceId);
         }
-        break;
+
+        result.enriched++;
+        console.log(`[enrich-previews] ✓ ${fileKey}/${dr.node_id} → ${frameName ?? "?"}`);
+
+      } else {
+        // ── PER-NODE FAILURE (null URL — node missing/invisible) ───────
+        const retryCount = (dr.preview_retry_count ?? 0) + 1;
+        const isExhausted = retryCount >= MAX_RETRIES;
+        const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
+        const nextRetryAt = isExhausted ? null : hoursFromNow(backoffHours);
+
+        await admin
+          .from("design_references")
+          .update({
+            frame_name: frameName,
+            page_name: pageName,
+            preview_status: "failed",
+            preview_error_reason: "node_missing",
+            preview_retry_count: retryCount,
+            preview_next_retry_at: nextRetryAt,
+            updated_at: now,
+          })
+          .eq("id", dr.id);
+
+        result.failed++;
+        console.warn(
+          `[enrich-previews] ✗ ${fileKey}/${dr.node_id} — node_missing` +
+          (retryCount < MAX_RETRIES
+            ? ` — retry ${retryCount}/${MAX_RETRIES} at ${nextRetryAt}`
+            : ` — EXHAUSTED after ${retryCount} attempts`),
+        );
       }
     }
 
-    // Rate-limit ourselves between requests
+    // Rate-limit ourselves between file-batch requests
     await sleep(INTER_REQUEST_MS);
   }
 
