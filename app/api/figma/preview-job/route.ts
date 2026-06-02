@@ -16,7 +16,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { enrichPreviews, getPreviewMetrics } from "@/lib/figma/enrich-previews";
+import { enrichPreviews } from "@/lib/figma/enrich-previews";
 
 const RECORDS_PER_WORKSPACE = 10;
 

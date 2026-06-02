@@ -24,14 +24,14 @@ interface FeedbackItem {
   ai_key_question: string | null; ai_tags: string[] | null;
   ai_risk_flag: boolean; ai_vague_flag: boolean;
   figma_node_id: string | null; figma_preview_url: string | null;
-  created_at: string;
+  created_at: string; updated_at?: string;
   figma_comment: FigmaComment | null;
   design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
   replies: Reply[];
 }
 
-type FilterTab = "all" | "needs_decision" | "open" | "vague";
+type FilterTab = "all" | "needs_decision" | "open" | "resolved" | "archived";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,26 @@ function initials(name?: string | null): string {
   return name.split(/\s+/).map(w => w[0]?.toUpperCase() ?? "").slice(0, 2).join("");
 }
 
+// ─── Status pill ──────────────────────────────────────────────────────────────
+
+const STATUS_META: Record<string, { bg: string; text: string; label: string }> = {
+  open:           { bg: "bg-sky-50",     text: "text-sky-700",     label: "Open"           },
+  needs_decision: { bg: "bg-orange-50",  text: "text-orange-700",  label: "Needs Decision" },
+  resolved:       { bg: "bg-emerald-50", text: "text-emerald-700", label: "Resolved"       },
+  archived:       { bg: "bg-gray-100",   text: "text-gray-500",    label: "Archived"       },
+};
+
+function StatusPill({ status }: { status: string }) {
+  const s = STATUS_META[status] ?? STATUS_META.open;
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.bg} ${s.text}`}>
+      {s.label}
+    </span>
+  );
+}
+
+// ─── AI classification badge (secondary) ─────────────────────────────────────
+
 const BADGE: Record<string, { bg: string; text: string; dot: string }> = {
   "Needs Decision": { bg: "bg-orange-50",   text: "text-orange-600",  dot: "bg-orange-400" },
   "Blocked":        { bg: "bg-red-50",       text: "text-red-600",     dot: "bg-red-400"    },
@@ -61,7 +81,8 @@ const BADGE: Record<string, { bg: string; text: string; dot: string }> = {
 };
 
 function ClassBadge({ label }: { label: string | null }) {
-  const key = label ?? "Open";
+  if (!label) return null;
+  const key = label;
   const s = BADGE[key] ?? BADGE["Open"];
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.bg} ${s.text}`}>
@@ -152,16 +173,21 @@ function CommentCard({ item, onSelect }: {
   const fc = item.figma_comment;
   const replyCount = item.replies?.length ?? 0;
 
-  // AI insight text
+  // AI insight text — only shown for active items
   let insight: { text: string; color: string } | null = null;
-  if (item.ai_vague_flag) insight = { text: "Vague comment detected · Needs clarification", color: "text-yellow-600" };
-  else if (item.ai_risk_flag) insight = { text: "Risk detected · Needs attention", color: "text-red-500" };
-  else if (item.ai_summary) insight = { text: item.ai_summary.slice(0, 100) + (item.ai_summary.length > 100 ? "…" : ""), color: "text-muted" };
+  const isActive = item.status === "open" || item.status === "needs_decision";
+  if (isActive) {
+    if (item.ai_vague_flag) insight = { text: "Vague comment detected · Needs clarification", color: "text-yellow-600" };
+    else if (item.ai_risk_flag) insight = { text: "Risk detected · Needs attention", color: "text-red-500" };
+    else if (item.ai_summary) insight = { text: item.ai_summary.slice(0, 100) + (item.ai_summary.length > 100 ? "…" : ""), color: "text-muted" };
+  }
+
+  const isDimmed = item.status === "resolved" || item.status === "archived";
 
   return (
     <button
       onClick={onSelect}
-      className={`w-full text-left flex rounded-panel border border-border bg-paper hover:border-ink/20 hover:shadow-sm transition-all group overflow-hidden ${item.status === "resolved" ? "opacity-60" : ""}`}
+      className={`w-full text-left flex rounded-panel border border-border bg-paper hover:border-ink/20 hover:shadow-sm transition-all group overflow-hidden ${isDimmed ? "opacity-60" : ""}`}
     >
       {/* Figma preview thumbnail */}
       <div className="w-[140px] shrink-0 h-[148px] relative bg-surface border-r border-border">
@@ -175,9 +201,13 @@ function CommentCard({ item, onSelect }: {
 
       {/* Content */}
       <div className="flex-1 min-w-0 p-4 flex flex-col gap-2">
-        {/* Badge row */}
-        <div className="flex items-center gap-2">
-          <ClassBadge label={item.status === "resolved" ? "Approved" : item.ai_classification} />
+        {/* Badge row: status pill + AI classification */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <StatusPill status={item.status} />
+          {/* Show AI classification as secondary badge when item is active */}
+          {isActive && item.ai_classification && (
+            <ClassBadge label={item.ai_classification} />
+          )}
         </div>
 
         {/* Title */}
@@ -269,21 +299,38 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
       });
   }, [projectId]);
 
+  // Status-aware sorting: needs_decision first, then open, then resolved, then archived
+  const STATUS_ORDER: Record<string, number> = {
+    needs_decision: 0,
+    open:           1,
+    resolved:       2,
+    archived:       3,
+  };
 
-  const filtered = items.filter(item => {
-    const text = `${item.ai_key_question ?? ""} ${item.figma_comment?.raw_content ?? ""} ${item.figma_comment?.author_name ?? ""}`.toLowerCase();
-    if (search && !text.includes(search.toLowerCase())) return false;
-    if (filter === "needs_decision") return item.ai_classification === "Needs Decision" || item.ai_classification === "Blocked";
-    if (filter === "open") return item.status === "open";
-    if (filter === "vague") return item.ai_vague_flag;
-    return true;
-  });
+  const filtered = items
+    .filter(item => {
+      const text = `${item.ai_key_question ?? ""} ${item.figma_comment?.raw_content ?? ""} ${item.figma_comment?.author_name ?? ""}`.toLowerCase();
+      if (search && !text.includes(search.toLowerCase())) return false;
+      if (filter === "all")            return item.status !== "archived";
+      if (filter === "needs_decision") return item.status === "needs_decision";
+      if (filter === "open")           return item.status === "open";
+      if (filter === "resolved")       return item.status === "resolved";
+      if (filter === "archived")       return item.status === "archived";
+      return true;
+    })
+    .sort((a, b) => {
+      const diff = (STATUS_ORDER[a.status] ?? 99) - (STATUS_ORDER[b.status] ?? 99);
+      if (diff !== 0) return diff;
+      // Secondary sort: newest first
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   const tabs: { key: FilterTab; label: string; count?: number }[] = [
-    { key: "all",            label: "All",            count: items.length },
-    { key: "needs_decision", label: "Needs Decision", count: items.filter(i => i.ai_classification === "Needs Decision" || i.ai_classification === "Blocked").length },
+    { key: "all",            label: "All",            count: items.filter(i => i.status !== "archived").length },
+    { key: "needs_decision", label: "Needs Decision", count: items.filter(i => i.status === "needs_decision").length },
     { key: "open",           label: "Open",           count: items.filter(i => i.status === "open").length },
-    { key: "vague",          label: "Vague",          count: items.filter(i => i.ai_vague_flag).length },
+    { key: "resolved",       label: "Resolved",       count: items.filter(i => i.status === "resolved").length },
+    { key: "archived",       label: "Archived",       count: items.filter(i => i.status === "archived").length },
   ];
 
   return (
@@ -349,7 +396,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
               {items.length === 0 ? "No comments in this project" : "Nothing matches"}
             </p>
             <p className="text-body text-muted">
-              {items.length === 0 ? "Comments will appear here once synced from Figma." : "Try a different filter."}
+              {items.length === 0 ? "Comments will appear here once synced from Figma." : "Try a different filter or status tab."}
             </p>
           </div>
         ) : (

@@ -116,6 +116,47 @@ export async function POST(
         continue;
       }
 
+      // Upsert design_reference so frame preview + name can be enriched later.
+      // IMPORTANT: never overwrite preview_status when an existing row is "ready" —
+      // otherwise every sync would reset a successfully-generated thumbnail back to "pending".
+      let designReferenceId: string | null = null;
+      if (nodeId) {
+        try {
+          const { data: existingDr } = await admin
+            .from("design_references")
+            .select("id, preview_status")
+            .eq("workspace_id", workspaceId)
+            .eq("file_key", fileKey)
+            .eq("node_id", nodeId)
+            .maybeSingle();
+
+          if (existingDr) {
+            // Row already exists — only touch updated_at, preserve preview_status
+            designReferenceId = (existingDr as { id: string }).id;
+            await admin
+              .from("design_references")
+              .update({ updated_at: new Date().toISOString() })
+              .eq("id", designReferenceId);
+          } else {
+            // First time we've seen this node — insert with pending status
+            const { data: newDr } = await admin
+              .from("design_references")
+              .insert({
+                workspace_id: workspaceId,
+                file_key: fileKey,
+                node_id: nodeId,
+                preview_status: "pending",
+                updated_at: new Date().toISOString(),
+              })
+              .select("id")
+              .single();
+            if (newDr) designReferenceId = (newDr as { id: string }).id;
+          }
+        } catch (e) {
+          console.warn("[sync] design_references upsert failed:", e);
+        }
+      }
+
       // AI classification
       const ai = await classifyComment(comment.message);
 
@@ -136,6 +177,7 @@ export async function POST(
         ai_vague_reason: ai?.vague_reason ?? null,
         figma_node_id: nodeId,
         figma_preview_url: previewUrl,
+        ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
       });
 
       // Insert replies for this new comment.
@@ -181,12 +223,13 @@ export async function POST(
     return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length });
 
   } catch (e) {
-    console.error("[sync] error", e);
-    await admin.from("figma_files").update({ sync_status: "error" }).eq("id", figmaFileId);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Sync failed" },
-      { status: 500 }
-    );
+    const msg = e instanceof Error ? e.message : "Sync failed";
+    const isRateLimit = msg.includes("429") || msg.toLowerCase().includes("rate limit");
+    // 429 = retryable — reset to idle so next sync can pick it up
+    const nextStatus = isRateLimit ? "idle" : "error";
+    console.error(`[sync] ${isRateLimit ? "rate-limited (reset to idle)" : "error"}`, msg);
+    await admin.from("figma_files").update({ sync_status: nextStatus }).eq("id", figmaFileId);
+    return NextResponse.json({ error: msg }, { status: isRateLimit ? 429 : 500 });
   }
 }
 
@@ -226,6 +269,44 @@ async function syncNewReplies(
       resolved_at: reply.resolved_at ?? null,
     });
     count++;
+
+    // Auto-reopen: if the parent feedback_item is "resolved", a new reply
+    // from Figma means discussion has resumed — transition it back to "open".
+    // Archived items are intentionally excluded from auto-reopen.
+    try {
+      const { data: feedbackItem } = await admin
+        .from("feedback_items")
+        .select("id, status")
+        .eq("figma_comment_id", (parent as { id: string }).id)
+        .maybeSingle();
+
+      if (feedbackItem && (feedbackItem as { status: string }).status === "resolved") {
+        const now = new Date().toISOString();
+        await admin
+          .from("feedback_items")
+          .update({ status: "open", updated_at: now })
+          .eq("id", (feedbackItem as { id: string }).id);
+
+        // Best-effort history record (table exists after status_system migration)
+        try {
+          await admin
+            .from("feedback_item_status_history")
+            .insert({
+              item_id: (feedbackItem as { id: string }).id,
+              workspace_id: workspaceId,
+              from_status: "resolved",
+              to_status: "open",
+              changed_by: null,
+              reason: "New reply from Figma",
+              created_at: now,
+            });
+        } catch {
+          // history table may not exist yet
+        }
+      }
+    } catch {
+      // Non-fatal: auto-reopen failure should not break the sync
+    }
   }
   return count;
 }

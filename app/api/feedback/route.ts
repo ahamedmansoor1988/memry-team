@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     .select(`
       id, status, priority, ai_summary, ai_classification,
       ai_key_question, ai_tags, ai_risk_flag, ai_vague_flag,
-      figma_node_id, figma_preview_url, created_at,
+      figma_node_id, figma_preview_url, created_at, updated_at,
       figma_comment:figma_comments(
         id, author_name, author_avatar, raw_content,
         figma_created_at, parent_figma_comment_id,

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
   HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
-  Activity, ZoomIn, MessageSquare, Clock,
+  Activity, ZoomIn, MessageSquare, Clock, ChevronDown,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ interface FeedbackItem {
   ai_key_question: string | null; ai_tags: string[] | null;
   ai_risk_flag: boolean; ai_vague_flag: boolean;
   figma_node_id: string | null; figma_preview_url: string | null;
-  created_at: string;
+  created_at: string; updated_at?: string;
   figma_comment: FigmaComment | null;
   design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
@@ -83,7 +83,7 @@ function FigmaLogoMini() {
   );
 }
 
-function PreviewStatusPill({ status }: { status: DesignReference["preview_status"] }) {
+function PreviewStatusPill({ status }: { status: DesignReference["preview_status"] }) { // eslint-disable-line @typescript-eslint/no-unused-vars
   const map = {
     pending: { label: "Generating…", cls: "bg-yellow-50 text-yellow-600" },
     ready:   { label: "Preview ready", cls: "bg-emerald-50 text-emerald-600" },
@@ -95,6 +95,89 @@ function PreviewStatusPill({ status }: { status: DesignReference["preview_status
     <span className={`inline-flex items-center text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${cls}`}>
       {label}
     </span>
+  );
+}
+
+// ─── Status dropdown ──────────────────────────────────────────────────────────
+
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  open:           ["needs_decision", "resolved", "archived"],
+  needs_decision: ["resolved", "open", "archived"],
+  resolved:       ["archived", "open"],
+  archived:       ["open"],
+};
+
+const STATUS_META: Record<string, { label: string; pillCls: string; dotCls: string }> = {
+  open:           { label: "Open",           pillCls: "bg-sky-50 text-sky-700 border-sky-200",       dotCls: "bg-sky-400"     },
+  needs_decision: { label: "Needs Decision", pillCls: "bg-orange-50 text-orange-700 border-orange-200", dotCls: "bg-orange-400" },
+  resolved:       { label: "Resolved",       pillCls: "bg-emerald-50 text-emerald-700 border-emerald-200", dotCls: "bg-emerald-400" },
+  archived:       { label: "Archived",       pillCls: "bg-gray-100 text-gray-500 border-gray-200",   dotCls: "bg-gray-300"    },
+};
+
+function StatusDropdown({ item, onStatusChange }: {
+  item: FeedbackItem;
+  onStatusChange: (newStatus: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [changing, setChanging] = useState(false);
+
+  async function handleChange(toStatus: string) {
+    if (toStatus === item.status) { setOpen(false); return; }
+    setChanging(true);
+    setOpen(false);
+    try {
+      const res = await fetch(`/api/feedback/${item.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: toStatus }),
+      });
+      if (res.ok) onStatusChange(toStatus);
+    } catch {
+      // non-fatal — item will show stale status until reload
+    } finally {
+      setChanging(false);
+    }
+  }
+
+  const current = STATUS_META[item.status] ?? STATUS_META.open;
+  const allowed = VALID_TRANSITIONS[item.status] ?? [];
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        disabled={changing}
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider border transition-opacity disabled:opacity-50 ${current.pillCls}`}
+      >
+        {changing ? "…" : current.label}
+        {!changing && <ChevronDown size={10} className="opacity-60" />}
+      </button>
+
+      {open && allowed.length > 0 && (
+        <>
+          {/* Click-outside overlay */}
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 top-full mt-1 bg-paper border border-border rounded-lg shadow-lg overflow-hidden z-20 min-w-[160px]">
+            {allowed.map(s => {
+              const meta = STATUS_META[s] ?? STATUS_META.open;
+              return (
+                <button
+                  key={s}
+                  onClick={() => void handleChange(s)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-body text-muted hover:text-ink hover:bg-surface transition-colors"
+                >
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${meta.dotCls}`} />
+                  {meta.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -315,7 +398,7 @@ function ActivityLog({ item }: { item: FeedbackItem }) {
     ...(item.ai_classification ? [{ time: item.created_at, label: "AI analysis completed", sub: item.ai_classification, icon: "ai" }] : []),
     ...(item.replies ?? []).map(r => ({
       time: r.figma_created_at,
-      label: "Thread reply added",
+      label: `${r.author_name ?? "Someone"} replied: ${r.raw_content?.slice(0, 60) ?? ""}${(r.raw_content?.length ?? 0) > 60 ? "…" : ""}`,
       sub: `By ${r.author_name}`,
       icon: "reply",
     })),
@@ -385,7 +468,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   // Summary
   const [summarising, setSummarising] = useState(false);
 
-  useEffect(() => {
+  function fetchItem(silent = false) {
     fetch(`/api/feedback?projectId=${projectId}`)
       .then(r => r.json())
       .then((d: { items?: FeedbackItem[] }) => {
@@ -398,8 +481,16 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
           const sameFrame = all.filter(i => i.figma_node_id && i.figma_node_id === found.figma_node_id);
           setFrameCommentCount(sameFrame.length);
         }
-        setLoading(false);
+        if (!silent) setLoading(false);
       });
+  }
+
+  useEffect(() => {
+    fetchItem();
+    // Poll for new replies every 30s (picks up Figma replies synced in background)
+    const interval = setInterval(() => fetchItem(true), 30_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, itemId]);
 
   async function handleMakeDecision() {
@@ -409,7 +500,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
     setSubmitting(true);
     const res = await fetch(`/api/feedback/${item.id}/reply`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, resolve: decision === "approve" }),
     });
     const data = await res.json() as { ok?: boolean; error?: string };
     if (res.ok) {
@@ -454,7 +545,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
 
   async function handleResolve() {
     if (!item) return;
-    await fetch(`/api/feedback/${item.id}`, {
+    await fetch(`/api/feedback/${item.id}/status`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "resolved" }),
     });
@@ -506,6 +597,10 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
             <ArrowLeft size={14} /> Back to inbox
           </button>
           <div className="flex items-center gap-3">
+            <StatusDropdown
+              item={item}
+              onStatusChange={newStatus => setItem(prev => prev ? { ...prev, status: newStatus } : prev)}
+            />
             <button className="text-muted hover:text-ink transition-colors"><Bookmark size={15} /></button>
             <button className="text-muted hover:text-ink transition-colors"><MoreHorizontal size={15} /></button>
           </div>
@@ -596,7 +691,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
 
               {/* Action buttons */}
               <div className="flex items-center gap-2 px-4 py-3 border-t border-border bg-surface/50">
-                {item.status !== "resolved" && (
+                {(item.status === "open" || item.status === "needs_decision") && (
                   <button
                     onClick={handleResolve}
                     className="px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
@@ -636,7 +731,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
             </div>
 
             {/* ── Decision panel ── */}
-            {item.status !== "resolved" && (
+            {(item.status === "open" || item.status === "needs_decision") && (
               <div className="rounded-panel border border-border overflow-hidden">
                 {/* Decision buttons */}
                 <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
@@ -701,11 +796,17 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
               </div>
             )}
 
-            {/* Resolved state */}
+            {/* Resolved / Archived state banner */}
             {item.status === "resolved" && (
               <div className="flex items-center gap-2 px-4 py-3 rounded-panel border border-emerald-200 bg-emerald-50">
                 <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
                 <p className="text-body text-emerald-700 font-medium">This comment has been resolved</p>
+              </div>
+            )}
+            {item.status === "archived" && (
+              <div className="flex items-center gap-2 px-4 py-3 rounded-panel border border-gray-200 bg-gray-50">
+                <CheckCircle2 size={15} className="text-gray-400 shrink-0" />
+                <p className="text-body text-gray-500 font-medium">This item is archived</p>
               </div>
             )}
 

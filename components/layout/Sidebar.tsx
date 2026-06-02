@@ -5,6 +5,7 @@ import { Inbox, GitPullRequestDraft, AlertTriangle, Activity, Settings, LogOut, 
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAmbientSync } from "@/lib/hooks/useAmbientSync";
 
 interface Props {
   workspaceName?: string;
@@ -17,6 +18,9 @@ interface Props {
 export default function Sidebar({ workspaceName, userName, userAvatar, openCount = 0, projects = [] }: Props) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Ambient sync — fires on all pages so new comments appear without manual sync
+  useAmbientSync();
 
   async function logout() {
     const supabase = createClient();

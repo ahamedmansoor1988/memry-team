@@ -163,9 +163,8 @@ export default function InboxPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  // Ambient: auto-sync on load + tab focus
-  useAmbientSync((n) => {
-    setSyncMsg(`${n} new comment${n !== 1 ? "s" : ""}`);
+  // Ambient: auto-sync on load + tab focus + every 5 min
+  useAmbientSync(() => {
     void loadProjects();
   });
 
@@ -182,19 +181,20 @@ export default function InboxPage() {
     setSyncing(true); setSyncMsg(null);
     try {
       const res = await fetch("/api/figma/pull", { method: "POST" });
-      const data = await res.json() as { totalAdded?: number; error?: string };
+      const data = await res.json() as { ok?: boolean; filesQueued?: number; skipped?: boolean; error?: string };
       if (data.error) { setSyncMsg(data.error); }
+      else if (data.skipped) { setSyncMsg("Sync already in progress"); }
       else {
-        const n = data.totalAdded ?? 0;
-        setSyncMsg(n > 0 ? `${n} new comment${n !== 1 ? "s" : ""}` : "Up to date");
-        if (n > 0) await loadProjects();
+        const n = data.filesQueued ?? 0;
+        setSyncMsg(n > 0 ? `Syncing ${n} file${n !== 1 ? "s" : ""}…` : "Up to date");
+        // Reload after delay so per-file syncs have time to land
+        if (n > 0) setTimeout(() => void loadProjects(), 12000);
       }
     } catch { setSyncMsg("Sync failed"); }
     finally { setSyncing(false); }
   }
 
-  // Filter out Figma's default shared-library project ("Team project")
-  const visibleProjects = projects.filter(p => p.name !== "Team project");
+  const visibleProjects = projects;
 
   const totalOpen = visibleProjects.reduce((s, p) => s + (p.stats?.open ?? 0), 0);
   const totalNeeds = visibleProjects.reduce((s, p) => s + (p.stats?.needs_decision ?? 0), 0);

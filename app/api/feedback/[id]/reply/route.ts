@@ -18,7 +18,8 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { message } = await req.json() as { message: string };
+  const body = await req.json() as { message: string; resolve?: boolean };
+  const { message, resolve = false } = body;
   if (!message?.trim()) return NextResponse.json({ error: "Message required" }, { status: 400 });
 
   const admin = createAdminClient();
@@ -27,7 +28,7 @@ export async function POST(
   const { data: item } = await admin
     .from("feedback_items")
     .select(`
-      id, workspace_id,
+      id, status, workspace_id,
       figma_comment:figma_comments(
         id,
         figma_comment_id,
@@ -114,11 +115,32 @@ export async function POST(
   const isReply = figmaData.parent_id !== "" && figmaData.parent_id !== null && figmaData.parent_id !== undefined;
   console.log("[reply] created comment - parent_id:", figmaData.parent_id, "is_reply:", isReply);
 
-  // Mark item as resolved
-  await admin
-    .from("feedback_items")
-    .update({ status: "resolved", updated_at: new Date().toISOString() })
-    .eq("id", id);
+  // Only mark resolved when explicitly requested (decision replies, not plain thread replies)
+  if (resolve) {
+    const now = new Date().toISOString();
+    await admin
+      .from("feedback_items")
+      .update({ status: "resolved", resolved_at: now, updated_at: now })
+      .eq("id", id);
+
+    // Record history (best-effort — table exists after status_system migration)
+    const fromStatus = (item.status as string | null) ?? "open";
+    try {
+      await admin
+        .from("feedback_item_status_history")
+        .insert({
+          item_id: id,
+          workspace_id: item.workspace_id as string,
+          from_status: fromStatus,
+          to_status: "resolved",
+          changed_by: user.id,
+          reason: message.trim().slice(0, 200),
+          created_at: now,
+        });
+    } catch (e) {
+      console.warn("[reply] history insert failed:", e);
+    }
+  }
 
   // Send Slack notification — check workspace DB first, then env var
   let slackWebhook = process.env.SLACK_WEBHOOK_URL ?? null;
