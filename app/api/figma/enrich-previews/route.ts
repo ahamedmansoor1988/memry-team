@@ -7,11 +7,13 @@
  *    Auth: CRON_SECRET header.
  *    Body: { workspaceId: string }
  *    Processes up to 5 pending records so the call fits within Vercel's 10s budget.
+ *    Respects preview_next_retry_at — skips records inside a back-off window.
  *
  * 2. Manual trigger (user) — "Generate Frame Preview" button in item detail.
  *    Auth: user session.
  *    Body: empty.
- *    Processes up to 20 pending records.
+ *    Processes up to 20 records.
+ *    Bypasses preview_next_retry_at — explicit user action overrides retry windows.
  *
  * Safe to call concurrently — records are locked as "generating" before processing.
  */
@@ -84,13 +86,20 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Check whether anything is due for processing ──────────────────────────
+  // Manual requests bypass the retry window: count ALL actionable records
+  // regardless of preview_next_retry_at.  Cron/background requests respect it.
   const now = new Date().toISOString();
-  const { count: pendingCount } = await admin
+
+  const gateQuery = admin
     .from("design_references")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
-    .in("preview_status", ["pending", "failed", "stale"])
-    .or(`preview_next_retry_at.is.null,preview_next_retry_at.lte.${now}`);
+    .in("preview_status", ["pending", "failed", "stale"]);
+
+  const { count: pendingCount } = await (isCron
+    ? gateQuery.or(`preview_next_retry_at.is.null,preview_next_retry_at.lte.${now}`)
+    : gateQuery   // manual: no retry-window filter
+  );
 
   if (!pendingCount) {
     if (isCron) {
@@ -102,7 +111,15 @@ export async function POST(req: NextRequest) {
 
   // ── Run enrichment ────────────────────────────────────────────────────────
   const limit = isCron ? BACKGROUND_LIMIT : MANUAL_LIMIT;
-  const result = await enrichPreviews(workspaceId, pat, limit);
+  // bypassRetryWindow=true for manual so enrichPreviews() also skips the filter
+  const bypassRetryWindow = !isCron;
+  if (bypassRetryWindow) {
+    console.log(
+      `[enrich-previews] manual override activated` +
+      ` workspace=${workspaceId} eligible=${pendingCount}`,
+    );
+  }
+  const result = await enrichPreviews(workspaceId, pat, limit, bypassRetryWindow);
 
   // Background calls don't need metrics — save the extra DB query
   if (isCron) {

@@ -156,33 +156,58 @@ export async function enrichPreviews(
   workspaceId: string,
   pat: string,
   limit = 20,
+  /** When true, ignores preview_next_retry_at so manual triggers can process
+   *  records that are still inside an automatic retry back-off window.
+   *  Must NOT be set for cron jobs or background auto-enrich calls. */
+  bypassRetryWindow = false,
 ): Promise<EnrichResult> {
   const admin = createAdminClient();
   const result: EnrichResult = { processed: 0, enriched: 0, failed: 0, skipped: 0 };
   const now = new Date().toISOString();
 
   // ── 1. Claim records: select pending/failed records that are due ──────────
-  //    Only pick up records where:
-  //      - status is pending OR (failed with retry_count < MAX_RETRIES)
-  //      - preview_next_retry_at is null (never attempted) OR <= now (due for retry)
+  //    Normal (bypassRetryWindow=false):
+  //      - status IN (pending, failed, stale)
+  //      - preview_next_retry_at IS NULL OR <= now
   //
-  //    NOTE: We select them and then immediately mark as "generating" to prevent
-  //    a second job run from picking up the same records.
+  //    Manual override (bypassRetryWindow=true):
+  //      - status IN (pending, failed, stale)
+  //      - preview_next_retry_at filter skipped entirely
+  //
+  //    NOTE: Records are immediately locked as "generating" to prevent a
+  //    concurrent job from picking up the same records (TOCTOU mitigation).
 
-  const { data: candidates } = await admin
+  const baseQuery = admin
     .from("design_references")
     .select("id, file_key, node_id, frame_name, page_name, preview_retry_count, preview_status")
     .eq("workspace_id", workspaceId)
     .in("preview_status", ["pending", "failed", "stale"])
-    .or(`preview_next_retry_at.is.null,preview_next_retry_at.lte.${now}`)
     .order("preview_next_retry_at", { ascending: true, nullsFirst: true })
     .limit(limit);
+
+  const { data: candidates } = await (bypassRetryWindow
+    ? baseQuery
+    : baseQuery.or(`preview_next_retry_at.is.null,preview_next_retry_at.lte.${now}`)
+  );
+
+  if (bypassRetryWindow) {
+    console.log(
+      `[enrich-previews] manual override activated` +
+      ` workspace=${workspaceId} candidates=${candidates?.length ?? 0} (retry window bypassed)`,
+    );
+  }
 
   if (!candidates?.length) return result;
 
   // Filter out records that have hit MAX_RETRIES
   const eligible = candidates.filter(r => (r.preview_retry_count ?? 0) < MAX_RETRIES);
   const exhausted = candidates.filter(r => (r.preview_retry_count ?? 0) >= MAX_RETRIES);
+
+  console.log(
+    `[enrich-previews] workspace=${workspaceId}` +
+    ` eligible=${eligible.length} exhausted=${exhausted.length}` +
+    ` bypassRetryWindow=${bypassRetryWindow}`,
+  );
 
   // Mark exhausted records as permanently failed (no more retries)
   for (const r of exhausted) {
