@@ -294,15 +294,22 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
   const [projectName, setProjectName] = useState<string>("Project");
 
   useEffect(() => {
-    fetch(`/api/feedback?projectId=${projectId}`)
-      .then(r => r.json())
-      .then((d: { items?: FeedbackItem[] }) => {
-        const its = d.items ?? [];
-        setItems(its);
-        const name = its[0]?.project?.name;
-        if (name) setProjectName(name);
-        setLoading(false);
-      });
+    function loadItems() {
+      fetch(`/api/feedback?projectId=${projectId}`)
+        .then(r => r.json())
+        .then((d: { items?: FeedbackItem[] }) => {
+          const its = d.items ?? [];
+          setItems(its);
+          const name = its[0]?.project?.name;
+          if (name) setProjectName(name);
+          setLoading(false); // no-op on background refetches — loading is already false
+        })
+        .catch(() => setLoading(false)); // don't leave spinner on network error
+    }
+
+    loadItems(); // initial load
+    const interval = setInterval(loadItems, 30_000); // background refetch every 30s
+    return () => clearInterval(interval);
   }, [projectId]);
 
   // Status-aware sorting: needs_decision first, then open, then resolved, then archived
