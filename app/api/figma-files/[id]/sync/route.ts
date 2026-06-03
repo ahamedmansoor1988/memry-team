@@ -82,14 +82,15 @@ export async function POST(
         sync_status: "idle",
         last_synced_at: new Date().toISOString(),
       }).eq("id", figmaFileId);
-      // Fire background preview generation for any pending records from prior syncs
-      fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
+      // No new design_references created — skip enrich trigger.
+      // Existing pending/failed records will be handled on the next cron/sync cycle.
       return NextResponse.json({ added: 0, replies_added: 0, total: topLevel.length });
     }
 
     // 6. Insert new top-level comments + their feedback_items
     // Note: previews are fetched lazily via /api/feedback/:id/preview to avoid rate limits
     let added = 0;
+    let newDrCount = 0; // track newly inserted design_references (vs. existing ones)
     for (const comment of newTopLevel) {
       const nodeId = comment.client_meta?.node_id ?? null;
       const previewUrl = null; // fetched lazily on first open
@@ -153,7 +154,10 @@ export async function POST(
               })
               .select("id")
               .single();
-            if (newDr) designReferenceId = (newDr as { id: string }).id;
+            if (newDr) {
+              designReferenceId = (newDr as { id: string }).id;
+              newDrCount++; // new pending DR created — enrichment needed
+            }
           }
         } catch (e) {
           console.warn("[sync] design_references upsert failed:", e);
@@ -221,11 +225,13 @@ export async function POST(
       figma_pat: pat,
     }).eq("id", figmaFileId);
 
-    // 9. Fire background preview generation for newly-queued design_references.
-    // Fire-and-forget: each enrich-previews call gets its own Vercel 10s budget.
-    // Processes up to 5 records per call; remaining records are handled on the
-    // next sync cycle (~5 min later via ambient sync).
-    fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
+    // 9. Fire background preview generation — only if new design_references were created.
+    // Avoids triggering concurrent enrich-previews workers when no new preview work exists.
+    // Existing pending/failed records are handled by the next scheduled cron/sync cycle.
+    if (newDrCount > 0) {
+      console.log(`[sync] ${newDrCount} new DR(s) — triggering background enrich`);
+      fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
+    }
 
     return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length });
 

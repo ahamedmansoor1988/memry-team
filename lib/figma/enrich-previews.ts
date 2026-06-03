@@ -265,26 +265,51 @@ export async function enrichPreviews(
 
   if (!eligible.length) return result;
 
-  // Lock all eligible records as "generating" in one batch
+  // ── Atomic claim: UPDATE ... WHERE status IN eligible-statuses RETURNING id ──
+  //
+  // PostgreSQL guarantees that two concurrent workers cannot claim the same row:
+  //   1. Worker A issues: UPDATE WHERE id IN [...] AND preview_status IN ('pending',...)
+  //   2. Worker B issues the same UPDATE concurrently.
+  //   3. PostgreSQL serialises per-row: A acquires a row lock, sets status='generating', commits.
+  //   4. B then acquires the same row lock, re-evaluates the WHERE clause.
+  //   5. status is now 'generating' — clause fails — B gets 0 rows for that row.
+  //   6. B's claimedIds is empty → it processes nothing → 0 duplicate Figma API calls.
+  //
+  // This replaces the previous non-atomic SELECT → separate UPDATE pattern that
+  // allowed concurrent workers to both observe the same pending records and both
+  // call the Figma Images API for the same nodes.
   const eligibleIds = eligible.map(r => r.id);
-  await admin
+  const { data: claimedRows } = await admin
     .from("design_references")
     .update({ preview_status: "generating", preview_last_attempt_at: now, updated_at: now })
-    .in("id", eligibleIds);
+    .in("id", eligibleIds)
+    .in("preview_status", ["pending", "failed", "stale"]) // atomic guard: skip rows already claimed
+    .select("id");
 
-  // ── 2. Group eligible records by file_key ─────────────────────────────────
+  const claimedIds = new Set((claimedRows ?? []).map(r => (r as { id: string }).id));
+  const claimed = eligible.filter(r => claimedIds.has(r.id));
+
+  if (claimed.length === 0) {
+    // A concurrent worker already claimed all eligible records — nothing to do here.
+    console.log(`[enrich-previews] workspace=${workspaceId} — 0 records claimed (concurrent worker beat us)`);
+    return result;
+  }
+
+  console.log(`[enrich-previews] workspace=${workspaceId} claimed ${claimed.length}/${eligible.length} eligible records`);
+
+  // ── 2. Group claimed records by file_key ──────────────────────────────────
   //    One Images API call per file instead of one per node.
   //    Typical saving: N nodes on K files → K calls (vs N calls before).
 
-  const byFile = new Map<string, typeof eligible>();
-  for (const dr of eligible) {
+  const byFile = new Map<string, typeof claimed>();
+  for (const dr of claimed) {
     const group = byFile.get(dr.file_key) ?? [];
     group.push(dr);
     byFile.set(dr.file_key, group);
   }
 
   const totalFiles = byFile.size;
-  const totalNodes = eligible.length;
+  const totalNodes = claimed.length;
   const callsSaved = totalNodes - totalFiles;
   console.log(
     `[enrich-previews] batching workspace=${workspaceId}` +
