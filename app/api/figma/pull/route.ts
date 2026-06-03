@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   // Atomic workspace-level cooldown: claim the sync slot by writing last_pull_at,
   // but only if the cooldown has elapsed. PostgreSQL re-evaluates the WHERE clause
   // after acquiring the row lock, so exactly one concurrent caller gets the row back.
-  const PULL_COOLDOWN_MS = 5 * 60 * 1000;
+  const PULL_COOLDOWN_MS = 45_000; // 45s — slightly under client INTERVAL_MS so legitimate syncs are never rejected
   const cooldownThreshold = new Date(Date.now() - PULL_COOLDOWN_MS).toISOString();
 
   const { data: claimed, error: claimError } = await admin

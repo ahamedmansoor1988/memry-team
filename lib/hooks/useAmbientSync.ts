@@ -1,8 +1,8 @@
 /**
  * Ambient sync hook — automatically syncs Figma comments:
  *   • On first page load (force if never synced before)
- *   • When the browser tab regains focus (if last sync > 5 min ago)
- *   • Every 5 minutes via setInterval
+ *   • When the browser tab regains focus (always forced — bypasses cooldown)
+ *   • Every 55 seconds via setInterval
  *
  * After a successful pull, waits POST_SYNC_DELAY ms for fire-and-forget
  * per-file syncs to land, then calls onSyncComplete so the caller can
@@ -12,9 +12,9 @@
  */
 import { useEffect, useRef } from "react";
 
-const COOLDOWN_MS     = 5 * 60 * 1000; // 5 min between auto-syncs
-const INTERVAL_MS     = 5 * 60 * 1000; // recurring poll every 5 min
-const POST_SYNC_DELAY = 12_000;         // wait 12s for file syncs to land
+const COOLDOWN_MS     = 50_000;  // 50s between background auto-syncs
+const INTERVAL_MS     = 55_000;  // recurring poll every 55s
+const POST_SYNC_DELAY = 8_000;   // wait 8s for file syncs to land
 const LS_KEY = "memry_last_sync";
 
 export function useAmbientSync(onSyncComplete?: () => void) {
@@ -48,15 +48,16 @@ export function useAmbientSync(onSyncComplete?: () => void) {
     const hasEverSynced = !!localStorage.getItem(LS_KEY);
     void maybeSyncNow(!hasEverSynced);
 
-    // Sync on tab focus / visibility
-    const onFocus = () => void maybeSyncNow();
+    // Force sync when the tab regains focus — bypass cooldown so returning
+    // to the tab always fetches the latest comments immediately.
+    const onFocus = () => void maybeSyncNow(true);
     const onVisible = () => {
-      if (document.visibilityState === "visible") void maybeSyncNow();
+      if (document.visibilityState === "visible") void maybeSyncNow(true);
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
 
-    // Recurring poll every 5 minutes
+    // Recurring poll every 55 seconds
     const interval = setInterval(() => void maybeSyncNow(), INTERVAL_MS);
 
     return () => {
