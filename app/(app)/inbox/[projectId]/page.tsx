@@ -295,7 +295,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
 
   useEffect(() => {
     function loadItems() {
-      fetch(`/api/feedback?projectId=${projectId}`)
+      fetch(`/api/feedback?projectId=${projectId}`, { cache: 'no-store' })
         .then(r => r.json())
         .then((d: { items?: FeedbackItem[] }) => {
           const its = d.items ?? [];
