@@ -139,20 +139,39 @@ interface NodeInfoMap {
   [nodeId: string]: { frameName: string | null; pageName: string | null };
 }
 
+interface NodeInfoResult {
+  /** Per-node frame/page names; empty when a batch-level error occurred */
+  infos: NodeInfoMap;
+  /** Batch-level error (applies to ALL nodes); null on success */
+  error: PreviewErrorReason | null;
+  /** Only set when rate_limited — seconds to wait (from Retry-After header) */
+  retryAfterSeconds?: number;
+}
+
 /**
  * Fetch frame/page names for multiple nodes from the same file in a single
  * Figma nodes API call.
  *
  * GET /v1/files/{key}/nodes?ids={id1},{id2},...&depth=1
  *
- * Returns a map of nodeId → { frameName, pageName }.
- * Missing nodes get null values; errors return an empty map.
+ * Returns { infos, error }:
+ *   - success:         { infos: {nodeId → {frameName,pageName}}, error: null }
+ *   - 429:             { infos: {}, error: "rate_limited", retryAfterSeconds }
+ *   - other HTTP fail: { infos: {}, error: categorized }
+ *
+ * IMPORTANT: this endpoint shares the same Figma "low-cost" rate-limit bucket
+ * as the Images API, and the same PAT auth scope. Surfacing a 429/403 here lets
+ * the caller SKIP the subsequent Images call (which would fail identically),
+ * halving quota burn during a suspension or permission failure.
+ *
+ * Previously this returned {} on any non-OK response, silently hiding the 429
+ * so the caller always went on to spend a second (doomed) Images API call.
  */
 async function fetchFileNodeInfos(
   fileKey: string,
   nodeIds: string[],
   pat: string,
-): Promise<NodeInfoMap> {
+): Promise<NodeInfoResult> {
   try {
     const idsParam = nodeIds.map(id => encodeURIComponent(id)).join(",");
     const res = await fetch(
@@ -160,7 +179,14 @@ async function fetchFileNodeInfos(
       { headers: figmaHeaders(pat) },
     );
 
-    if (!res.ok) return {};
+    if (res.status === 429) {
+      const retryAfterSeconds = parseInt(res.headers.get("retry-after") ?? "3600");
+      return { infos: {}, error: "rate_limited", retryAfterSeconds };
+    }
+
+    if (!res.ok) {
+      return { infos: {}, error: categorizeHttpError(res.status) };
+    }
 
     const data = await res.json() as {
       nodes?: Record<string, { document?: { name?: string; type?: string } } | null>;
@@ -174,10 +200,85 @@ async function fetchFileNodeInfos(
         pageName: null, // /nodes endpoint doesn't expose parent page
       };
     }
-    return result;
+    return { infos: result, error: null };
   } catch {
-    return {};
+    return { infos: {}, error: "unknown" };
   }
+}
+
+/** Record shape used by writeBatchFailure (subset of a design_references row). */
+type FailableRecord = {
+  id: string;
+  node_id: string;
+  frame_name: string | null;
+  page_name: string | null;
+  preview_retry_count: number | null;
+};
+
+/**
+ * Mark every record in a file group as "failed" with a categorized reason so the
+ * UI can distinguish rate_limited / permission_denied / node_missing /
+ * images_api_error. frame_name/page_name are persisted from nodeInfoMap (or the
+ * record's existing value) so the inbox label survives even when no thumbnail was
+ * produced. Returns the number of records marked failed.
+ */
+async function writeBatchFailure(
+  admin: ReturnType<typeof createAdminClient>,
+  records: FailableRecord[],
+  reason: PreviewErrorReason,
+  nodeInfoMap: NodeInfoMap,
+  workspaceId: string,
+  fileKey: string,
+  now: string,
+  rateLimitedUntil?: string | null,
+): Promise<number> {
+  let failed = 0;
+  for (const dr of records) {
+    const retryCount = (dr.preview_retry_count ?? 0) + 1;
+    const isExhausted = retryCount >= MAX_RETRIES;
+    const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
+    const nextRetryAt = isExhausted
+      ? null
+      : reason === "rate_limited"
+        ? (rateLimitedUntil ?? hoursFromNow(backoffHours))
+        : hoursFromNow(backoffHours);
+    const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name ?? null;
+    const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name  ?? null;
+
+    await admin
+      .from("design_references")
+      .update({
+        frame_name: frameName,
+        page_name: pageName,
+        preview_status: "failed",
+        preview_error_reason: reason,
+        preview_retry_count: retryCount,
+        preview_next_retry_at: nextRetryAt,
+        updated_at: now,
+      })
+      .eq("id", dr.id);
+
+    // Propagate resolved names so the inbox shows the frame label without a thumbnail.
+    if (frameName || pageName) {
+      await admin
+        .from("figma_comments")
+        .update({
+          ...(frameName ? { frame_name: frameName } : {}),
+          ...(pageName  ? { page_name:  pageName  } : {}),
+        })
+        .eq("figma_node_id", dr.node_id)
+        .eq("workspace_id", workspaceId);
+    }
+
+    failed++;
+    console.warn(
+      `[enrich-previews] ✗ ${fileKey}/${dr.node_id} — ${reason}` +
+      (retryCount < MAX_RETRIES
+        ? ` — retry ${retryCount}/${MAX_RETRIES} at ${nextRetryAt}`
+        : ` — EXHAUSTED after ${retryCount} attempts`),
+    );
+  }
+  return failed;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -321,6 +422,20 @@ export async function enrichPreviews(
 
   const fileEntries = Array.from(byFile.entries());
 
+  // Push not-yet-processed file groups back to "pending" so a later cycle retries
+  // them. Used when an account-level rate-limit forces an early break.
+  const pushRemainingToPending = async (fromIdx: number) => {
+    const remainingIds = fileEntries
+      .slice(fromIdx + 1)
+      .flatMap(([, recs]) => recs.map(r => r.id));
+    if (remainingIds.length) {
+      await admin
+        .from("design_references")
+        .update({ preview_status: "pending", updated_at: now })
+        .in("id", remainingIds);
+    }
+  };
+
   for (let fileIdx = 0; fileIdx < fileEntries.length; fileIdx++) {
     const [fileKey, records] = fileEntries[fileIdx];
     const nodeIds = records.map(r => r.node_id);
@@ -337,9 +452,45 @@ export async function enrichPreviews(
       .map(r => r.node_id);
 
     let nodeInfoMap: NodeInfoMap = {};
+    let nodeError: PreviewErrorReason | null = null;
+    let nodeRetryAfterSeconds: number | undefined;
     if (missingInfoIds.length > 0) {
-      nodeInfoMap = await fetchFileNodeInfos(fileKey, missingInfoIds, pat);
+      const nodeResult = await fetchFileNodeInfos(fileKey, missingInfoIds, pat);
+      nodeInfoMap = nodeResult.infos;
+      nodeError = nodeResult.error;
+      nodeRetryAfterSeconds = nodeResult.retryAfterSeconds;
       await sleep(INTER_REQUEST_MS / 2); // small gap after metadata call
+    }
+
+    // ── 3a-guard. /nodes shares the Images "low-cost" rate-limit bucket and
+    //    the same PAT auth scope. If it was rate-limited or permission-denied,
+    //    the /images call below WILL fail identically — so skip it entirely,
+    //    saving one Figma quota call per file, and record the precise reason.
+    if (nodeError === "rate_limited") {
+      const retryAfterSeconds = nodeRetryAfterSeconds ?? 3600;
+      const rateLimitedUntil = new Date(Date.now() + retryAfterSeconds * 1000).toISOString();
+      result.rateLimitedUntil = rateLimitedUntil;
+      console.warn(
+        `[enrich-previews] rate-limited at /nodes file=${fileKey}` +
+        ` retry_after=${retryAfterSeconds}s until=${rateLimitedUntil} — skipping /images`,
+      );
+      result.failed += await writeBatchFailure(
+        admin, records, "rate_limited", nodeInfoMap, workspaceId, fileKey, now, rateLimitedUntil,
+      );
+      // Account-level suspension — push untouched files back to pending and stop.
+      await pushRemainingToPending(fileIdx);
+      break;
+    }
+
+    if (nodeError === "permission_denied") {
+      console.warn(
+        `[enrich-previews] permission denied at /nodes file=${fileKey} — skipping /images`,
+      );
+      result.failed += await writeBatchFailure(
+        admin, records, "permission_denied", nodeInfoMap, workspaceId, fileKey, now,
+      );
+      await sleep(INTER_REQUEST_MS);
+      continue;
     }
 
     // ── 3b. Batch-fetch PNG thumbnails for all nodes in this file ──────────
@@ -352,92 +503,25 @@ export async function enrichPreviews(
       result.rateLimitedUntil = rateLimitedUntil;
 
       console.warn(
-        `[enrich-previews] rate-limited file=${fileKey}` +
+        `[enrich-previews] rate-limited at /images file=${fileKey}` +
         ` retry_after=${retryAfterSeconds}s until=${rateLimitedUntil}`,
       );
 
-      // Write rate-limit failure for all nodes in this batch.
-      // frame_name / page_name are persisted here even though image generation
-      // failed — nodeInfoMap was populated by fetchFileNodeInfos before the
-      // Images API call, so the name data is available regardless of quota state.
-      for (const dr of records) {
-        const retryCount = (dr.preview_retry_count ?? 0) + 1;
-        const isExhausted = retryCount >= MAX_RETRIES;
-        const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
-        const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name ?? null;
-        const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name  ?? null;
-        await admin
-          .from("design_references")
-          .update({
-            frame_name: frameName,
-            page_name: pageName,
-            preview_status: "failed",
-            preview_error_reason: "rate_limited",
-            preview_retry_count: retryCount,
-            preview_next_retry_at: isExhausted ? null : rateLimitedUntil ?? hoursFromNow(backoffHours),
-            updated_at: now,
-          })
-          .eq("id", dr.id);
-
-        // Propagate to figma_comments so the frame label is visible in the
-        // inbox even when the thumbnail is unavailable.
-        if (frameName || pageName) {
-          await admin
-            .from("figma_comments")
-            .update({
-              ...(frameName ? { frame_name: frameName } : {}),
-              ...(pageName  ? { page_name:  pageName  } : {}),
-            })
-            .eq("figma_node_id", dr.node_id)
-            .eq("workspace_id", workspaceId);
-        }
-
-        result.failed++;
-      }
-
-      // Mark all remaining file groups (not yet started) back to pending
-      const remainingIds = fileEntries
-        .slice(fileIdx + 1)
-        .flatMap(([, recs]) => recs.map(r => r.id));
-      if (remainingIds.length) {
-        await admin
-          .from("design_references")
-          .update({ preview_status: "pending", updated_at: now })
-          .in("id", remainingIds);
-      }
+      // nodeInfoMap was populated by fetchFileNodeInfos before this call, so
+      // frame names are persisted even though the thumbnail failed.
+      result.failed += await writeBatchFailure(
+        admin, records, "rate_limited", nodeInfoMap, workspaceId, fileKey, now, rateLimitedUntil,
+      );
+      await pushRemainingToPending(fileIdx);
       break;
     }
 
     if (imgResult.error && !imgResult.urls) {
       // Batch-level error (non-rate-limit): all nodes in file fail together
       console.warn(`[enrich-previews] batch error file=${fileKey} error=${imgResult.error}`);
-      for (const dr of records) {
-        const retryCount = (dr.preview_retry_count ?? 0) + 1;
-        const isExhausted = retryCount >= MAX_RETRIES;
-        const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
-        const nextRetryAt = isExhausted ? null : hoursFromNow(backoffHours);
-        const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name;
-        const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name;
-        await admin
-          .from("design_references")
-          .update({
-            frame_name: frameName,
-            page_name: pageName,
-            preview_status: "failed",
-            preview_error_reason: imgResult.error,
-            preview_retry_count: retryCount,
-            preview_next_retry_at: nextRetryAt,
-            updated_at: now,
-          })
-          .eq("id", dr.id);
-        result.failed++;
-        console.warn(
-          `[enrich-previews] ✗ ${fileKey}/${dr.node_id} — ${imgResult.error}` +
-          (retryCount < MAX_RETRIES
-            ? ` — retry ${retryCount}/${MAX_RETRIES} at ${nextRetryAt}`
-            : ` — EXHAUSTED after ${retryCount} attempts`),
-        );
-      }
+      result.failed += await writeBatchFailure(
+        admin, records, imgResult.error, nodeInfoMap, workspaceId, fileKey, now,
+      );
       await sleep(INTER_REQUEST_MS);
       continue;
     }
