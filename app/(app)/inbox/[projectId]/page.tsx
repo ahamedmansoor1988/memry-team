@@ -17,6 +17,7 @@ interface FigmaComment {
 interface DesignReference {
   id: string; frame_name: string | null; page_name: string | null;
   thumbnail_url: string | null; preview_status: string;
+  preview_error_reason: string | null;
 }
 interface FeedbackItem {
   id: string; status: string; priority: string;
@@ -103,11 +104,31 @@ function Avatar({ name, size = "md" }: { name?: string | null; size?: "sm" | "md
   );
 }
 
+// ── Preview failure presentation ──────────────────────────────────────────────
+// Maps the backend `preview_error_reason` to a human-readable label + tone, so the
+// UI can tell a *temporary* quota stall apart from a *genuine* permanent failure.
+//   warning (amber) → transient, will retry automatically (quota)
+//   error   (red)   → permanent, user action needed (access / missing frame)
+
+type PreviewFailureTone = "warning" | "error";
+
+function previewFailureInfo(
+  reason: string | null | undefined,
+): { label: string; tone: PreviewFailureTone } {
+  switch (reason) {
+    case "rate_limited":      return { label: "Figma API quota exceeded", tone: "warning" };
+    case "permission_denied": return { label: "No access to this frame",  tone: "error"   };
+    case "node_missing":      return { label: "Frame no longer exists",   tone: "error"   };
+    default:                  return { label: "Preview unavailable",      tone: "error"   };
+  }
+}
+
 // ─── Figma static preview ─────────────────────────────────────────────────────
 
-function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
+function FigmaPreview({ previewUrl, previewStatus, previewErrorReason, frameName, fileName }: {
   previewUrl?: string | null;
   previewStatus?: string | null;
+  previewErrorReason?: string | null;
   frameName?: string | null;
   fileName?: string | null;
 }) {
@@ -120,13 +141,16 @@ function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
   // No image: show frame identity card
   if (!previewUrl || errored) {
     const isFailed = previewStatus === "failed";
-    const topLabel    = errored ? "Load error"    : isFailed ? "Preview unavailable" : "FRAME";
-    const bottomLabel = errored ? "Load error"    : isFailed ? "Failed"              : "Generating…";
-    const labelColor  = errored || isFailed ? "text-red-400" : "text-gray-400";
+    const failure  = previewFailureInfo(previewErrorReason);
+    const failColor = failure.tone === "warning" ? "text-amber-500" : "text-red-400";
+    const topLabel    = errored ? "Load error" : isFailed ? "Unavailable"  : "FRAME";
+    const bottomLabel = errored ? "Load error" : isFailed ? failure.label  : "Generating…";
+    const topColor    = errored ? "text-red-400" : isFailed ? failColor : "text-gray-400";
+    const bottomColor = errored ? "text-red-400" : isFailed ? failColor : "text-gray-400";
     return (
       <div className="w-full h-full bg-[#F5F5F5] flex flex-col justify-between p-3 rounded-l-panel overflow-hidden">
-        {/* Top: FRAME type label */}
-        <span className={`text-[8px] font-bold uppercase tracking-[0.12em] ${errored ? "text-red-400" : "text-gray-400"}`}>
+        {/* Top: FRAME type / failure kicker */}
+        <span className={`text-[8px] font-bold uppercase tracking-[0.12em] ${topColor}`}>
           {topLabel}
         </span>
 
@@ -141,12 +165,12 @@ function FigmaPreview({ previewUrl, previewStatus, frameName, fileName }: {
           )}
         </div>
 
-        {/* Bottom: file name + status */}
+        {/* Bottom: file name + failure reason */}
         <div className="space-y-1">
           {fileName && (
             <p className="text-[8px] text-gray-400 truncate leading-tight">{fileName}</p>
           )}
-          <p className={`text-[8px] font-medium uppercase tracking-wide ${labelColor}`}>
+          <p className={`text-[8px] font-medium uppercase tracking-wide leading-tight ${bottomColor}`}>
             {bottomLabel}
           </p>
         </div>
@@ -200,6 +224,7 @@ function CommentCard({ item, onSelect }: {
         <FigmaPreview
           previewUrl={item.figma_preview_url}
           previewStatus={item.design_reference?.preview_status}
+          previewErrorReason={item.design_reference?.preview_error_reason}
           frameName={item.design_reference?.frame_name ?? item.figma_comment?.frame_name}
           fileName={item.figma_comment?.figma_file?.name}
         />

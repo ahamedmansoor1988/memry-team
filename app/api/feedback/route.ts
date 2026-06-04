@@ -100,6 +100,7 @@ export async function GET(req: Request) {
     id: string; file_key: string; node_id: string;
     frame_name: string | null; page_name: string | null;
     thumbnail_url: string | null; preview_status: string;
+    preview_error_reason: string | null;
   };
   const itemIds = normalized.map(i => i.id);
   const drMap = new Map<string, DesignRefRow>();
@@ -108,7 +109,7 @@ export async function GET(req: Request) {
     try {
       const { data: drRows } = await admin
         .from("feedback_items")
-        .select("id, design_reference:design_references(id, file_key, node_id, frame_name, page_name, thumbnail_url, preview_status)")
+        .select("id, design_reference:design_references(id, file_key, node_id, frame_name, page_name, thumbnail_url, preview_status, preview_error_reason)")
         .in("id", itemIds);
       for (const row of drRows ?? []) {
         const dr = Array.isArray(row.design_reference) ? row.design_reference[0] : row.design_reference;

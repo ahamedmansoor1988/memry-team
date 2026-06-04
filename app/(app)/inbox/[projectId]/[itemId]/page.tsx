@@ -23,6 +23,7 @@ interface DesignReference {
   frame_name: string | null; page_name: string | null;
   thumbnail_url: string | null;
   preview_status: "pending" | "ready" | "failed" | "stale";
+  preview_error_reason: string | null;
 }
 interface FeedbackItem {
   id: string; status: string; priority: string;
@@ -207,6 +208,25 @@ function resolveDisplayName(
   return { primary: "Unknown frame", isGeneric: true };
 }
 
+// ── Preview failure presentation ──────────────────────────────────────────────
+// Maps the backend `preview_error_reason` to a human-readable label + tone, so the
+// UI can tell a *temporary* quota stall apart from a *genuine* permanent failure.
+//   warning (amber) → transient, will retry automatically (quota)
+//   error   (red)   → permanent, user action needed (access / missing frame)
+
+type PreviewFailureTone = "warning" | "error";
+
+function previewFailureInfo(
+  reason: string | null | undefined,
+): { label: string; tone: PreviewFailureTone } {
+  switch (reason) {
+    case "rate_limited":      return { label: "Figma API quota exceeded", tone: "warning" };
+    case "permission_denied": return { label: "No access to this frame",  tone: "error"   };
+    case "node_missing":      return { label: "Frame no longer exists",   tone: "error"   };
+    default:                  return { label: "Preview unavailable",      tone: "error"   };
+  }
+}
+
 // ── Design context card ───────────────────────────────────────────────────────
 
 function DesignContextPreview({ item, frameCommentCount }: {
@@ -250,6 +270,7 @@ function DesignContextPreview({ item, frameCommentCount }: {
   const pageName  = dr?.page_name  ?? fc?.page_name  ?? null;
   const fileName  = fc?.figma_file?.name ?? null;
   const previewStatus = dr?.preview_status ?? "pending";
+  const failureInfo = previewFailureInfo(dr?.preview_error_reason);
   const thumbUrl  = (previewStatus === "ready" ? dr?.thumbnail_url : null) ?? item.figma_preview_url ?? null;
   const showImage = !!thumbUrl && !imgError;
 
@@ -316,8 +337,18 @@ function DesignContextPreview({ item, frameCommentCount }: {
       ) : (
         /* No-image placeholder — still shows all context */
         <div className="bg-[#F7F7F8] px-4 pt-4 pb-3 border-b border-border">
-          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400 block mb-1">
-            {imgError ? "Preview failed to load" : previewStatus === "failed" ? "Preview unavailable" : "Frame"}
+          <span className={`text-[9px] font-bold uppercase tracking-[0.15em] block mb-1 ${
+            imgError
+              ? "text-red-400"
+              : previewStatus === "failed"
+                ? failureInfo.tone === "warning" ? "text-amber-500" : "text-red-400"
+                : "text-gray-400"
+          }`}>
+            {imgError
+              ? "Preview failed to load"
+              : previewStatus === "failed"
+                ? failureInfo.label
+                : "Frame"}
           </span>
           <p className="text-[20px] font-bold text-gray-700 leading-tight mb-0.5 break-words">
             {displayName}
