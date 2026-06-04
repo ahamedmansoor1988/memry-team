@@ -24,6 +24,7 @@ interface FeedbackItem {
   ai_summary: string | null; ai_classification: string | null;
   ai_key_question: string | null; ai_tags: string[] | null;
   ai_risk_flag: boolean; ai_vague_flag: boolean;
+  ai_vague_reason: string | null; ai_confidence: number | null;
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string; updated_at?: string;
   figma_comment: FigmaComment | null;
@@ -283,6 +284,23 @@ function CommentCard({ item, onSelect }: {
           )}
         </div>
 
+        {/* AI tags */}
+        {item.ai_tags && item.ai_tags.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            {item.ai_tags.slice(0, 4).map(tag => (
+              <span
+                key={tag}
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-surface border border-border text-muted"
+              >
+                {tag}
+              </span>
+            ))}
+            {item.ai_tags.length > 4 && (
+              <span className="text-[9px] text-muted">+{item.ai_tags.length - 4}</span>
+            )}
+          </div>
+        )}
+
         {/* AI insight */}
         {insight && (
           <div className={`flex items-center gap-1.5 text-caption ${insight.color} mt-auto`}>
@@ -316,6 +334,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string>("Project");
 
   useEffect(() => {
@@ -345,10 +364,24 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
     archived:       3,
   };
 
+  // Collect all unique tags across items, sorted by frequency
+  const allTags: string[] = (() => {
+    const freq: Record<string, number> = {};
+    for (const item of items) {
+      for (const tag of item.ai_tags ?? []) {
+        freq[tag] = (freq[tag] ?? 0) + 1;
+      }
+    }
+    return Object.entries(freq)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag]) => tag);
+  })();
+
   const filtered = items
     .filter(item => {
       const text = `${item.ai_key_question ?? ""} ${item.figma_comment?.raw_content ?? ""} ${item.figma_comment?.author_name ?? ""}`.toLowerCase();
       if (search && !text.includes(search.toLowerCase())) return false;
+      if (activeTag && !(item.ai_tags ?? []).includes(activeTag)) return false;
       if (filter === "all")            return item.status !== "archived";
       if (filter === "needs_decision") return item.status === "needs_decision";
       if (filter === "open")           return item.status === "open";
@@ -410,6 +443,29 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
             </button>
           ))}
         </div>
+
+        {/* Tag filter strip — only shown when there are tags to filter by */}
+        {allTags.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto mt-2 pb-0.5">
+            {activeTag && (
+              <button
+                onClick={() => setActiveTag(null)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-ink text-paper shrink-0 transition-colors"
+              >
+                {activeTag} ×
+              </button>
+            )}
+            {allTags.filter(t => t !== activeTag).slice(0, 12).map(tag => (
+              <button
+                key={tag}
+                onClick={() => setActiveTag(tag)}
+                className="px-2 py-1 rounded-md text-[10px] font-medium bg-surface border border-border text-muted hover:text-ink hover:border-ink/30 shrink-0 transition-colors"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Content ── */}

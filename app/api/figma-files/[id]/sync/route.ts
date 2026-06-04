@@ -172,7 +172,9 @@ export async function POST(
         figma_comment_id: (newComment as { id: string }).id,
         workspace_id: workspaceId,
         project_id: projectId,
-        status: "open",
+        status: (ai?.classification === "Needs Decision" || ai?.classification === "Blocked")
+          ? "needs_decision"
+          : "open",
         priority: ai?.priority ?? "medium",
         ai_summary: ai?.summary ?? null,
         ai_classification: ai?.classification ?? null,

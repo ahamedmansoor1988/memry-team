@@ -31,6 +31,7 @@ interface FeedbackItem {
   ai_summary: string | null; ai_classification: string | null;
   ai_key_question: string | null; ai_tags: string[] | null;
   ai_risk_flag: boolean; ai_vague_flag: boolean;
+  ai_vague_reason: string | null; ai_confidence: number | null;
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string; updated_at?: string;
   figma_comment: FigmaComment | null;
@@ -335,6 +336,37 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
             <span className="text-muted font-medium">Key question: </span>{item.ai_key_question}
           </p>
         </div>
+      )}
+
+      {/* Vague reason — only when the AI flagged vagueness AND gave a reason */}
+      {item.ai_vague_flag && item.ai_vague_reason && (
+        <div className="flex items-start gap-2 rounded-lg bg-yellow-50 border border-yellow-200 px-3 py-2">
+          <HelpCircle size={13} className="text-yellow-600 shrink-0 mt-0.5" />
+          <p className="text-body text-yellow-800 leading-snug">
+            <span className="font-medium">Why this is vague: </span>{item.ai_vague_reason}
+          </p>
+        </div>
+      )}
+
+      {/* AI tags */}
+      {item.ai_tags && item.ai_tags.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {item.ai_tags.map(tag => (
+            <span
+              key={tag}
+              className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-paper border border-border text-muted"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* AI Uncertain — shown only when confidence < 0.70 */}
+      {item.ai_confidence !== null && item.ai_confidence < 0.70 && (
+        <p className="text-caption text-muted italic">
+          AI Uncertain — classification may not be accurate
+        </p>
       )}
     </section>
   );
