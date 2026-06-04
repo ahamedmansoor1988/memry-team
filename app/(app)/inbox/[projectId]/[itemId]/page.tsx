@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Sparkles, CheckCircle2, AlertCircle, AlertTriangle,
+  ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
   HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
   Activity, ZoomIn, MessageSquare, Clock, ChevronDown,
   type LucideIcon,
@@ -251,18 +251,6 @@ const PRIORITY_META: Record<string, { label: string; cls: string }> = {
   low:    { label: "Low priority",    cls: "text-muted bg-wash"          },
 };
 
-/** Risk badges for an item — empty array means "no risk" (section hides). */
-function deriveRiskSignals(item: FeedbackItem): { label: string; cls: string }[] {
-  const blocked = item.ai_classification === "Blocked";
-  const risk    = item.ai_risk_flag || item.ai_classification === "Risk";
-  const vague   = item.ai_vague_flag;
-  const signals: { label: string; cls: string }[] = [];
-  if (blocked)          signals.push({ label: "BLOCKED",      cls: "text-red-500 bg-red-50"       });
-  if (risk && !blocked) signals.push({ label: "RISK FLAGGED", cls: "text-orange-500 bg-orange-50" });
-  if (vague)            signals.push({ label: "VAGUE",        cls: "text-yellow-600 bg-yellow-50" });
-  return signals;
-}
-
 /** Parse a decision reply (same ✅/⚠️/❓ prefixes written by handleMakeDecision). */
 function parseDecision(raw: string): { label: string; cls: string; Icon: LucideIcon } | null {
   if (raw.startsWith("✅")) return { label: "Accepted",      cls: "text-emerald-700 bg-emerald-50 border-emerald-200", Icon: CheckCircle2 };
@@ -274,16 +262,38 @@ function parseDecision(raw: string): { label: string; cls: string; Icon: LucideI
 // ── SECTION 1 · Decision Summary Hero ─────────────────────────────────────────
 // The 5-second answer: status + classification + priority + risk/vague + summary
 // + key question, all surfaced at the very top.
+// Stage 2A.1: severity tones the hero panel bg/border; redundant chips and
+// low-priority are suppressed; empty summary is demoted to body-level text.
 function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
   const status   = STATUS_META[item.status] ?? STATUS_META.open;
-  const classCls = item.ai_classification ? CLASSIFICATION_CLS[item.ai_classification] ?? "text-muted bg-wash" : null;
-  const priority = item.priority ? PRIORITY_META[item.priority] : null;
+  const classCls = item.ai_classification
+    ? CLASSIFICATION_CLS[item.ai_classification] ?? "text-muted bg-wash"
+    : null;
+
+  // Show priority only when it adds urgency signal (low is absence of urgency)
+  const priority = (item.priority === "high" || item.priority === "medium")
+    ? PRIORITY_META[item.priority] : null;
+
+  // Hero panel tones — risk is communicated by the panel itself, not a second section
+  const blocked = item.ai_classification === "Blocked";
+  const hasRisk = item.ai_risk_flag || item.ai_classification === "Risk";
+  const heroPanel = blocked        ? "border-red-200 bg-red-50"
+                  : hasRisk        ? "border-orange-200 bg-orange-50"
+                  : item.ai_vague_flag ? "border-yellow-200 bg-yellow-50"
+                  : "border-border bg-surface";
+
+  // Suppress risk/vague chips when the classification badge already says the same thing
+  const showRiskChip  = item.ai_risk_flag
+    && item.ai_classification !== "Blocked"
+    && item.ai_classification !== "Risk";
+  const showVagueChip = item.ai_vague_flag
+    && item.ai_classification !== "Vague";
 
   return (
-    <section className="rounded-panel border border-border bg-surface px-5 py-4 space-y-3">
+    <section className={`rounded-panel border ${heroPanel} px-5 py-4 space-y-3`}>
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Decision Summary</p>
 
-      {/* Signal row */}
+      {/* Signal row — each chip only appears when it adds new information */}
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${status.pillCls}`}>
           {status.label}
@@ -298,23 +308,23 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
             {priority.label}
           </span>
         )}
-        {item.ai_risk_flag && (
+        {showRiskChip && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-50">
             <AlertCircle size={10} /> Risk
           </span>
         )}
-        {item.ai_vague_flag && (
+        {showVagueChip && (
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-yellow-600 bg-yellow-50">
             <HelpCircle size={10} /> Vague
           </span>
         )}
       </div>
 
-      {/* Summary */}
+      {/* Summary — empty state demoted to body text so it doesn't compete with real content */}
       {item.ai_summary ? (
         <p className="text-lead text-ink leading-relaxed">{item.ai_summary}</p>
       ) : (
-        <p className="text-lead text-muted leading-relaxed">No AI summary yet — generate one from the discussion below.</p>
+        <p className="text-body text-muted">No AI summary yet — generate one from the discussion below.</p>
       )}
 
       {/* Key question */}
@@ -326,38 +336,6 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
           </p>
         </div>
       )}
-    </section>
-  );
-}
-
-// ── SECTION 2 · Risks & Blockers ──────────────────────────────────────────────
-// Prominent when a risk exists; renders nothing at all otherwise.
-function RisksBlockers({ item }: { item: FeedbackItem }) {
-  const signals = deriveRiskSignals(item);
-  if (signals.length === 0) return null;
-
-  const blocked = item.ai_classification === "Blocked";
-  const isRisk  = item.ai_risk_flag || item.ai_classification === "Risk";
-  const tone = blocked
-    ? { panel: "border-red-200 bg-red-50/50",       head: "text-red-600",    Icon: AlertTriangle }
-    : isRisk
-      ? { panel: "border-orange-200 bg-orange-50/50", head: "text-orange-600", Icon: AlertCircle }
-      : { panel: "border-yellow-200 bg-yellow-50/50", head: "text-yellow-700", Icon: AlertCircle };
-  const Icon = tone.Icon;
-
-  return (
-    <section className={`rounded-panel border ${tone.panel} px-5 py-4 space-y-2.5`}>
-      <div className={`flex items-center gap-1.5 ${tone.head}`}>
-        <Icon size={14} className="shrink-0" />
-        <p className="text-[10px] font-bold uppercase tracking-widest">Risks &amp; Blockers</p>
-      </div>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {signals.map(s => (
-          <span key={s.label} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>
-            {s.label}
-          </span>
-        ))}
-      </div>
     </section>
   );
 }
@@ -807,9 +785,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
 
             {/* ── SECTION 1 · Decision Summary Hero ── */}
             <DecisionSummaryHero item={item} />
-
-            {/* ── SECTION 2 · Risks & Blockers (hidden when no risk) ── */}
-            <RisksBlockers item={item} />
 
             {/* ── SECTION 3 · Key Decisions ── */}
             {(isActionable || madeDecisions.length > 0) && (
