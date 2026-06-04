@@ -356,14 +356,21 @@ export async function enrichPreviews(
         ` retry_after=${retryAfterSeconds}s until=${rateLimitedUntil}`,
       );
 
-      // Write rate-limit failure for all nodes in this batch
+      // Write rate-limit failure for all nodes in this batch.
+      // frame_name / page_name are persisted here even though image generation
+      // failed — nodeInfoMap was populated by fetchFileNodeInfos before the
+      // Images API call, so the name data is available regardless of quota state.
       for (const dr of records) {
         const retryCount = (dr.preview_retry_count ?? 0) + 1;
         const isExhausted = retryCount >= MAX_RETRIES;
         const backoffHours = BACKOFF_HOURS[Math.min(retryCount - 1, BACKOFF_HOURS.length - 1)];
+        const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name ?? null;
+        const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name  ?? null;
         await admin
           .from("design_references")
           .update({
+            frame_name: frameName,
+            page_name: pageName,
             preview_status: "failed",
             preview_error_reason: "rate_limited",
             preview_retry_count: retryCount,
@@ -371,6 +378,20 @@ export async function enrichPreviews(
             updated_at: now,
           })
           .eq("id", dr.id);
+
+        // Propagate to figma_comments so the frame label is visible in the
+        // inbox even when the thumbnail is unavailable.
+        if (frameName || pageName) {
+          await admin
+            .from("figma_comments")
+            .update({
+              ...(frameName ? { frame_name: frameName } : {}),
+              ...(pageName  ? { page_name:  pageName  } : {}),
+            })
+            .eq("figma_node_id", dr.node_id)
+            .eq("workspace_id", workspaceId);
+        }
+
         result.failed++;
       }
 
