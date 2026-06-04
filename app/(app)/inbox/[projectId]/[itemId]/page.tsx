@@ -2,9 +2,10 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
+  ArrowLeft, Sparkles, CheckCircle2, AlertCircle, AlertTriangle,
   HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
   Activity, ZoomIn, MessageSquare, Clock, ChevronDown,
+  type LucideIcon,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -225,6 +226,140 @@ function previewFailureInfo(
     case "node_missing":      return { label: "Frame no longer exists",   tone: "error"   };
     default:                  return { label: "Preview unavailable",      tone: "error"   };
   }
+}
+
+// ── Decision-intelligence presentation (Stage 2A) ─────────────────────────────
+// Pure, presentation-only helpers. They read existing AI fields already returned
+// by GET /api/feedback and map them to the app's existing colour vocabulary
+// (mirrors app/(app)/decisions/page.tsx and app/(app)/risks/page.tsx). No backend
+// or business logic is involved.
+
+// Classification → colour, mirrored from the decisions page.
+const CLASSIFICATION_CLS: Record<string, string> = {
+  "Needs Decision": "text-red-500 bg-red-50",
+  "Blocked":        "text-red-500 bg-red-50",
+  "Approved":       "text-emerald-600 bg-emerald-50",
+  "Risk":           "text-orange-500 bg-orange-50",
+  "Vague":          "text-yellow-600 bg-yellow-50",
+  "Info":           "text-blue-500 bg-blue-50",
+};
+
+// Priority → colour, mirrored from the risks page severity vocabulary.
+const PRIORITY_META: Record<string, { label: string; cls: string }> = {
+  high:   { label: "High priority",   cls: "text-red-600 bg-red-50"     },
+  medium: { label: "Medium priority", cls: "text-orange-600 bg-orange-50" },
+  low:    { label: "Low priority",    cls: "text-muted bg-wash"          },
+};
+
+/** Risk badges for an item — empty array means "no risk" (section hides). */
+function deriveRiskSignals(item: FeedbackItem): { label: string; cls: string }[] {
+  const blocked = item.ai_classification === "Blocked";
+  const risk    = item.ai_risk_flag || item.ai_classification === "Risk";
+  const vague   = item.ai_vague_flag;
+  const signals: { label: string; cls: string }[] = [];
+  if (blocked)          signals.push({ label: "BLOCKED",      cls: "text-red-500 bg-red-50"       });
+  if (risk && !blocked) signals.push({ label: "RISK FLAGGED", cls: "text-orange-500 bg-orange-50" });
+  if (vague)            signals.push({ label: "VAGUE",        cls: "text-yellow-600 bg-yellow-50" });
+  return signals;
+}
+
+/** Parse a decision reply (same ✅/⚠️/❓ prefixes written by handleMakeDecision). */
+function parseDecision(raw: string): { label: string; cls: string; Icon: LucideIcon } | null {
+  if (raw.startsWith("✅")) return { label: "Accepted",      cls: "text-emerald-700 bg-emerald-50 border-emerald-200", Icon: CheckCircle2 };
+  if (raw.startsWith("⚠️")) return { label: "Needs Work",    cls: "text-orange-600 bg-orange-50 border-orange-200",   Icon: AlertCircle  };
+  if (raw.startsWith("❓")) return { label: "Clarification", cls: "text-blue-600 bg-blue-50 border-blue-200",         Icon: HelpCircle   };
+  return null;
+}
+
+// ── SECTION 1 · Decision Summary Hero ─────────────────────────────────────────
+// The 5-second answer: status + classification + priority + risk/vague + summary
+// + key question, all surfaced at the very top.
+function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
+  const status   = STATUS_META[item.status] ?? STATUS_META.open;
+  const classCls = item.ai_classification ? CLASSIFICATION_CLS[item.ai_classification] ?? "text-muted bg-wash" : null;
+  const priority = item.priority ? PRIORITY_META[item.priority] : null;
+
+  return (
+    <section className="rounded-panel border border-border bg-surface px-5 py-4 space-y-3">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Decision Summary</p>
+
+      {/* Signal row */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${status.pillCls}`}>
+          {status.label}
+        </span>
+        {classCls && item.ai_classification && (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${classCls}`}>
+            {item.ai_classification}
+          </span>
+        )}
+        {priority && (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${priority.cls}`}>
+            {priority.label}
+          </span>
+        )}
+        {item.ai_risk_flag && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-orange-500 bg-orange-50">
+            <AlertCircle size={10} /> Risk
+          </span>
+        )}
+        {item.ai_vague_flag && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-yellow-600 bg-yellow-50">
+            <HelpCircle size={10} /> Vague
+          </span>
+        )}
+      </div>
+
+      {/* Summary */}
+      {item.ai_summary ? (
+        <p className="text-lead text-ink leading-relaxed">{item.ai_summary}</p>
+      ) : (
+        <p className="text-lead text-muted leading-relaxed">No AI summary yet — generate one from the discussion below.</p>
+      )}
+
+      {/* Key question */}
+      {item.ai_key_question && (
+        <div className="flex items-start gap-2 rounded-lg bg-paper border border-border px-3 py-2">
+          <HelpCircle size={13} className="text-muted shrink-0 mt-0.5" />
+          <p className="text-body text-ink leading-snug">
+            <span className="text-muted font-medium">Key question: </span>{item.ai_key_question}
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── SECTION 2 · Risks & Blockers ──────────────────────────────────────────────
+// Prominent when a risk exists; renders nothing at all otherwise.
+function RisksBlockers({ item }: { item: FeedbackItem }) {
+  const signals = deriveRiskSignals(item);
+  if (signals.length === 0) return null;
+
+  const blocked = item.ai_classification === "Blocked";
+  const isRisk  = item.ai_risk_flag || item.ai_classification === "Risk";
+  const tone = blocked
+    ? { panel: "border-red-200 bg-red-50/50",       head: "text-red-600",    Icon: AlertTriangle }
+    : isRisk
+      ? { panel: "border-orange-200 bg-orange-50/50", head: "text-orange-600", Icon: AlertCircle }
+      : { panel: "border-yellow-200 bg-yellow-50/50", head: "text-yellow-700", Icon: AlertCircle };
+  const Icon = tone.Icon;
+
+  return (
+    <section className={`rounded-panel border ${tone.panel} px-5 py-4 space-y-2.5`}>
+      <div className={`flex items-center gap-1.5 ${tone.head}`}>
+        <Icon size={14} className="shrink-0" />
+        <p className="text-[10px] font-bold uppercase tracking-widest">Risks &amp; Blockers</p>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {signals.map(s => (
+          <span key={s.label} className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${s.cls}`}>
+            {s.label}
+          </span>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 // ── Design context card ───────────────────────────────────────────────────────
@@ -636,6 +771,13 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   const threadReplies = localReplies.filter(r => !resolvedReplies.includes(r));
   const displayReplies = activeTab === "thread" ? threadReplies : resolvedReplies;
 
+  // ── Key Decisions (Stage 2A): existing resolved-decision detection, reused ──
+  const isActionable = item.status === "open" || item.status === "needs_decision";
+  const madeDecisions = resolvedReplies.flatMap(reply => {
+    const meta = parseDecision(reply.raw_content);
+    return meta ? [{ reply, meta }] : [];
+  });
+
   return (
     <div className="flex h-screen overflow-hidden bg-paper">
 
@@ -663,6 +805,107 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-5 space-y-5">
 
+            {/* ── SECTION 1 · Decision Summary Hero ── */}
+            <DecisionSummaryHero item={item} />
+
+            {/* ── SECTION 2 · Risks & Blockers (hidden when no risk) ── */}
+            <RisksBlockers item={item} />
+
+            {/* ── SECTION 3 · Key Decisions ── */}
+            {(isActionable || madeDecisions.length > 0) && (
+              <section className="space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Key Decisions</p>
+
+                {/* Decisions already made (parsed from resolved replies) */}
+                {madeDecisions.length > 0 && (
+                  <div className="space-y-2">
+                    {madeDecisions.map(({ reply, meta }) => {
+                      const Icon = meta.Icon;
+                      return (
+                        <div key={reply.id} className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 ${meta.cls}`}>
+                          <Icon size={14} className="shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-body font-semibold">{meta.label}</span>
+                              <span className="text-caption opacity-70">{reply.author_name} · {timeAgo(reply.figma_created_at)}</span>
+                            </div>
+                            <p className="text-body leading-snug mt-0.5 break-words">{reply.raw_content}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Decision panel — moved above discussion; handlers unchanged */}
+                {isActionable && (
+                  <div className="rounded-panel border border-border overflow-hidden">
+                    {/* Decision buttons */}
+                    <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
+                      <button
+                        onClick={() => setDecision(d => d === "approve" ? null : "approve")}
+                        className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
+                          decision === "approve" ? "bg-emerald-50 text-emerald-700" : "text-muted hover:text-emerald-600 hover:bg-emerald-50/50"
+                        }`}
+                      >
+                        <CheckCircle2 size={14} /> Approve
+                      </button>
+                      <button
+                        onClick={() => setDecision(d => d === "needs_work" ? null : "needs_work")}
+                        className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
+                          decision === "needs_work" ? "bg-orange-50 text-orange-600" : "text-muted hover:text-orange-500 hover:bg-orange-50/50"
+                        }`}
+                      >
+                        <AlertCircle size={14} /> Needs Work
+                      </button>
+                      <button
+                        onClick={() => setDecision(d => d === "clarify" ? null : "clarify")}
+                        className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
+                          decision === "clarify" ? "bg-blue-50 text-blue-600" : "text-muted hover:text-blue-500 hover:bg-blue-50/50"
+                        }`}
+                      >
+                        <HelpCircle size={14} /> Ask for Clarification
+                      </button>
+                    </div>
+
+                    {/* Note input */}
+                    <div className="px-4 py-3">
+                      <textarea
+                        value={note}
+                        onChange={e => setNote(e.target.value)}
+                        rows={2}
+                        placeholder="Add a note (optional) — will be included with your decision"
+                        className="w-full bg-transparent text-body text-ink placeholder:text-muted outline-none resize-none"
+                      />
+                    </div>
+
+                    {/* Make Decision CTA */}
+                    <div className="px-4 pb-4">
+                      {submitMsg && (
+                        <p className={`text-caption mb-2 ${submitMsg.startsWith("Decision") ? "text-emerald-600" : "text-red-500"}`}>
+                          {submitMsg}
+                        </p>
+                      )}
+                      <button
+                        onClick={handleMakeDecision}
+                        disabled={!decision || submitting}
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-ink text-paper text-body font-semibold hover:opacity-80 disabled:opacity-30 transition-opacity"
+                      >
+                        <Send size={14} />
+                        {submitting ? "Posting decision…" : "Make Decision"}
+                      </button>
+                      {decision && (
+                        <p className="text-caption text-muted text-center mt-2">
+                          Decision will be posted to Figma as a reply
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* ── Discussion ── */}
             {/* Original comment */}
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Original Comment</p>
@@ -690,16 +933,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                 </div>
               </div>
             </div>
-
-            {/* AI Summary */}
-            {item.ai_summary && (
-              <div className="rounded-lg border border-border bg-surface px-4 py-3 space-y-1">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted flex items-center gap-1">
-                  <Sparkles size={10} /> AI Summary
-                </p>
-                <p className="text-body text-ink leading-relaxed">{item.ai_summary}</p>
-              </div>
-            )}
 
             {/* Thread replies */}
             <div className="rounded-panel border border-border overflow-hidden">
@@ -783,72 +1016,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                 )}
               </div>
             </div>
-
-            {/* ── Decision panel ── */}
-            {(item.status === "open" || item.status === "needs_decision") && (
-              <div className="rounded-panel border border-border overflow-hidden">
-                {/* Decision buttons */}
-                <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
-                  <button
-                    onClick={() => setDecision(d => d === "approve" ? null : "approve")}
-                    className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                      decision === "approve" ? "bg-emerald-50 text-emerald-700" : "text-muted hover:text-emerald-600 hover:bg-emerald-50/50"
-                    }`}
-                  >
-                    <CheckCircle2 size={14} /> Approve
-                  </button>
-                  <button
-                    onClick={() => setDecision(d => d === "needs_work" ? null : "needs_work")}
-                    className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                      decision === "needs_work" ? "bg-orange-50 text-orange-600" : "text-muted hover:text-orange-500 hover:bg-orange-50/50"
-                    }`}
-                  >
-                    <AlertCircle size={14} /> Needs Work
-                  </button>
-                  <button
-                    onClick={() => setDecision(d => d === "clarify" ? null : "clarify")}
-                    className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                      decision === "clarify" ? "bg-blue-50 text-blue-600" : "text-muted hover:text-blue-500 hover:bg-blue-50/50"
-                    }`}
-                  >
-                    <HelpCircle size={14} /> Ask for Clarification
-                  </button>
-                </div>
-
-                {/* Note input */}
-                <div className="px-4 py-3">
-                  <textarea
-                    value={note}
-                    onChange={e => setNote(e.target.value)}
-                    rows={2}
-                    placeholder="Add a note (optional) — will be included with your decision"
-                    className="w-full bg-transparent text-body text-ink placeholder:text-muted outline-none resize-none"
-                  />
-                </div>
-
-                {/* Make Decision CTA */}
-                <div className="px-4 pb-4">
-                  {submitMsg && (
-                    <p className={`text-caption mb-2 ${submitMsg.startsWith("Decision") ? "text-emerald-600" : "text-red-500"}`}>
-                      {submitMsg}
-                    </p>
-                  )}
-                  <button
-                    onClick={handleMakeDecision}
-                    disabled={!decision || submitting}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-ink text-paper text-body font-semibold hover:opacity-80 disabled:opacity-30 transition-opacity"
-                  >
-                    <Send size={14} />
-                    {submitting ? "Posting decision…" : "Make Decision"}
-                  </button>
-                  {decision && (
-                    <p className="text-caption text-muted text-center mt-2">
-                      Decision will be posted to Figma as a reply
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Resolved / Archived state banner */}
             {item.status === "resolved" && (
