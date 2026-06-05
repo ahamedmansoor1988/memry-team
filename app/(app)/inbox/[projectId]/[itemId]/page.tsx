@@ -709,6 +709,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
         id: `temp-${Date.now()}`, author_name: "You",
         raw_content: message, figma_created_at: new Date().toISOString(),
       }]);
+      setActiveTab("resolved");
       setNote(""); setDecision(null);
     } else {
       setSubmitMsg(`Failed: ${data.error ?? "Unknown error"}`);
