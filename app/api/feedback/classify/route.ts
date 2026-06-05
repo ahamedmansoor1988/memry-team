@@ -7,7 +7,10 @@ import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { classifyComment } from "@/lib/ai/classify";
 
-export async function POST() {
+export async function GET() { return handler(); }
+export async function POST() { return handler(); }
+
+async function handler() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
