@@ -66,8 +66,8 @@ Return ONLY valid JSON in this exact shape:
 }`;
 }
 
-/** Deterministic fallback — used when Groq omits or returns an invalid suggested_action. */
-function deriveSuggestedAction(
+/** Deterministic rule — exported for backfill without Groq. */
+export function deriveSuggestedAction(
   classification: ClassifyResult["classification"],
   vagueFlag: boolean,
   ageInDays: number,
