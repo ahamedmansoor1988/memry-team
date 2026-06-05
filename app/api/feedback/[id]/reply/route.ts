@@ -35,7 +35,7 @@ export async function POST(
         figma_order_id,
         parent_figma_comment_id,
         raw_content,
-        figma_file:figma_files(figma_file_key, figma_pat)
+        figma_file:figma_files(id, figma_file_key, figma_pat)
       ),
       project:projects(name)
     `)
@@ -56,6 +56,7 @@ export async function POST(
   }));
   const rawFile = comment?.figma_file;
   const figmaFile = (Array.isArray(rawFile) ? rawFile[0] : rawFile) as {
+    id: string;
     figma_file_key: string;
     figma_pat: string;
   } | null;
@@ -114,6 +115,29 @@ export async function POST(
   // Return the full figma response so we can debug threading
   const isReply = figmaData.parent_id !== "" && figmaData.parent_id !== null && figmaData.parent_id !== undefined;
   console.log("[reply] created comment - parent_id:", figmaData.parent_id, "is_reply:", isReply);
+
+  // Persist the new reply into figma_comments immediately so the next UI poll
+  // returns it without waiting for the next Figma sync cycle.
+  // Best-effort: a failure here is non-fatal; the comment already exists in Figma.
+  try {
+    const figmaAuthor = figmaData.user as { handle?: string; img_url?: string } | null;
+    await admin.from("figma_comments").insert({
+      figma_file_id:            figmaFile.id,
+      workspace_id:             item.workspace_id as string,
+      figma_comment_id:         figmaData.id as string,
+      figma_order_id:           (figmaData.order_id as string | null) ?? null,
+      parent_figma_comment_id:  comment.id as string,
+      author_name:              figmaAuthor?.handle ?? user.user_metadata?.full_name ?? user.email ?? "Team member",
+      author_avatar:            figmaAuthor?.img_url ?? null,
+      author_email:             user.email ?? null,
+      raw_content:              message.trim(),
+      figma_node_id:            null,
+      figma_created_at:         (figmaData.created_at as string | null) ?? new Date().toISOString(),
+      resolved_at:              null,
+    });
+  } catch (e) {
+    console.warn("[reply] figma_comments insert failed (non-fatal):", e);
+  }
 
   // Only mark resolved when explicitly requested (decision replies, not plain thread replies)
   if (resolve) {
