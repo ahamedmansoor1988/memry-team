@@ -300,28 +300,29 @@ async function syncFile(
 
     // Best-effort: upsert the comment author as a profile (requires identity_layer migration).
     // Email is the join key — skip entirely if the Figma user has no email.
+    // Best-effort: upsert the comment author as a profile.
+    // figma_user_id is always present; email is optional and used as secondary key.
     let authorProfileId: string | null = null;
-    if (comment.user?.email) {
+    if (comment.user?.id) {
       try {
+        const profilePayload: Record<string, unknown> = {
+          workspace_id: workspaceId,
+          display_name: comment.user.handle ?? comment.user.email ?? "Unknown",
+          avatar_url: comment.user.img_url ?? null,
+          figma_handle: comment.user.handle ?? null,
+          figma_user_id: comment.user.id,
+          updated_at: new Date().toISOString(),
+        };
+        if (comment.user.email) profilePayload.email = comment.user.email;
+
         const { data: profile } = await admin
           .from("profiles")
-          .upsert(
-            {
-              workspace_id: workspaceId,
-              display_name: comment.user.handle ?? comment.user.email,
-              email: comment.user.email,
-              avatar_url: comment.user.img_url ?? null,
-              figma_handle: comment.user.handle ?? null,
-              figma_user_id: comment.user.id ?? null,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "workspace_id,email" },
-          )
+          .upsert(profilePayload, { onConflict: "workspace_id,figma_user_id" })
           .select("id")
           .single();
         if (profile) authorProfileId = (profile as { id: string }).id;
       } catch (e) {
-        console.warn("[team-sync] profile upsert failed (non-fatal, migration may not be run):", e);
+        console.warn("[team-sync] profile upsert failed (non-fatal):", e);
       }
     }
 
