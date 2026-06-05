@@ -322,8 +322,8 @@ async function syncFile(
       }
     }
 
-    // AI classify
-    const ai = await classifyComment(comment.message).catch(() => null);
+    // AI classify — pass created_at so the classifier can apply age-based suggested-action rules
+    const ai = await classifyComment(comment.message, comment.created_at).catch(() => null);
 
     const { data: newFeedbackItem } = await admin.from("feedback_items").insert({
       figma_comment_id: figmaCommentDbId,
@@ -339,6 +339,7 @@ async function syncFile(
       ai_risk_flag: ai?.risk_flag ?? false,
       ai_vague_flag: ai?.vague_flag ?? false,
       ai_vague_reason: ai?.vague_reason ?? null,
+      ai_suggested_action: ai?.suggested_action ?? null,
       figma_node_id: nodeId,
       figma_preview_url: fileThumbnailUrl,  // file-level thumbnail as initial placeholder
       ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
   HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
-  Activity, ZoomIn, MessageSquare, Clock, ChevronDown,
+  Activity, ZoomIn, MessageSquare, Clock, ChevronDown, Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +32,7 @@ interface FeedbackItem {
   ai_key_question: string | null; ai_tags: string[] | null;
   ai_risk_flag: boolean; ai_vague_flag: boolean;
   ai_vague_reason: string | null; ai_confidence: number | null;
+  ai_suggested_action: string | null;
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string; updated_at?: string;
   slack_message_ts: string | null;
@@ -328,6 +329,17 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
         <p className="text-lead text-ink leading-relaxed">{item.ai_summary}</p>
       ) : (
         <p className="text-body text-muted">No AI summary yet — generate one from the discussion below.</p>
+      )}
+
+      {/* Suggested Action callout */}
+      {item.ai_suggested_action && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-violet-50 border border-violet-200">
+          <Zap size={13} className="text-violet-500 shrink-0" />
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-violet-400 mb-0.5">Suggested Action</p>
+            <p className="text-body font-semibold text-violet-700 leading-snug">{item.ai_suggested_action}</p>
+          </div>
+        </div>
       )}
 
       {/* Key question */}

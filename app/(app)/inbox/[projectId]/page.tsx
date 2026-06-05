@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Zap } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,7 @@ interface FeedbackItem {
   ai_key_question: string | null; ai_tags: string[] | null;
   ai_risk_flag: boolean; ai_vague_flag: boolean;
   ai_vague_reason: string | null; ai_confidence: number | null;
+  ai_suggested_action: string | null;
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string; updated_at?: string;
   figma_comment: FigmaComment | null;
@@ -303,7 +304,7 @@ function CommentCard({ item, onSelect }: {
 
         {/* AI insight */}
         {insight && (
-          <div className={`flex items-center gap-1.5 text-caption ${insight.color} mt-auto`}>
+          <div className={`flex items-center gap-1.5 text-caption ${insight.color}`}>
             {item.ai_vague_flag ? (
               <span className="opacity-60">⚠</span>
             ) : item.ai_risk_flag ? (
@@ -312,6 +313,16 @@ function CommentCard({ item, onSelect }: {
               <Sparkles size={10} className="opacity-60 shrink-0" />
             )}
             <span className="line-clamp-1">{insight.text}</span>
+          </div>
+        )}
+
+        {/* Suggested Action pill */}
+        {item.ai_suggested_action && (
+          <div className="mt-auto pt-0.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-[11px] font-medium text-violet-600">
+              <Zap size={9} className="shrink-0" />
+              {item.ai_suggested_action}
+            </span>
           </div>
         )}
       </div>

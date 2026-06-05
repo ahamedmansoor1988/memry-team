@@ -1,6 +1,7 @@
 /**
  * POST /api/feedback/classify
- * Backfills AI classification for all feedback_items that are missing it.
+ * Backfills AI classification for items missing ai_classification,
+ * and populates ai_suggested_action for items where it is NULL.
  */
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
@@ -22,12 +23,12 @@ export async function POST() {
 
   if (!membership) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
-  // Find all items missing AI classification
+  // Find all items missing ai_classification OR missing the newer ai_suggested_action field
   const { data: items } = await admin
     .from("feedback_items")
-    .select("id, figma_comment:figma_comments(raw_content)")
+    .select("id, created_at, figma_comment:figma_comments(raw_content)")
     .eq("workspace_id", membership.workspace_id)
-    .is("ai_classification", null);
+    .or("ai_classification.is.null,ai_suggested_action.is.null");
 
   if (!items || items.length === 0) {
     return NextResponse.json({ classified: 0, message: "All items already classified" });
@@ -39,7 +40,8 @@ export async function POST() {
     const comment = (Array.isArray(raw) ? raw[0] : raw) as { raw_content: string } | null;
     if (!comment?.raw_content) continue;
 
-    const ai = await classifyComment(comment.raw_content);
+    // Pass item created_at so the classifier can apply age-based suggested-action rules
+    const ai = await classifyComment(comment.raw_content, item.created_at ?? undefined);
     if (!ai) continue;
 
     await admin.from("feedback_items").update({
@@ -52,6 +54,7 @@ export async function POST() {
       ai_risk_flag: ai.risk_flag,
       ai_vague_flag: ai.vague_flag,
       ai_vague_reason: ai.vague_reason,
+      ai_suggested_action: ai.suggested_action,
     }).eq("id", item.id);
 
     classified++;
