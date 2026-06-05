@@ -124,12 +124,34 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── Optionally enrich with author_profile (post-migration column) ────────
+  type AuthorProfileRow = {
+    id: string; display_name: string; email: string | null;
+    avatar_url: string | null; figma_handle: string | null; slack_handle: string | null;
+  };
+  const profileMap = new Map<string, AuthorProfileRow>();
+  if (itemIds.length > 0) {
+    try {
+      const { data: profRows } = await admin
+        .from("feedback_items")
+        .select("id, author_profile:profiles!author_profile_id(id, display_name, email, avatar_url, figma_handle, slack_handle)")
+        .in("id", itemIds);
+      for (const row of profRows ?? []) {
+        const prof = Array.isArray(row.author_profile) ? row.author_profile[0] : row.author_profile;
+        if (prof) profileMap.set(row.id, prof as AuthorProfileRow);
+      }
+    } catch {
+      // profiles table or author_profile_id column doesn't exist yet — silently skip
+    }
+  }
+
   // ── Assemble final items ──────────────────────────────────────────────────
   const itemsWithReplies = normalized.map(item => {
     const fc = item.figma_comment as Record<string, unknown> | null;
     const fcId = fc?.id as string | null;
     const extra = fcId ? extraMap.get(fcId) : null;
     const dr = drMap.get(item.id) ?? null;
+    const authorProfile = profileMap.get(item.id) ?? null;
 
     // Merge page_name + frame_name into figma_comment
     const enrichedFc = fc ? {
@@ -152,6 +174,7 @@ export async function GET(req: Request) {
       design_reference: dr,
       figma_preview_url: resolvedPreviewUrl,
       replies: itemReplies,
+      author_profile: authorProfile,
     };
   });
 

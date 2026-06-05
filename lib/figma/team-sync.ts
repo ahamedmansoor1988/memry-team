@@ -298,6 +298,33 @@ async function syncFile(
 
     const figmaCommentDbId = (newComment as { id: string }).id;
 
+    // Best-effort: upsert the comment author as a profile (requires identity_layer migration).
+    // Email is the join key — skip entirely if the Figma user has no email.
+    let authorProfileId: string | null = null;
+    if (comment.user?.email) {
+      try {
+        const { data: profile } = await admin
+          .from("profiles")
+          .upsert(
+            {
+              workspace_id: workspaceId,
+              display_name: comment.user.handle ?? comment.user.email,
+              email: comment.user.email,
+              avatar_url: comment.user.img_url ?? null,
+              figma_handle: comment.user.handle ?? null,
+              figma_user_id: comment.user.id ?? null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "workspace_id,email" },
+          )
+          .select("id")
+          .single();
+        if (profile) authorProfileId = (profile as { id: string }).id;
+      } catch (e) {
+        console.warn("[team-sync] profile upsert failed (non-fatal, migration may not be run):", e);
+      }
+    }
+
     // Upsert design_reference — thumbnail fetching happens later via enrich-previews
     let designReferenceId: string | null = null;
     if (nodeId) {
@@ -343,6 +370,7 @@ async function syncFile(
       figma_node_id: nodeId,
       figma_preview_url: fileThumbnailUrl,  // file-level thumbnail as initial placeholder
       ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
+      ...(authorProfileId ? { author_profile_id: authorProfileId } : {}),
     }).select("id").single();
     const feedbackItemDbId = (newFeedbackItem as { id: string } | null)?.id ?? null;
 

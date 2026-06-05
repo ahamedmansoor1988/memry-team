@@ -26,6 +26,15 @@ interface DesignReference {
   preview_status: "pending" | "ready" | "failed" | "stale";
   preview_error_reason: string | null;
 }
+interface AuthorProfile {
+  id: string;
+  display_name: string;
+  email: string | null;
+  avatar_url: string | null;
+  figma_handle: string | null;
+  slack_handle: string | null;
+}
+
 interface FeedbackItem {
   id: string; status: string; priority: string;
   ai_summary: string | null; ai_classification: string | null;
@@ -37,6 +46,7 @@ interface FeedbackItem {
   created_at: string; updated_at?: string;
   slack_message_ts: string | null;
   slack_channel_id: string | null;
+  author_profile: AuthorProfile | null;
   figma_comment: FigmaComment | null;
   design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
@@ -949,6 +959,17 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                     <span className="text-body font-semibold text-ink">{fc?.author_name ?? "Unknown"}</span>
                     <span className="text-caption text-muted">{fc?.figma_created_at ? timeAgo(fc.figma_created_at) : ""}</span>
                   </div>
+                  {/* Author profile cross-reference — only when identity layer migration has run */}
+                  {item.author_profile && (item.author_profile.figma_handle || item.author_profile.slack_handle) && (
+                    <div className="flex items-center gap-3 mb-1.5 text-caption text-muted">
+                      {item.author_profile.figma_handle && (
+                        <span>Figma @{item.author_profile.figma_handle}</span>
+                      )}
+                      {item.author_profile.slack_handle && (
+                        <span>Slack @{item.author_profile.slack_handle}</span>
+                      )}
+                    </div>
+                  )}
                   <p className="text-lead text-ink leading-relaxed">{fc?.raw_content}</p>
                   {/* Breadcrumb */}
                   <div className="flex items-center gap-1 mt-1.5 text-caption text-muted">
