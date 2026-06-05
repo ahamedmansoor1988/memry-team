@@ -56,7 +56,7 @@ Return ONLY valid JSON in this exact shape:
   "classification": "Needs Decision" | "Blocked" | "Approved" | "Risk" | "Vague" | "Info",
   "priority": "high" | "medium" | "low",
   "summary": "1-2 sentence summary of what this comment is about",
-  "key_question": "The core question or action needed, phrased as a clear statement",
+  "key_question": "The core question or action needed, phrased as a clear statement (never return null or 'None')",
   "tags": ["tag1", "tag2"],
   "risk_flag": true | false,
   "vague_flag": true | false,

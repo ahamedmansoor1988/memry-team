@@ -245,7 +245,7 @@ function CommentCard({ item, onSelect }: {
 
         {/* Title */}
         <p className="text-lead font-semibold text-ink line-clamp-2 leading-snug">
-          {item.ai_key_question ?? fc?.raw_content ?? "Comment"}
+          {(item.ai_key_question && item.ai_key_question !== "None") ? item.ai_key_question : (fc?.raw_content ?? "Comment")}
         </p>
 
         {/* Meta */}
