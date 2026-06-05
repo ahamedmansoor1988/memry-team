@@ -342,8 +342,8 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
         </div>
       )}
 
-      {/* Key question */}
-      {item.ai_key_question && (
+      {/* Key question — suppress null, empty string, and the literal "None" returned by older AI runs */}
+      {item.ai_key_question && item.ai_key_question !== "None" && item.ai_key_question.trim() !== "" && (
         <div className="flex items-start gap-2 rounded-lg bg-paper border border-border px-3 py-2">
           <HelpCircle size={13} className="text-muted shrink-0 mt-0.5" />
           <p className="text-body text-ink leading-snug">
