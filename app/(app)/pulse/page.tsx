@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, ShieldAlert, AlertTriangle, MessageCircle, Zap, Radio } from "lucide-react";
+import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -268,7 +268,7 @@ export default function PulsePage() {
               />
               <SignalCard
                 title="Needs Clarification"
-                icon={<MessageCircle size={14} className="text-yellow-600" />}
+                icon={<MessageSquare size={14} className="text-yellow-600" />}
                 iconBg="bg-yellow-50"
                 countBadgeCls="bg-yellow-100 text-yellow-700"
                 group={data.vagueComments}
