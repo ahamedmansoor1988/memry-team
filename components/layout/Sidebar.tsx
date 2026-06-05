@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, GitPullRequestDraft, AlertTriangle, Activity, Settings, LogOut, FolderOpen, ArrowRightLeft, Plug, LayoutDashboard } from "lucide-react";
+import { Inbox, GitPullRequestDraft, AlertTriangle, Activity, Settings, LogOut, FolderOpen, ArrowRightLeft, Plug, LayoutDashboard, Archive } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard,        badge: null },
     { href: "/handoffs",      label: "Handoffs",     icon: ArrowRightLeft, badge: null },
     { href: "/integrations",  label: "Integrations", icon: Plug,           badge: null },
+    { href: "/archive",       label: "Archive",      icon: Archive,        badge: null },
   ];
 
   return (

@@ -15,8 +15,7 @@ export function defaultChannel() {
 
 // ─── Low-level API call ───────────────────────────────────────────────────────
 
-async function slackPost(method: string, body: Record<string, unknown>) {
-  const token = botToken();
+async function slackPost(method: string, body: Record<string, unknown>, token: string) {
   if (!token) throw new Error("SLACK_BOT_TOKEN not configured");
 
   const res = await fetch(`${SLACK_API}/${method}`, {
@@ -57,13 +56,20 @@ export interface PostCommentOptions {
   aiKeyQuestion?: string | null;
   figmaUrl?: string | null;
   channel?: string;
+  /** Feedback item DB id — used to build the deep-link URL into the Memry UI. */
+  itemId?: string | null;
+  /** Memry project DB id — used alongside itemId to build the deep-link URL. */
+  projectId?: string | null;
 }
 
 /**
  * Post a new comment to the #design-decisions channel with action buttons.
  * Returns { ts, channel } for threading later.
+ *
+ * Pass an explicit token to use workspace DB credentials; omit to fall back to env var.
  */
-export async function postCommentToSlack(opts: PostCommentOptions): Promise<{ ts: string; channel: string }> {
+export async function postCommentToSlack(opts: PostCommentOptions, token?: string): Promise<{ ts: string; channel: string }> {
+  const tok = token ?? botToken();
   const emoji = classificationEmoji(opts.classification);
   const label = opts.classification ?? "Open";
   const breadcrumb = [opts.projectName, opts.fileName, opts.pageName].filter(Boolean).join(" / ");
@@ -121,6 +127,15 @@ export async function postCommentToSlack(opts: PostCommentOptions): Promise<{ ts
           action_id: "decision_clarify",
           value: opts.feedbackItemId,
         },
+        ...(opts.itemId && opts.projectId && process.env.NEXT_PUBLIC_APP_URL
+          ? [{
+              type: "button",
+              text: { type: "plain_text", text: "Open in Memry", emoji: true },
+              style: "primary",
+              url: `${process.env.NEXT_PUBLIC_APP_URL}/inbox/${opts.projectId}/${opts.itemId}`,
+              action_id: "open_in_memry",
+            }]
+          : []),
       ],
     },
     {
@@ -136,13 +151,15 @@ export async function postCommentToSlack(opts: PostCommentOptions): Promise<{ ts
     blocks,
     text: `${emoji} ${label}: ${title}`,
     unfurl_links: false,
-  });
+  }, tok);
 
   return { ts: result.ts!, channel: result.channel! };
 }
 
 /**
  * Update an existing Slack message (after a decision is made).
+ *
+ * Pass an explicit token to use workspace DB credentials; omit to fall back to env var.
  */
 export async function updateSlackMessage(opts: {
   channel: string;
@@ -150,7 +167,8 @@ export async function updateSlackMessage(opts: {
   decision: "approve" | "needs_work" | "clarify";
   decidedBy: string;
   note?: string;
-}) {
+}, token?: string) {
+  const tok = token ?? botToken();
   const labels = {
     approve:     { emoji: "✅", text: "Approved" },
     needs_work:  { emoji: "⚠️", text: "Needs Work" },
@@ -177,31 +195,36 @@ export async function updateSlackMessage(opts: {
       },
     ],
     text: `${emoji} ${text} by ${opts.decidedBy}`,
-  });
+  }, tok);
 }
 
 /**
  * Post a reply in a Slack thread.
+ *
+ * Pass an explicit token to use workspace DB credentials; omit to fall back to env var.
  */
 export async function postThreadReply(opts: {
   channel: string;
   threadTs: string;
   text: string;
-}) {
+}, token?: string) {
+  const tok = token ?? botToken();
   await slackPost("chat.postMessage", {
     channel: opts.channel,
     thread_ts: opts.threadTs,
     text: opts.text,
     unfurl_links: false,
-  });
+  }, tok);
 }
 
 /**
  * Verify Slack's request signature to prevent spoofing.
+ *
+ * Pass an explicit secret to use workspace DB credentials; omit to fall back to env var.
  */
-export async function verifySlackSignature(req: Request, body: string): Promise<boolean> {
-  const secret = process.env.SLACK_SIGNING_SECRET;
-  if (!secret) return false;
+export async function verifySlackSignature(req: Request, body: string, secret?: string): Promise<boolean> {
+  const resolvedSecret = secret ?? process.env.SLACK_SIGNING_SECRET;
+  if (!resolvedSecret) return false;
 
   const timestamp = req.headers.get("x-slack-request-timestamp");
   const signature = req.headers.get("x-slack-signature");
@@ -212,7 +235,7 @@ export async function verifySlackSignature(req: Request, body: string): Promise<
 
   const sigBase = `v0:${timestamp}:${body}`;
   const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(secret),
+    "raw", new TextEncoder().encode(resolvedSecret),
     { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
   );
   const sigBytes = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(sigBase));

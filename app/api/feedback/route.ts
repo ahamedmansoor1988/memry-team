@@ -31,6 +31,7 @@ export async function GET(req: Request) {
       ai_key_question, ai_tags, ai_risk_flag, ai_vague_flag,
       ai_vague_reason, ai_confidence,
       figma_node_id, figma_preview_url, created_at, updated_at,
+      slack_message_ts, slack_channel_id,
       figma_comment:figma_comments(
         id, author_name, author_avatar, raw_content,
         figma_created_at, parent_figma_comment_id,
@@ -40,6 +41,7 @@ export async function GET(req: Request) {
       project:projects(id, name)
     `)
     .eq("workspace_id", membership.workspace_id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (projectId) {
@@ -71,6 +73,7 @@ export async function GET(req: Request) {
         .from("figma_comments")
         .select("id, author_name, raw_content, figma_created_at, parent_figma_comment_id")
         .in("parent_figma_comment_id", parentIds)
+        .is("deleted_at", null)
         .order("figma_created_at", { ascending: true })
     : { data: [], error: null };
 

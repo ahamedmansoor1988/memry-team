@@ -34,6 +34,8 @@ interface FeedbackItem {
   ai_vague_reason: string | null; ai_confidence: number | null;
   figma_node_id: string | null; figma_preview_url: string | null;
   created_at: string; updated_at?: string;
+  slack_message_ts: string | null;
+  slack_channel_id: string | null;
   figma_comment: FigmaComment | null;
   design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
@@ -808,6 +810,17 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
               item={item}
               onStatusChange={newStatus => setItem(prev => prev ? { ...prev, status: newStatus } : prev)}
             />
+            {item.slack_message_ts && item.slack_channel_id && (
+              <a
+                href={`https://slack.com/app_redirect?channel=${item.slack_channel_id}&message_ts=${item.slack_message_ts}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
+              >
+                <MessageSquare size={13} />
+                Open Slack Thread
+              </a>
+            )}
             <button className="text-muted hover:text-ink transition-colors"><Bookmark size={15} /></button>
             <button className="text-muted hover:text-ink transition-colors"><MoreHorizontal size={15} /></button>
           </div>

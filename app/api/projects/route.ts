@@ -32,7 +32,8 @@ export async function GET() {
   const { data: stats } = await admin
     .from("feedback_items")
     .select("project_id, status, ai_classification, ai_vague_flag, created_at")
-    .eq("workspace_id", wsId);
+    .eq("workspace_id", wsId)
+    .is("deleted_at", null);
 
   const projectsWithStats = projects.map(p => {
     const items = (stats ?? []).filter(s => s.project_id === p.id);

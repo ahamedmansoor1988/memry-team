@@ -12,7 +12,7 @@
 import { figmaHeaders } from "./api";
 import { classifyComment } from "@/lib/ai/classify";
 import { createAdminClient } from "@/lib/supabase/server";
-import { postCommentToSlack, defaultChannel } from "@/lib/slack/bot";
+import { postCommentToSlack } from "@/lib/slack/bot";
 
 const FIGMA_API = "https://api.figma.com/v1";
 
@@ -103,12 +103,22 @@ export async function syncTeam(
   const admin = createAdminClient();
   const files = await listTeamFiles(teamId, pat);
 
+  // Load Slack credentials once for the workspace — DB values take priority over env vars.
+  // This ensures the Integrations page config is actually used.
+  const { data: wsRow } = await admin
+    .from("workspaces")
+    .select("slack_bot_token, slack_channel_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const slackToken   = (wsRow as { slack_bot_token?: string | null }   | null)?.slack_bot_token   ?? process.env.SLACK_BOT_TOKEN   ?? "";
+  const slackChannel = (wsRow as { slack_channel_id?: string | null } | null)?.slack_channel_id ?? process.env.SLACK_CHANNEL_ID ?? "";
+
   const results: SyncFileResult[] = [];
   let totalAdded = 0;
 
   for (const file of files) {
     try {
-      const result = await syncFile(admin, workspaceId, file, pat, figmaUserId ?? undefined);
+      const result = await syncFile(admin, workspaceId, file, pat, figmaUserId ?? undefined, slackToken, slackChannel);
       results.push(result);
       totalAdded += result.added;
     } catch (e) {
@@ -135,6 +145,8 @@ async function syncFile(
   file: TeamFile,
   pat: string,
   figmaUserId?: string,
+  slackToken: string = "",
+  slackChannel: string = "",
 ): Promise<SyncFileResult> {
   // 1. Ensure figma_file record exists — upsert by file key + workspace
   const { data: existingFile } = await admin
@@ -313,7 +325,7 @@ async function syncFile(
     // AI classify
     const ai = await classifyComment(comment.message).catch(() => null);
 
-    await admin.from("feedback_items").insert({
+    const { data: newFeedbackItem } = await admin.from("feedback_items").insert({
       figma_comment_id: figmaCommentDbId,
       workspace_id: workspaceId,
       project_id: projectId,
@@ -330,11 +342,12 @@ async function syncFile(
       figma_node_id: nodeId,
       figma_preview_url: fileThumbnailUrl,  // file-level thumbnail as initial placeholder
       ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
-    });
+    }).select("id").single();
+    const feedbackItemDbId = (newFeedbackItem as { id: string } | null)?.id ?? null;
 
-    // Post to Slack if this needs a decision and bot is configured
-    const channel = defaultChannel();
-    if (channel && (ai?.classification === "Needs Decision" || ai?.classification === "Blocked")) {
+    // Post to Slack if this needs a decision and bot is configured.
+    // slackToken + slackChannel come from the workspace DB record (DB-first, env fallback).
+    if (slackChannel && (ai?.classification === "Needs Decision" || ai?.classification === "Blocked")) {
       const figmaUrl = nodeId
         ? `https://www.figma.com/file/${file.key}?node-id=${encodeURIComponent(nodeId)}`
         : `https://www.figma.com/file/${file.key}`;
@@ -349,8 +362,10 @@ async function syncFile(
         classification: ai.classification,
         aiKeyQuestion: ai.key_question ?? null,
         figmaUrl,
-        channel,
-      })
+        channel: slackChannel,
+        itemId: feedbackItemDbId,
+        projectId,
+      }, slackToken)
         .then(({ ts, channel: ch }) => {
           // Store Slack message ts so we can update it later
           return admin.from("feedback_items")

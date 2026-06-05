@@ -23,11 +23,12 @@ export async function GET(
   const commentId = (item?.figma_comment as any)?.id;
   if (!commentId) return NextResponse.json({ replies: [] });
 
-  // Fetch replies where parent_figma_comment_id = commentId
+  // Fetch replies where parent_figma_comment_id = commentId, excluding soft-deleted rows
   const { data: replies } = await admin
     .from("figma_comments")
     .select("id, author_name, raw_content, figma_created_at")
     .eq("parent_figma_comment_id", commentId)
+    .is("deleted_at", null)
     .order("figma_created_at", { ascending: true });
 
   return NextResponse.json({ replies: replies ?? [] });
