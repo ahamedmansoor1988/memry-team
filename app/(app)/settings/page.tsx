@@ -1,6 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
-import { CheckCircle, AlertCircle, Loader2, Copy, Check, Users, Link2 } from "lucide-react";
+import { CheckCircle, AlertCircle, Loader2, Copy, Check, Users, Link2, Bell } from "lucide-react";
+
+function scanTimeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 interface Member {
   id: string;
@@ -21,6 +31,22 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // Notification settings
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [lastScan, setLastScan] = useState<string | null>(null);
+  const [scanStatus, setScanStatus] = useState<"idle" | "running" | "done">("idle");
+  const [scanResult, setScanResult] = useState<{ notified: number; skipped: number } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/notifications/test")
+      .then(r => r.json())
+      .then((d: { notifications_enabled?: boolean; notifications_last_scan?: string | null }) => {
+        setNotificationsEnabled(d.notifications_enabled ?? true);
+        setLastScan(d.notifications_last_scan ?? null);
+      })
+      .catch(() => {/* migration not run yet — keep defaults */});
+  }, []);
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then((d: {
@@ -85,6 +111,34 @@ export default function SettingsPage() {
       setInviteResult({ ok: false, msg: data.error ?? "Failed to invite" });
     }
     setInviting(false);
+  }
+
+  async function toggleNotifications(enabled: boolean) {
+    setNotificationsEnabled(enabled);
+    await fetch("/api/notifications/test", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notifications_enabled: enabled }),
+    }).catch(() => {/* non-fatal */});
+  }
+
+  async function runTestScan() {
+    setScanStatus("running");
+    setScanResult(null);
+    try {
+      const res  = await fetch("/api/notifications/test", { method: "POST" });
+      const data = await res.json() as {
+        notified?: number;
+        skipped?: number;
+        notifications_last_scan?: string;
+      };
+      setScanResult({ notified: data.notified ?? 0, skipped: data.skipped ?? 0 });
+      if (data.notifications_last_scan) setLastScan(data.notifications_last_scan);
+    } catch {
+      setScanResult({ notified: 0, skipped: 0 });
+    } finally {
+      setScanStatus("done");
+    }
   }
 
   return (
@@ -231,6 +285,67 @@ export default function SettingsPage() {
           {inviteResult && (
             <p className={`text-xs mt-2 ${inviteResult.ok ? "text-emerald-500" : "text-red-400"}`}>
               {inviteResult.msg}
+            </p>
+          )}
+        </div>
+
+        {/* Notifications */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-1">
+            <Bell size={16} className="text-gray-400" />
+            <h2 className="text-gray-900 font-bold text-base">Notifications</h2>
+          </div>
+          <p className="text-gray-400 text-sm mb-5">
+            Proactive Slack DMs to authors when their feedback needs attention.
+          </p>
+
+          {/* Toggle */}
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-gray-700 text-sm font-medium">Stale comment alerts (48h)</p>
+              <p className="text-gray-400 text-xs mt-0.5">
+                DM authors when comments haven&apos;t been updated in 48 hours
+              </p>
+            </div>
+            <button
+              onClick={() => void toggleNotifications(!notificationsEnabled)}
+              aria-label={notificationsEnabled ? "Disable notifications" : "Enable notifications"}
+              className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
+                notificationsEnabled ? "bg-gray-900" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                  notificationsEnabled ? "translate-x-4" : "translate-x-0"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Last scan timestamp */}
+          {lastScan && (
+            <p className="text-gray-400 text-xs mb-4">
+              Last scan: {scanTimeAgo(lastScan)}
+            </p>
+          )}
+
+          {/* Test scan button */}
+          <button
+            onClick={() => void runTestScan()}
+            disabled={scanStatus === "running"}
+            className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+          >
+            {scanStatus === "running"
+              ? <Loader2 size={13} className="animate-spin" />
+              : <Bell size={13} />}
+            {scanStatus === "running" ? "Running scan…" : "Test scan now"}
+          </button>
+
+          {scanResult && (
+            <p className="text-sm mt-2 text-gray-500">
+              ✓ Notified {scanResult.notified}{" "}
+              {scanResult.notified === 1 ? "person" : "people"}
+              {scanResult.skipped > 0 ? `, skipped ${scanResult.skipped}` : ""}
             </p>
           )}
         </div>

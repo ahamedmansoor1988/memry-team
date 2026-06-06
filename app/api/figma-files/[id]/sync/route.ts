@@ -63,15 +63,29 @@ export async function POST(
     const topLevel = allComments.filter(c => !c.parent_id);
     const replies = allComments.filter(c => !!c.parent_id);
 
-    // 3. Get already-synced comment IDs
+    // 3. Get already-synced comment IDs (include id + parent for deletion detection)
     const { data: existing } = await admin
       .from("figma_comments")
-      .select("figma_comment_id")
+      .select("id, figma_comment_id, parent_figma_comment_id, deleted_at")
       .eq("figma_file_id", figmaFileId);
 
-    const existingIds = new Set((existing ?? []).map(c => c.figma_comment_id as string));
+    type ExistingRow = {
+      id: string;
+      figma_comment_id: string;
+      parent_figma_comment_id: string | null;
+      deleted_at: string | null;
+    };
+    const existingRows = (existing ?? []) as ExistingRow[];
+    const existingIds = new Set(existingRows.map(r => r.figma_comment_id));
 
-    // 4. Find new top-level comments
+    // 4. Deletion detection — soft-delete rows that no longer exist in Figma.
+    // Runs on every sync, before the early-return, so detection fires even when
+    // there are no new comments to insert.
+    const figmaLiveIds = new Set(allComments.map(c => c.id));
+    const liveRows = existingRows.filter(r => !r.deleted_at);
+    const deletedCount = await softDeleteStale(admin, liveRows, figmaLiveIds, workspaceId);
+
+    // 5. Find new top-level comments
     const newTopLevel = topLevel.filter(c => !existingIds.has(c.id));
     console.log(`[sync] new top-level comments: ${newTopLevel.length}`);
 
@@ -84,7 +98,7 @@ export async function POST(
       }).eq("id", figmaFileId);
       // No new design_references created — skip enrich trigger.
       // Existing pending/failed records will be handled on the next cron/sync cycle.
-      return NextResponse.json({ added: 0, replies_added: 0, total: topLevel.length });
+      return NextResponse.json({ added: 0, replies_added: 0, total: topLevel.length, deleted: deletedCount });
     }
 
     // 6. Insert new top-level comments + their feedback_items
@@ -235,7 +249,7 @@ export async function POST(
       fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
     }
 
-    return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length });
+    return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length, deleted: deletedCount });
 
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Sync failed";
@@ -352,3 +366,80 @@ async function syncNewReplies(
   return count;
 }
 
+// ─── Soft-delete detection ────────────────────────────────────────────────────
+
+type SoftDeleteRow = {
+  id: string;
+  figma_comment_id: string;
+  parent_figma_comment_id: string | null;
+};
+
+/**
+ * For every row in liveRows whose figma_comment_id is absent from figmaLiveIds,
+ * stamp deleted_at on the figma_comment, cascade to its replies, and mark the
+ * linked feedback_item deleted. No AI data, Slack refs, or history is removed.
+ *
+ * Returns the number of top-level + standalone-reply rows marked deleted.
+ */
+async function softDeleteStale(
+  admin: ReturnType<typeof createAdminClient>,
+  liveRows: SoftDeleteRow[],
+  figmaLiveIds: Set<string>,
+  workspaceId: string,
+): Promise<number> {
+  const stale = liveRows.filter(r => !figmaLiveIds.has(r.figma_comment_id));
+  if (stale.length === 0) return 0;
+
+  const now = new Date().toISOString();
+
+  const staleParents  = stale.filter(r => !r.parent_figma_comment_id);
+  const staleReplies  = stale.filter(r =>  !!r.parent_figma_comment_id);
+
+  // IDs of parents being deleted — used to exclude their replies from the
+  // standalone-reply update (cascade handles those already).
+  const staleParentDbIds = new Set(staleParents.map(p => p.id));
+
+  for (const parent of staleParents) {
+    // Mark the top-level comment deleted
+    await admin
+      .from("figma_comments")
+      .update({ deleted_at: now })
+      .eq("id", parent.id);
+
+    // Cascade: mark all child replies deleted
+    await admin
+      .from("figma_comments")
+      .update({ deleted_at: now })
+      .eq("parent_figma_comment_id", parent.id)
+      .is("deleted_at", null);
+
+    // Mark the linked feedback_item deleted (preserves all AI + Slack columns)
+    await admin
+      .from("feedback_items")
+      .update({ deleted_at: now, status: "deleted", updated_at: now })
+      .eq("figma_comment_id", parent.id)
+      .is("deleted_at", null);
+  }
+
+  // Mark standalone stale replies (parent is still live) deleted
+  const standaloneReplies = staleReplies.filter(
+    r => !staleParentDbIds.has(r.parent_figma_comment_id ?? ""),
+  );
+  if (standaloneReplies.length > 0) {
+    await admin
+      .from("figma_comments")
+      .update({ deleted_at: now })
+      .in("id", standaloneReplies.map(r => r.id))
+      .is("deleted_at", null);
+  }
+
+  const count = staleParents.length + standaloneReplies.length;
+  if (count > 0) {
+    console.log(
+      `[sync] soft-deleted ${count} stale item(s) ` +
+      `(${staleParents.length} top-level, ${standaloneReplies.length} standalone replies) ` +
+      `workspace=${workspaceId}`,
+    );
+  }
+  return count;
+}
