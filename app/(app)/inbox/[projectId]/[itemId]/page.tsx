@@ -576,28 +576,11 @@ function DesignContextPreview({ item, frameCommentCount }: {
           </button>
         )}
 
-        {/* Generate preview — no URL exists yet and not already ready */}
-        {!showImage && !imgError && previewStatus !== "ready" && (
-          <div className="space-y-1">
-            <button
-              onClick={handleGeneratePreview}
-              disabled={generating}
-              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-ink text-paper text-body font-medium hover:opacity-80 disabled:opacity-40 transition-opacity"
-            >
-              {generating
-                ? <><span className="w-3 h-3 rounded-full border-2 border-paper/30 border-t-paper animate-spin" />Generating…</>
-                : "Generate Frame Preview"}
-            </button>
-            {genMsg && (
-              <p className={`text-caption text-center ${
-                genMsg.includes("Rate") ? "text-orange-500"
-                : genMsg.includes("ready") ? "text-emerald-600"
-                : "text-muted"
-              }`}>
-                {genMsg}
-              </p>
-            )}
-          </div>
+        {/* Preview fetched automatically during sync — no manual generation needed */}
+        {!showImage && !imgError && (
+          <p className="text-caption text-muted text-center py-1">
+            Preview loads automatically on next sync
+          </p>
         )}
 
         {/* Open in Figma row — only when figmaUrl known */}
