@@ -509,13 +509,13 @@ function DesignContextPreview({ item, frameCommentCount }: {
           <span className={`text-[9px] font-bold uppercase tracking-[0.15em] block mb-1 ${
             imgError
               ? "text-red-400"
-              : previewStatus === "failed"
-                ? failureInfo.tone === "warning" ? "text-amber-500" : "text-red-400"
+              : (previewStatus === "failed" && failureInfo.tone !== "warning")
+                ? "text-red-400"
                 : "text-gray-400"
           }`}>
             {imgError
               ? "Preview failed to load"
-              : previewStatus === "failed"
+              : (previewStatus === "failed" && failureInfo.tone !== "warning")
                 ? failureInfo.label
                 : "Frame"}
           </span>

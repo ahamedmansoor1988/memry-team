@@ -141,12 +141,14 @@ function FigmaPreview({ previewUrl, previewStatus, previewErrorReason, frameName
   console.log("[preview:list]", { previewUrl: previewUrl ?? null, previewStatus: previewStatus ?? null, frameName: frameName ?? null, loaded, errored });
 
   // No image: show frame identity card
+  // Treat rate_limited as pending — previews now come from sync, not on-demand
+  const effectiveStatus = previewErrorReason === "rate_limited" ? "pending" : previewStatus;
   if (!previewUrl || errored) {
-    const isFailed = previewStatus === "failed";
+    const isFailed = effectiveStatus === "failed";
     const failure  = previewFailureInfo(previewErrorReason);
     const failColor = failure.tone === "warning" ? "text-amber-500" : "text-red-400";
     const topLabel    = errored ? "Load error" : isFailed ? "Unavailable"  : "FRAME";
-    const bottomLabel = errored ? "Load error" : isFailed ? failure.label  : "Generating…";
+    const bottomLabel = errored ? "Load error" : isFailed ? failure.label  : "Syncing…";
     const topColor    = errored ? "text-red-400" : isFailed ? failColor : "text-gray-400";
     const bottomColor = errored ? "text-red-400" : isFailed ? failColor : "text-gray-400";
     return (
