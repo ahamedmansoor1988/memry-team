@@ -12,6 +12,7 @@
 import { figmaHeaders } from "./api";
 import { getBatchThumbnails } from "./thumbnails";
 import { classifyComment } from "@/lib/ai/classify";
+import { resolveOwner } from "@/lib/ai/resolve-owner";
 import { createAdminClient } from "@/lib/supabase/server";
 import { postCommentToSlack } from "@/lib/slack/bot";
 
@@ -266,6 +267,7 @@ async function syncFile(
   let repliesAdded = 0;
   const deleted = deletedRows.length;
   const nodeItemPairs: { itemId: string; nodeId: string }[] = [];
+  const ownerItems: { itemId: string; commentText: string; replyTexts: string[] }[] = [];
 
   for (const comment of newTopLevel) {
     const mentionsMe = figmaUserId ? detectMention(comment.message, figmaUserId) : false;
@@ -446,6 +448,15 @@ async function syncFile(
       }
     }
 
+    // Collect for post-loop owner resolution (replies are already known here)
+    if (feedbackItemDbId) {
+      ownerItems.push({
+        itemId: feedbackItemDbId,
+        commentText: comment.message,
+        replyTexts: commentReplies.map(r => r.message),
+      });
+    }
+
     added++;
   }
 
@@ -470,6 +481,38 @@ async function syncFile(
       }
     } catch (e) {
       console.warn("[team-sync] thumbnail batch failed (non-fatal):", e);
+    }
+  }
+
+  // ── Resolve owners for newly inserted items ───────────────────────────────
+  if (ownerItems.length > 0) {
+    try {
+      const { data: profileRows } = await admin
+        .from("profiles")
+        .select("id, display_name, figma_handle, slack_handle")
+        .eq("workspace_id", workspaceId);
+
+      const profiles = (profileRows ?? []).map(r => {
+        const p = r as { id: string; display_name: string; figma_handle: string | null; slack_handle: string | null };
+        return { id: p.id, display_name: p.display_name, figma_handle: p.figma_handle ?? "", slack_handle: p.slack_handle };
+      });
+
+      for (const { itemId, commentText, replyTexts } of ownerItems) {
+        const result = await resolveOwner(commentText, replyTexts, profiles);
+        if (result.owner_name) {
+          await admin
+            .from("feedback_items")
+            .update({
+              owner_name: result.owner_name,
+              owner_profile_id: result.profile_id,
+              waiting_since: new Date().toISOString(),
+              ownership_source: "ai",
+            })
+            .eq("id", itemId);
+        }
+      }
+    } catch (e) {
+      console.warn("[team-sync] owner resolution failed (non-fatal):", e);
     }
   }
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio } from "lucide-react";
+import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio, Users } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,11 @@ interface FeedbackSpike {
   count: number;
 }
 
+interface WaitingOnEntry {
+  owner_name: string;
+  count: number;
+}
+
 interface PulseData {
   health: { score: number; label: string };
   stalledDecisions: SignalGroup;
@@ -30,6 +35,7 @@ interface PulseData {
   riskFlags: SignalGroup;
   vagueComments: SignalGroup;
   feedbackSpikes: FeedbackSpike[];
+  topWaitingOn: WaitingOnEntry[];
   generatedAt: string;
 }
 
@@ -275,6 +281,28 @@ export default function PulsePage() {
                 onClickItem={handleClickItem}
               />
             </div>
+
+            {/* ── Waiting On ── */}
+            {data.topWaitingOn?.length > 0 && (
+              <div className="rounded-panel border border-border bg-paper p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
+                    <Users size={14} className="text-sky-600" />
+                  </div>
+                  <span className="text-body font-semibold text-ink">Waiting On</span>
+                </div>
+                <div className="space-y-1.5">
+                  {data.topWaitingOn.map(entry => (
+                    <div key={entry.owner_name} className="flex items-center justify-between text-body">
+                      <span className="text-ink font-medium">{entry.owner_name}</span>
+                      <span className="text-muted text-caption">
+                        {entry.count} item{entry.count !== 1 ? "s" : ""} waiting
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* ── Feedback Spikes ── */}
             {data.feedbackSpikes.length > 0 && (

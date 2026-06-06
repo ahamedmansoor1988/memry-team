@@ -145,6 +145,45 @@ export async function GET(req: Request) {
     }
   }
 
+  // ── Optionally enrich with owner fields (post-migration columns) ─────────
+  type OwnerProfileRow = { display_name: string; slack_handle: string | null };
+  type OwnerRow = {
+    owner_name: string | null;
+    owner_profile_id: string | null;
+    waiting_since: string | null;
+    ownership_source: string | null;
+    owner_profile: OwnerProfileRow | null;
+  };
+  const ownerMap = new Map<string, OwnerRow>();
+  if (itemIds.length > 0) {
+    try {
+      const { data: ownerRows } = await admin
+        .from("feedback_items")
+        .select("id, owner_name, owner_profile_id, waiting_since, ownership_source, owner_profile:profiles!owner_profile_id(display_name, slack_handle)")
+        .in("id", itemIds);
+      for (const row of ownerRows ?? []) {
+        const r = row as {
+          id: string;
+          owner_name?: string | null;
+          owner_profile_id?: string | null;
+          waiting_since?: string | null;
+          ownership_source?: string | null;
+          owner_profile?: OwnerProfileRow | OwnerProfileRow[] | null;
+        };
+        const op = Array.isArray(r.owner_profile) ? (r.owner_profile[0] ?? null) : (r.owner_profile ?? null);
+        ownerMap.set(row.id, {
+          owner_name:       r.owner_name       ?? null,
+          owner_profile_id: r.owner_profile_id ?? null,
+          waiting_since:    r.waiting_since     ?? null,
+          ownership_source: r.ownership_source  ?? null,
+          owner_profile:    op,
+        });
+      }
+    } catch {
+      // owner columns don't exist yet — silently skip
+    }
+  }
+
   // ── Assemble final items ──────────────────────────────────────────────────
   const itemsWithReplies = normalized.map(item => {
     const fc = item.figma_comment as Record<string, unknown> | null;
@@ -152,6 +191,7 @@ export async function GET(req: Request) {
     const extra = fcId ? extraMap.get(fcId) : null;
     const dr = drMap.get(item.id) ?? null;
     const authorProfile = profileMap.get(item.id) ?? null;
+    const ownerData = ownerMap.get(item.id) ?? null;
 
     // Merge page_name + frame_name into figma_comment
     const enrichedFc = fc ? {
@@ -175,6 +215,11 @@ export async function GET(req: Request) {
       figma_preview_url: resolvedPreviewUrl,
       replies: itemReplies,
       author_profile: authorProfile,
+      owner_name:       ownerData?.owner_name       ?? null,
+      owner_profile_id: ownerData?.owner_profile_id ?? null,
+      waiting_since:    ownerData?.waiting_since     ?? null,
+      ownership_source: ownerData?.ownership_source  ?? null,
+      owner_profile:    ownerData?.owner_profile     ?? null,
     };
   });
 

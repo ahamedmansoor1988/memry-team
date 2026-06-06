@@ -35,6 +35,13 @@ interface AuthorProfile {
   slack_handle: string | null;
 }
 
+interface OwnerProfile {
+  id: string;
+  display_name: string;
+  figma_handle: string | null;
+  slack_handle: string | null;
+}
+
 interface FeedbackItem {
   id: string; status: string; priority: string;
   ai_summary: string | null; ai_classification: string | null;
@@ -51,6 +58,11 @@ interface FeedbackItem {
   design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
   replies: Reply[];
+  owner_name: string | null;
+  owner_profile_id: string | null;
+  waiting_since: string | null;
+  ownership_source: string | null;
+  owner_profile: { display_name: string; slack_handle: string | null } | null;
 }
 
 type DecisionType = "approve" | "needs_work" | "clarify" | null;
@@ -649,6 +661,142 @@ function ActivityLog({ item }: { item: FeedbackItem }) {
   );
 }
 
+// ── Owner panel ───────────────────────────────────────────────────────────────
+
+function OwnerPanel({ item, profiles, onOwnerChange }: {
+  item: FeedbackItem;
+  profiles: OwnerProfile[];
+  onOwnerChange: (
+    ownerName: string | null,
+    ownerProfileId: string | null,
+    ownerProfile: { display_name: string; slack_handle: string | null } | null,
+  ) => void;
+}) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [assigning, setAssigning]       = useState(false);
+
+  const waitingDays = item.waiting_since
+    ? Math.floor((Date.now() - new Date(item.waiting_since).getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  async function assignOwner(
+    profileId: string,
+    ownerName: string,
+    ownerProf: { display_name: string; slack_handle: string | null },
+  ) {
+    setAssigning(true);
+    setDropdownOpen(false);
+    try {
+      await fetch(`/api/feedback/${item.id}/owner`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner_profile_id: profileId, owner_name: ownerName }),
+      });
+      onOwnerChange(ownerName, profileId, ownerProf);
+    } catch {
+      // non-fatal — optimistic update already applied
+    }
+    setAssigning(false);
+  }
+
+  function initialsOf(name: string) {
+    return name.split(/\s+/).map(w => w[0]?.toUpperCase() ?? "").slice(0, 2).join("");
+  }
+
+  return (
+    <div className="border border-border rounded-panel bg-paper">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Owner</span>
+        {item.ownership_source && (
+          <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+            item.ownership_source === "ai"
+              ? "bg-violet-50 text-violet-600"
+              : "bg-gray-100 text-gray-500"
+          }`}>
+            {item.ownership_source === "ai" ? "AI" : "Manual"}
+          </span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="px-4 py-3 relative">
+        {item.owner_name ? (
+          <div className="space-y-2">
+            {/* Owner identity row */}
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-full bg-ink text-paper flex items-center justify-center text-[10px] font-semibold shrink-0 select-none">
+                {initialsOf(item.owner_profile?.display_name ?? item.owner_name)}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-body font-semibold text-ink truncate">
+                  {item.owner_profile?.display_name ?? item.owner_name}
+                </p>
+                {item.owner_profile?.slack_handle && (
+                  <p className="text-caption text-muted">@{item.owner_profile.slack_handle}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setDropdownOpen(v => !v)}
+                disabled={assigning}
+                className="text-muted hover:text-ink transition-colors shrink-0 disabled:opacity-40"
+                title="Reassign owner"
+              >
+                <ChevronDown size={12} />
+              </button>
+            </div>
+            {/* Waiting indicator — only shown after 2 days */}
+            {item.waiting_since && waitingDays > 2 && (
+              <p className="flex items-center gap-1 text-caption text-amber-600 font-medium">
+                <Clock size={10} className="shrink-0" />
+                Waiting {waitingDays} day{waitingDays !== 1 ? "s" : ""}
+              </p>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => setDropdownOpen(v => !v)}
+            disabled={assigning}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors disabled:opacity-40"
+          >
+            <span>Unassigned</span>
+            <ChevronDown size={12} className="opacity-60" />
+          </button>
+        )}
+
+        {/* Profile picker dropdown */}
+        {dropdownOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setDropdownOpen(false)} />
+            <div className="absolute left-0 right-0 top-full mt-1 bg-paper border border-border rounded-lg shadow-lg overflow-hidden z-20">
+              {profiles.length === 0 ? (
+                <p className="px-3 py-2.5 text-body text-muted text-center">No profiles yet</p>
+              ) : (
+                profiles.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => void assignOwner(
+                      p.id,
+                      p.display_name,
+                      { display_name: p.display_name, slack_handle: p.slack_handle },
+                    )}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 text-body text-muted hover:text-ink hover:bg-surface transition-colors text-left"
+                  >
+                    <span className="w-6 h-6 rounded-full bg-ink text-paper flex items-center justify-center text-[9px] font-semibold shrink-0 select-none">
+                      {initialsOf(p.display_name)}
+                    </span>
+                    <span className="truncate">{p.display_name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ItemDetailPage({ params }: { params: { projectId: string; itemId: string } }) {
@@ -676,6 +824,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
 
   const [detailPreviewUrl, setDetailPreviewUrl] = useState<string | null>(null);
   const [detailPreviewFetching, setDetailPreviewFetching] = useState(false);
+  const [profiles, setProfiles] = useState<OwnerProfile[]>([]);
 
   function fetchItem(silent = false) {
     fetch(`/api/feedback?projectId=${projectId}`)
@@ -720,6 +869,28 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id]);
+
+  // Fetch workspace profiles once for the owner dropdown
+  useEffect(() => {
+    fetch("/api/profiles")
+      .then(r => r.json())
+      .then((d: { profiles?: OwnerProfile[] }) => setProfiles(d.profiles ?? []))
+      .catch(() => {});
+  }, []);
+
+  function handleOwnerChange(
+    ownerName: string | null,
+    ownerProfileId: string | null,
+    ownerProfile: { display_name: string; slack_handle: string | null } | null,
+  ) {
+    setItem(prev => prev ? {
+      ...prev,
+      owner_name: ownerName,
+      owner_profile_id: ownerProfileId,
+      ownership_source: "manual",
+      owner_profile: ownerProfile,
+    } : prev);
+  }
 
   async function handleMakeDecision() {
     if (!decision || !item) return;
@@ -1113,6 +1284,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
       <div className="w-80 shrink-0 overflow-y-auto bg-paper border-l border-border hidden lg:block">
         <div className="p-4 space-y-4">
           <DesignContextPreview item={item} frameCommentCount={frameCommentCount} />
+          <OwnerPanel item={item} profiles={profiles} onOwnerChange={handleOwnerChange} />
           <ActivityLog item={item} />
         </div>
       </div>

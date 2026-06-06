@@ -32,6 +32,7 @@ interface FeedbackItem {
   design_reference: DesignReference | null;
   project: { id: string; name: string } | null;
   replies: Reply[];
+  owner_name: string | null;
 }
 
 type FilterTab = "all" | "needs_decision" | "open" | "resolved" | "archived";
@@ -269,6 +270,13 @@ function CommentCard({ item, onSelect }: {
         <p className="text-lead font-semibold text-ink line-clamp-2 leading-snug">
           {(item.ai_key_question && item.ai_key_question !== "None") ? item.ai_key_question : (fc?.raw_content ?? "Comment")}
         </p>
+
+        {/* Owner hint */}
+        {item.owner_name && (
+          <p className="text-caption text-muted -mt-0.5">
+            <span className="opacity-50">→</span> {item.owner_name}
+          </p>
+        )}
 
         {/* Meta */}
         <div className="flex items-center gap-1.5 text-caption text-muted">

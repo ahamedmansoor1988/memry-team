@@ -125,6 +125,32 @@ export async function GET() {
     score >= 50 ? "At Risk" :
     "Critical";
 
+  // ── 7. Top Waiting On ────────────────────────────────────────────────────────
+  // Optional — silently skipped if owner_name column doesn't exist yet.
+  let topWaitingOn: { owner_name: string; count: number }[] = [];
+  try {
+    const { data: waitingRows } = await admin
+      .from("feedback_items")
+      .select("owner_name")
+      .eq("workspace_id", membership.workspace_id)
+      .in("status", ["open", "needs_decision"])
+      .not("owner_name", "is", null);
+
+    if (waitingRows) {
+      const counts: Record<string, number> = {};
+      for (const row of waitingRows) {
+        const name = (row as { owner_name: string }).owner_name;
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
+      topWaitingOn = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([owner_name, count]) => ({ owner_name, count }));
+    }
+  } catch {
+    // owner_name column doesn't exist yet — silently skip
+  }
+
   return NextResponse.json({
     health: { score, label: healthLabel },
     stalledDecisions: { count: stalledDecisions.length, items: toSignalItems(stalledDecisions) },
@@ -132,6 +158,7 @@ export async function GET() {
     riskFlags:        { count: riskFlags.length,        items: toSignalItems(riskFlags)        },
     vagueComments:    { count: vagueComments.length,    items: toSignalItems(vagueComments)    },
     feedbackSpikes,
+    topWaitingOn,
     generatedAt: new Date().toISOString(),
   });
 }
