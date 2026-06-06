@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { CheckCircle2, User, Loader2, Link as LinkIcon } from "lucide-react";
+import { CheckCircle2, User, Loader2, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ export default function DecisionsPage() {
                           href={feedbackLink}
                           className="inline-flex items-center gap-1 mt-2.5 text-[10px] text-muted hover:text-ink transition-colors"
                         >
-                          <LinkIcon size={9} />
+                          <ExternalLink size={9} />
                           View original comment
                         </Link>
                       )}
