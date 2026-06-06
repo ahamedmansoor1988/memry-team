@@ -303,6 +303,7 @@ async function syncFile(
     // Best-effort: upsert the comment author as a profile.
     // handle is always present in Figma comment user objects — use it as the key.
     let authorProfileId: string | null = null;
+    let authorSlackHandle: string | null = null;
     if (comment.user?.handle) {
       try {
         const profilePayload: Record<string, unknown> = {
@@ -317,10 +318,14 @@ async function syncFile(
         const { data: profile, error: profileErr } = await admin
           .from("profiles")
           .upsert(profilePayload, { onConflict: "workspace_id,figma_handle" })
-          .select("id")
+          .select("id, slack_handle")
           .single();
         if (profileErr) console.warn("[team-sync] profile upsert error:", profileErr.message);
-        if (profile) authorProfileId = (profile as { id: string }).id;
+        if (profile) {
+          const p = profile as { id: string; slack_handle: string | null };
+          authorProfileId   = p.id;
+          authorSlackHandle = p.slack_handle ?? null;
+        }
       } catch (e) {
         console.warn("[team-sync] profile upsert failed (non-fatal):", e);
       }
@@ -395,6 +400,7 @@ async function syncFile(
         channel: slackChannel,
         itemId: feedbackItemDbId,
         projectId,
+        authorSlackHandle,
       }, slackToken)
         .then(({ ts, channel: ch }) => {
           // Store Slack message ts so we can update it later

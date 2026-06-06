@@ -60,6 +60,8 @@ export interface PostCommentOptions {
   itemId?: string | null;
   /** Memry project DB id — used alongside itemId to build the deep-link URL. */
   projectId?: string | null;
+  /** Slack handle (without @) of the Figma comment author — triggers a thread @-mention reply. */
+  authorSlackHandle?: string | null;
 }
 
 /**
@@ -86,7 +88,7 @@ export async function postCommentToSlack(opts: PostCommentOptions, token?: strin
     {
       type: "context",
       elements: [
-        { type: "mrkdwn", text: `👤 *${opts.authorName}*  ·  📁 ${breadcrumb}` },
+        { type: "mrkdwn", text: `👤 *${opts.authorName}*${opts.authorSlackHandle ? ` · <@${opts.authorSlackHandle}> will be notified` : ""}  ·  📁 ${breadcrumb}` },
       ],
     },
     {
@@ -152,6 +154,15 @@ export async function postCommentToSlack(opts: PostCommentOptions, token?: strin
     text: `${emoji} ${label}: ${title}`,
     unfurl_links: false,
   }, tok);
+
+  // If we know the author's Slack handle, ping them in a thread reply.
+  if (opts.authorSlackHandle) {
+    await postThreadReply({
+      channel: result.channel!,
+      threadTs: result.ts!,
+      text: `Hey @${opts.authorSlackHandle} — this comment has been flagged for review in Memry.`,
+    }, tok).catch(e => console.warn("[slack] author notify reply failed (non-critical):", e));
+  }
 
   return { ts: result.ts!, channel: result.channel! };
 }

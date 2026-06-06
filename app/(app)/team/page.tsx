@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, Pencil, X, Check, Loader2 } from "lucide-react";
+import { Users, Pencil, X, Check, Loader2, UserPlus, Send } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,9 +56,16 @@ function ProfileCard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Invite state
+  const [inviting, setInviting] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState(profile.email ?? "");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   function startEdit() {
     setSlackInput(profile.slack_handle ?? "");
     setError(null);
+    setInviting(false);
     setEditing(true);
   }
 
@@ -90,6 +97,41 @@ function ProfileCard({
     }
   }
 
+  function startInvite() {
+    setInviteEmail(profile.email ?? "");
+    setInviteResult(null);
+    setEditing(false);
+    setInviting(true);
+  }
+
+  function cancelInvite() {
+    setInviting(false);
+    setInviteResult(null);
+  }
+
+  async function sendInvite() {
+    if (!inviteEmail.includes("@")) return;
+    setInviteSending(true);
+    setInviteResult(null);
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; message?: string };
+      if (res.ok && data.ok) {
+        setInviteResult({ ok: true, message: data.message ?? "Invite sent!" });
+      } else {
+        setInviteResult({ ok: false, message: data.error ?? "Failed to send invite" });
+      }
+    } catch {
+      setInviteResult({ ok: false, message: "Network error" });
+    } finally {
+      setInviteSending(false);
+    }
+  }
+
   return (
     <div className="rounded-panel border border-border bg-paper p-4 hover:border-ink/15 transition-colors">
       <div className="flex items-start gap-3">
@@ -111,14 +153,23 @@ function ProfileCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2 mb-0.5">
             <p className="text-body font-semibold text-ink truncate">{profile.display_name}</p>
-            {!editing && (
-              <button
-                onClick={startEdit}
-                title="Link Slack handle"
-                className="text-muted hover:text-ink transition-colors shrink-0"
-              >
-                <Pencil size={12} />
-              </button>
+            {!editing && !inviting && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={startEdit}
+                  title="Link Slack handle"
+                  className="text-muted hover:text-ink transition-colors"
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  onClick={startInvite}
+                  title="Invite to Memry"
+                  className="text-muted hover:text-ink transition-colors"
+                >
+                  <UserPlus size={12} />
+                </button>
+              </div>
             )}
           </div>
 
@@ -157,7 +208,7 @@ function ProfileCard({
         </div>
       </div>
 
-      {/* Inline edit row */}
+      {/* Inline Slack edit row */}
       {editing && (
         <div className="mt-3 pt-3 border-t border-border">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Slack Handle</p>
@@ -189,6 +240,54 @@ function ProfileCard({
           {error && <p className="text-caption text-red-500 mt-1.5">{error}</p>}
         </div>
       )}
+
+      {/* Inline invite row */}
+      {inviting && (
+        <div className="mt-3 pt-3 border-t border-border">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Invite to Memry</p>
+          {inviteResult?.ok ? (
+            <div className="flex items-center justify-between">
+              <p className="text-caption text-green-600">✓ {inviteResult.message}</p>
+              <button
+                onClick={cancelInvite}
+                className="text-caption text-muted hover:text-ink transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") void sendInvite(); if (e.key === "Escape") cancelInvite(); }}
+                placeholder="email@example.com"
+                autoFocus
+                className="flex-1 bg-surface border border-border rounded-lg px-3 py-1.5 text-body text-ink placeholder:text-muted outline-none focus:border-ink/40 transition-colors"
+              />
+              <button
+                onClick={() => void sendInvite()}
+                disabled={inviteSending || !inviteEmail.includes("@")}
+                title="Send invite"
+                className="w-8 h-8 rounded-lg bg-ink text-paper flex items-center justify-center hover:opacity-80 disabled:opacity-40 transition-opacity"
+              >
+                {inviteSending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+              </button>
+              <button
+                onClick={cancelInvite}
+                title="Cancel"
+                className="w-8 h-8 rounded-lg border border-border text-muted flex items-center justify-center hover:text-ink transition-colors"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+          {inviteResult && !inviteResult.ok && (
+            <p className="text-caption text-red-500 mt-1.5">{inviteResult.message}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -198,6 +297,12 @@ function ProfileCard({
 export default function TeamPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Header invite state
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [headerEmail, setHeaderEmail] = useState("");
+  const [headerSending, setHeaderSending] = useState(false);
+  const [headerResult, setHeaderResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   useEffect(() => {
     fetch("/api/profiles")
@@ -213,16 +318,99 @@ export default function TeamPage() {
     setProfiles(prev => prev.map(p => p.id === updated.id ? updated : p));
   }
 
+  async function handleHeaderInvite() {
+    if (!headerEmail.includes("@")) return;
+    setHeaderSending(true);
+    setHeaderResult(null);
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: headerEmail }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string; message?: string };
+      if (res.ok && data.ok) {
+        setHeaderResult({ ok: true, message: data.message ?? "Invite sent!" });
+        setHeaderEmail("");
+      } else {
+        setHeaderResult({ ok: false, message: data.error ?? "Failed to send invite" });
+      }
+    } catch {
+      setHeaderResult({ ok: false, message: "Network error" });
+    } finally {
+      setHeaderSending(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-paper">
 
       {/* ── Header ── */}
       <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <Users size={18} className="text-muted shrink-0" />
-          <h1 className="text-title font-semibold text-ink">Team</h1>
+        <div className="flex items-start justify-between gap-4 mb-1">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-muted shrink-0" />
+            <h1 className="text-title font-semibold text-ink">Team</h1>
+          </div>
+          <button
+            onClick={() => { setShowInviteForm(v => !v); setHeaderResult(null); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-body text-ink hover:bg-surface transition-colors shrink-0"
+          >
+            <UserPlus size={13} />
+            <span>Invite</span>
+          </button>
         </div>
         <p className="text-body text-muted">Unified identities across Figma and Slack</p>
+
+        {/* Inline header invite form */}
+        {showInviteForm && (
+          <div className="mt-4 p-4 rounded-panel border border-border bg-surface">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Invite someone to Memry</p>
+            {headerResult?.ok ? (
+              <div className="flex items-center justify-between">
+                <p className="text-caption text-green-600">✓ {headerResult.message}</p>
+                <button
+                  onClick={() => { setShowInviteForm(false); setHeaderResult(null); }}
+                  className="text-caption text-muted hover:text-ink transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  value={headerEmail}
+                  onChange={e => setHeaderEmail(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") void handleHeaderInvite();
+                    if (e.key === "Escape") setShowInviteForm(false);
+                  }}
+                  placeholder="colleague@company.com"
+                  autoFocus
+                  className="flex-1 bg-paper border border-border rounded-lg px-3 py-1.5 text-body text-ink placeholder:text-muted outline-none focus:border-ink/40 transition-colors"
+                />
+                <button
+                  onClick={() => void handleHeaderInvite()}
+                  disabled={headerSending || !headerEmail.includes("@")}
+                  className="px-4 py-1.5 rounded-lg bg-ink text-paper text-body font-medium hover:opacity-80 disabled:opacity-40 transition-opacity flex items-center gap-1.5 shrink-0"
+                >
+                  {headerSending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                  {headerSending ? "Sending…" : "Send invite"}
+                </button>
+                <button
+                  onClick={() => { setShowInviteForm(false); setHeaderResult(null); }}
+                  className="w-8 h-8 rounded-lg border border-border text-muted flex items-center justify-center hover:text-ink transition-colors shrink-0"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            )}
+            {headerResult && !headerResult.ok && (
+              <p className="text-caption text-red-500 mt-1.5">{headerResult.message}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Content ── */}
