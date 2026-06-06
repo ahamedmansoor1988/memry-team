@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { extractDecision } from "@/lib/ai/extract-decision";
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   open:           ["needs_decision", "resolved", "archived"],
@@ -115,6 +116,47 @@ export async function PATCH(
       });
   } catch (e) {
     console.warn("[status] history insert failed:", e);
+  }
+
+  // Auto-extract and persist a structured decision when manually resolved
+  if (toStatus === "resolved") {
+    try {
+      const { data: fbItem } = await admin
+        .from("feedback_items")
+        .select("figma_comment:figma_comments(id, raw_content)")
+        .eq("id", id)
+        .single();
+
+      const fc = Array.isArray(fbItem?.figma_comment)
+        ? fbItem.figma_comment[0]
+        : fbItem?.figma_comment;
+      const commentText = (fc as { raw_content?: string } | null)?.raw_content ?? "";
+      const commentDbId = (fc as { id?: string } | null)?.id;
+
+      let replyTexts: string[] = [];
+      if (commentDbId) {
+        const { data: repliesData } = await admin
+          .from("figma_comments")
+          .select("raw_content")
+          .eq("parent_figma_comment_id", commentDbId);
+        replyTexts = (repliesData ?? []).map(r => (r as { raw_content: string }).raw_content);
+      }
+
+      const result = await extractDecision(commentText, replyTexts, user.email ?? undefined);
+      if (result) {
+        await admin.from("decisions").insert({
+          workspace_id:     membership.workspace_id as string,
+          feedback_item_id: id,
+          decision_text:    result.decision_text,
+          reason:           result.reason,
+          owner_name:       result.owner_name ?? user.email ?? null,
+          source:           "manual",
+          decided_at:       now,
+        });
+      }
+    } catch (e) {
+      console.warn("[status] decision extraction failed (non-fatal):", e);
+    }
   }
 
   return NextResponse.json({ ok: true, status: toStatus });

@@ -1,19 +1,31 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2, Clock, XCircle, MoreHorizontal } from "lucide-react";
+import { CheckCircle2, User, Loader2, Link as LinkIcon } from "lucide-react";
+import Link from "next/link";
 
-interface FeedbackItem {
-  id: string; status: string; priority: string;
-  ai_summary: string | null; ai_classification: string | null;
-  ai_key_question: string | null; ai_tags: string[] | null;
-  created_at: string;
-  figma_comment: {
-    author_name: string; author_avatar: string | null;
-    raw_content: string; figma_created_at: string;
-    figma_file: { id: string; name: string; figma_file_key: string } | null;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface DecisionItem {
+  id: string;
+  decision_text: string;
+  reason: string | null;
+  owner_name: string | null;
+  source: string;
+  decided_at: string;
+  feedback_item_id: string | null;
+  feedback_item: {
+    id: string;
+    project_id: string | null;
+    ai_key_question: string | null;
+    project: { id: string; name: string } | null;
   } | null;
-  project: { id: string; name: string } | null;
+  owner_profile: {
+    display_name: string;
+    figma_handle: string | null;
+  } | null;
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeAgo(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
@@ -22,163 +34,160 @@ function timeAgo(date: string): string {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return `${Math.floor(d / 30)}mo ago`;
 }
 
-const statusConfig: Record<string, { label: string; icon: React.ReactNode; cls: string }> = {
-  resolved:    { label: "Approved",    icon: <CheckCircle2 size={13} />, cls: "text-emerald-600 bg-emerald-50" },
-  in_progress: { label: "In Progress", icon: <Clock size={13} />,        cls: "text-blue-600 bg-blue-50" },
-  dismissed:   { label: "Cancelled",   icon: <XCircle size={13} />,      cls: "text-gray-400 bg-gray-100" },
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  slack:  { label: "via Slack",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
+  manual: { label: "Manual",     cls: "bg-surface text-muted border border-border" },
+  ai:     { label: "AI",         cls: "bg-blue-50 text-blue-600 border border-blue-200" },
 };
 
-const classificationBadge: Record<string, string> = {
-  "Needs Decision": "text-red-500 bg-red-50",
-  "Blocked":        "text-red-500 bg-red-50",
-  "Approved":       "text-emerald-600 bg-emerald-50",
-  "Risk":           "text-orange-500 bg-orange-50",
-  "Vague":          "text-yellow-600 bg-yellow-50",
-  "Info":           "text-blue-500 bg-blue-50",
-};
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-type StatusFilter = "all" | "resolved" | "in_progress" | "dismissed";
-
-export default function DecisionsPage() {
-  const [items, setItems] = useState<FeedbackItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-
-  useEffect(() => {
-    fetch("/api/feedback")
-      .then(r => r.json())
-      .then((d: { items?: FeedbackItem[] }) => {
-        // Show all items that have been acted on (not just open)
-        setItems(d.items ?? []);
-        setLoading(false);
-      });
-  }, []);
-
-  const decisionItems = items.filter(i =>
-    i.status === "resolved" || i.status === "in_progress" || i.status === "dismissed"
-  );
-
-  const filtered = statusFilter === "all" ? decisionItems : decisionItems.filter(i => i.status === statusFilter);
-
-  const counts = {
-    all:         decisionItems.length,
-    resolved:    decisionItems.filter(i => i.status === "resolved").length,
-    in_progress: decisionItems.filter(i => i.status === "in_progress").length,
-    dismissed:   decisionItems.filter(i => i.status === "dismissed").length,
-  };
-
-  const tabs: { key: StatusFilter; label: string }[] = [
-    { key: "all",         label: "All" },
-    { key: "resolved",    label: "Approved" },
-    { key: "in_progress", label: "In Progress" },
-    { key: "dismissed",   label: "Cancelled" },
-  ];
-
+function DecisionSkeleton() {
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#f5f5f7]">
-      {/* Header */}
-      <div className="px-8 pt-7 pb-5 bg-[#f5f5f7]">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="text-gray-900 text-2xl font-bold tracking-tight">Decisions</h1>
-            <p className="text-gray-400 text-sm mt-0.5">All resolved and in-progress feedback items</p>
+    <div className="rounded-panel border border-border bg-paper p-4">
+      <div className="flex gap-3">
+        <div className="skeleton w-4 h-4 rounded-full shrink-0 mt-0.5" />
+        <div className="flex-1 space-y-2">
+          <div className="skeleton h-4 w-3/4 rounded" />
+          <div className="skeleton h-3 w-1/2 rounded" />
+          <div className="flex gap-2 mt-1">
+            <div className="skeleton h-4 w-16 rounded-full" />
+            <div className="skeleton h-4 w-20 rounded-full" />
           </div>
-        </div>
-        {/* Tabs */}
-        <div className="flex items-center gap-2">
-          {tabs.map(tab => {
-            const active = statusFilter === tab.key;
-            const count = counts[tab.key];
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setStatusFilter(tab.key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold transition-all ${
-                  active ? "bg-gray-900 text-white" : "bg-white text-gray-500 hover:bg-gray-100 border border-gray-200"
-                }`}
-              >
-                {tab.label}
-                <span className={`text-xs font-bold ${active ? "text-white/70" : "text-gray-400"}`}>{count}</span>
-              </button>
-            );
-          })}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* Table */}
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function DecisionsPage() {
+  const [decisions, setDecisions] = useState<DecisionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/decisions")
+      .then(r => r.json())
+      .then((d: { decisions?: DecisionItem[] }) => {
+        setDecisions(d.decisions ?? []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden bg-paper">
+
+      {/* ── Header ── */}
+      <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
+        <div className="flex items-center gap-2.5 mb-1">
+          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+          <h1 className="text-title font-semibold text-ink">Decisions</h1>
+          {!loading && decisions.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-100">
+              {decisions.length}
+            </span>
+          )}
+        </div>
+        <p className="text-body text-muted">Decisions extracted from resolved feedback</p>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="flex-1 overflow-y-auto px-6 py-5">
         {loading ? (
-          <div className="flex items-center justify-center p-12 text-gray-400">
-            <Loader2 size={18} className="animate-spin mr-2" /> Loading…
+          <div className="space-y-3">
+            <DecisionSkeleton /><DecisionSkeleton /><DecisionSkeleton />
           </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-2xl border border-gray-100">
-            <CheckCircle2 size={36} className="text-gray-200 mb-3" />
-            <p className="text-gray-400 text-sm font-medium">No decisions yet</p>
-            <p className="text-gray-300 text-xs mt-1">Resolved feedback items will appear here</p>
+        ) : decisions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+            <CheckCircle2 size={32} className="text-wash" />
+            <p className="text-lead font-medium text-ink">No decisions yet</p>
+            <p className="text-body text-muted max-w-xs">
+              Decisions are extracted automatically when feedback is resolved via Slack or Memry.
+            </p>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_140px_120px_100px_36px] gap-4 px-5 py-3 border-b border-gray-100 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-              <span>Decision</span>
-              <span>Author</span>
-              <span>Project</span>
-              <span>Status</span>
-              <span />
-            </div>
+          <div className="space-y-3 fade-in">
+            {decisions.map(decision => {
+              const fi   = Array.isArray(decision.feedback_item)
+                ? decision.feedback_item[0]
+                : decision.feedback_item;
+              const op   = Array.isArray(decision.owner_profile)
+                ? decision.owner_profile[0]
+                : decision.owner_profile;
 
-            {/* Rows */}
-            {filtered.map((item, i) => {
-              const sc = statusConfig[item.status] ?? statusConfig.resolved;
-              const clsCls = classificationBadge[item.ai_classification ?? ""] ?? "text-gray-400 bg-gray-100";
-              const authorInitial = (item.figma_comment?.author_name ?? "?")[0]?.toUpperCase();
+              const sb          = SOURCE_BADGE[decision.source] ?? SOURCE_BADGE.manual;
+              const ownerLabel  = op?.display_name ?? decision.owner_name;
+              const projectName = fi?.project
+                ? (Array.isArray(fi.project) ? fi.project[0] : fi.project)?.name
+                : null;
+              const feedbackLink = fi?.project_id && decision.feedback_item_id
+                ? `/inbox/${fi.project_id}/${decision.feedback_item_id}`
+                : null;
+
               return (
                 <div
-                  key={item.id}
-                  className={`grid grid-cols-[1fr_140px_120px_100px_36px] gap-4 px-5 py-4 items-center hover:bg-gray-50 transition-colors ${i < filtered.length - 1 ? "border-b border-gray-50" : ""}`}
+                  key={decision.id}
+                  className="rounded-panel border border-border bg-paper p-4 hover:border-ink/15 transition-colors"
                 >
-                  {/* Decision title */}
-                  <div className="min-w-0">
-                    {item.ai_classification && (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 inline-block ${clsCls}`}>
-                        {item.ai_classification.toUpperCase()}
-                      </span>
-                    )}
-                    <p className="text-gray-900 text-sm font-semibold line-clamp-1">
-                      {item.ai_key_question ?? item.figma_comment?.raw_content ?? "—"}
-                    </p>
-                    <p className="text-gray-400 text-xs mt-0.5">{timeAgo(item.created_at)}</p>
-                  </div>
+                  <div className="flex gap-3">
+                    {/* Check icon */}
+                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />
 
-                  {/* Author */}
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-gray-600 font-bold" style={{ fontSize: 10 }}>{authorInitial}</span>
+                    {/* Body */}
+                    <div className="flex-1 min-w-0">
+                      {/* Decision text */}
+                      <p className="text-body font-semibold text-ink leading-snug mb-1">
+                        {decision.decision_text}
+                      </p>
+
+                      {/* Reason */}
+                      {decision.reason && (
+                        <p className="text-caption text-muted mb-3 leading-relaxed">
+                          {decision.reason}
+                        </p>
+                      )}
+
+                      {/* Meta row */}
+                      <div className="flex items-center gap-3 flex-wrap mt-2">
+                        {ownerLabel && (
+                          <span className="inline-flex items-center gap-1 text-caption text-muted">
+                            <User size={10} className="shrink-0" />
+                            {ownerLabel}
+                          </span>
+                        )}
+
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${sb.cls}`}>
+                          {sb.label}
+                        </span>
+
+                        {projectName && (
+                          <span className="text-caption text-muted">{projectName}</span>
+                        )}
+
+                        <span className="text-caption text-muted ml-auto">
+                          {timeAgo(decision.decided_at)}
+                        </span>
+                      </div>
+
+                      {/* Link to original feedback item */}
+                      {feedbackLink && (
+                        <Link
+                          href={feedbackLink}
+                          className="inline-flex items-center gap-1 mt-2.5 text-[10px] text-muted hover:text-ink transition-colors"
+                        >
+                          <LinkIcon size={9} />
+                          View original comment
+                        </Link>
+                      )}
                     </div>
-                    <span className="text-gray-600 text-sm truncate">{item.figma_comment?.author_name ?? "—"}</span>
                   </div>
-
-                  {/* Project */}
-                  <div className="min-w-0">
-                    <p className="text-gray-500 text-sm truncate">{item.project?.name ?? "—"}</p>
-                    <p className="text-gray-300 text-xs truncate">{item.figma_comment?.figma_file?.name ?? ""}</p>
-                  </div>
-
-                  {/* Status */}
-                  <div>
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${sc.cls}`}>
-                      {sc.icon} {sc.label}
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <button className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors">
-                    <MoreHorizontal size={14} />
-                  </button>
                 </div>
               );
             })}

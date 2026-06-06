@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { verifySlackSignature, updateSlackMessage, postThreadReply } from "@/lib/slack/bot";
 import { figmaHeaders } from "@/lib/figma/api";
+import { extractDecision } from "@/lib/ai/extract-decision";
 
 const FIGMA_API = "https://api.figma.com/v1";
 
@@ -25,9 +26,25 @@ interface SlackInteractivePayload {
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
+  const admin = createAdminClient();
 
-  // Verify signature
-  const valid = await verifySlackSignature(req, rawBody);
+  // Load workspace Slack credentials (DB-first, env fallback).
+  // This must happen before signature verification so that the signing secret saved
+  // via the Integrations UI is actually used.
+  const { data: wsRow } = await admin
+    .from("workspaces")
+    .select("slack_signing_secret, slack_bot_token")
+    .limit(1)
+    .maybeSingle();
+  const signingSecret = (wsRow as { slack_signing_secret?: string | null } | null)?.slack_signing_secret
+    ?? process.env.SLACK_SIGNING_SECRET
+    ?? "";
+  const slackToken = (wsRow as { slack_bot_token?: string | null } | null)?.slack_bot_token
+    ?? process.env.SLACK_BOT_TOKEN
+    ?? "";
+
+  // Verify signature with the resolved secret
+  const valid = await verifySlackSignature(req, rawBody, signingSecret);
   if (!valid) {
     console.error("[slack/interactive] Invalid signature");
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
@@ -61,16 +78,14 @@ export async function POST(req: NextRequest) {
   };
   const figmaMessage = `${messageMap[decision]} (via Slack by ${slackUser})`;
 
-  const admin = createAdminClient();
-
-  // Load feedback item
+  // Load feedback item — include figma_comments.id and figma_files.id for the persistence insert
   const { data: item } = await admin
     .from("feedback_items")
     .select(`
       id, workspace_id, status,
       figma_comment:figma_comments(
-        figma_comment_id, parent_figma_comment_id,
-        figma_file:figma_files(figma_file_key, figma_pat)
+        id, figma_comment_id, parent_figma_comment_id,
+        figma_file:figma_files(id, figma_file_key, figma_pat)
       ),
       project:projects(name)
     `)
@@ -86,17 +101,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Post to Figma
+  // Post to Figma and immediately persist the reply into figma_comments so Memry
+  // shows the decision without waiting for the next sync cycle.
   try {
     const commentRaw = item.figma_comment;
     const comment = Array.isArray(commentRaw) ? commentRaw[0] : commentRaw;
     const fileRaw = (comment as { figma_file?: unknown })?.figma_file;
-    const file = (Array.isArray(fileRaw) ? fileRaw[0] : fileRaw) as { figma_file_key?: string; figma_pat?: string } | null;
+    const file = (Array.isArray(fileRaw) ? fileRaw[0] : fileRaw) as {
+      id: string;
+      figma_file_key?: string;
+      figma_pat?: string;
+    } | null;
 
     if (file?.figma_file_key && file?.figma_pat) {
       let parentFigmaId = (comment as { figma_comment_id?: string })?.figma_comment_id ?? null;
 
-      // Walk up if this is itself a reply
+      // Walk up if this comment is itself a reply
       const parentId = (comment as { parent_figma_comment_id?: string })?.parent_figma_comment_id;
       if (parentId) {
         const { data: root } = await admin
@@ -108,11 +128,41 @@ export async function POST(req: NextRequest) {
       }
 
       if (parentFigmaId) {
-        await fetch(`${FIGMA_API}/files/${file.figma_file_key}/comments`, {
+        const figmaRes = await fetch(`${FIGMA_API}/files/${file.figma_file_key}/comments`, {
           method: "POST",
           headers: { ...figmaHeaders(file.figma_pat), "Content-Type": "application/json" },
           body: JSON.stringify({ message: figmaMessage, comment_id: parentFigmaId }),
         });
+        const figmaData = await figmaRes.json() as Record<string, unknown>;
+
+        if (figmaRes.ok) {
+          // Persist the reply immediately so the next UI poll returns it without
+          // waiting for the next Figma sync cycle. Best-effort: non-fatal on failure.
+          try {
+            const figmaAuthor = figmaData.user as { handle?: string; img_url?: string } | null;
+            const commentDbId = (comment as { id?: string })?.id;
+            if (commentDbId) {
+              await admin.from("figma_comments").insert({
+                figma_file_id:           file.id,
+                workspace_id:            item.workspace_id as string,
+                figma_comment_id:        figmaData.id as string,
+                figma_order_id:          (figmaData.order_id as string | null) ?? null,
+                parent_figma_comment_id: commentDbId,
+                author_name:             figmaAuthor?.handle ?? slackUser,
+                author_avatar:           figmaAuthor?.img_url ?? null,
+                author_email:            null,
+                raw_content:             figmaMessage,
+                figma_node_id:           null,
+                figma_created_at:        (figmaData.created_at as string | null) ?? new Date().toISOString(),
+                resolved_at:             null,
+              });
+            }
+          } catch (e) {
+            console.warn("[slack/interactive] figma_comments insert failed (non-fatal):", e);
+          }
+        } else {
+          console.error("[slack/interactive] Figma post failed:", figmaRes.status, figmaData);
+        }
       }
     }
   } catch (e) {
@@ -125,6 +175,47 @@ export async function POST(req: NextRequest) {
     .update({ status: decision === "approve" ? "resolved" : "open" })
     .eq("id", feedbackItemId);
 
+  // Auto-extract and persist a structured decision when approved
+  if (decision === "approve") {
+    try {
+      const { data: fbItem } = await admin
+        .from("feedback_items")
+        .select("figma_comment:figma_comments(id, raw_content)")
+        .eq("id", feedbackItemId)
+        .single();
+
+      const fc = Array.isArray(fbItem?.figma_comment)
+        ? fbItem.figma_comment[0]
+        : fbItem?.figma_comment;
+      const commentText  = (fc as { raw_content?: string } | null)?.raw_content ?? "";
+      const commentDbId  = (fc as { id?: string } | null)?.id;
+
+      let replyTexts: string[] = [];
+      if (commentDbId) {
+        const { data: repliesData } = await admin
+          .from("figma_comments")
+          .select("raw_content")
+          .eq("parent_figma_comment_id", commentDbId);
+        replyTexts = (repliesData ?? []).map(r => (r as { raw_content: string }).raw_content);
+      }
+
+      const result = await extractDecision(commentText, replyTexts, slackUser);
+      if (result) {
+        await admin.from("decisions").insert({
+          workspace_id:     item.workspace_id as string,
+          feedback_item_id: item.id as string,
+          decision_text:    result.decision_text,
+          reason:           result.reason,
+          owner_name:       result.owner_name ?? slackUser,
+          source:           "slack",
+          decided_at:       new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn("[slack/interactive] decision extraction failed (non-fatal):", e);
+    }
+  }
+
   // Update the Slack message (replace buttons with decision summary)
   try {
     await updateSlackMessage({
@@ -132,7 +223,7 @@ export async function POST(req: NextRequest) {
       ts: payload.message.ts,
       decision,
       decidedBy: slackUser,
-    });
+    }, slackToken);
   } catch (e) {
     console.error("[slack/interactive] update message failed:", e);
   }
@@ -143,7 +234,7 @@ export async function POST(req: NextRequest) {
       channel: payload.channel.id,
       threadTs: payload.message.ts,
       text: `${messageMap[decision]} by *${slackUser}* · Posted to Figma ✓`,
-    });
+    }, slackToken);
   } catch (e) {
     console.error("[slack/interactive] thread reply failed:", e);
   }
