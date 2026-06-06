@@ -205,6 +205,22 @@ function CommentCard({ item, onSelect }: {
   const fc = item.figma_comment;
   const replyCount = item.replies?.length ?? 0;
 
+  const [lazyPreviewUrl, setLazyPreviewUrl] = useState<string | null>(null);
+  const [previewFetching, setPreviewFetching] = useState(!item.figma_preview_url);
+
+  useEffect(() => {
+    if (item.figma_preview_url) { setPreviewFetching(false); return; }
+    let cancelled = false;
+    setPreviewFetching(true);
+    fetch(`/api/feedback/${item.id}/preview`)
+      .then(r => r.json())
+      .then((d: { preview_url?: string | null }) => {
+        if (!cancelled) { setLazyPreviewUrl(d.preview_url ?? null); setPreviewFetching(false); }
+      })
+      .catch(() => { if (!cancelled) setPreviewFetching(false); });
+    return () => { cancelled = true; };
+  }, [item.id, item.figma_preview_url]);
+
   // AI insight text — only shown for active items
   let insight: { text: string; color: string } | null = null;
   const isActive = item.status === "open" || item.status === "needs_decision";
@@ -222,14 +238,18 @@ function CommentCard({ item, onSelect }: {
       className={`w-full text-left flex rounded-panel border border-border bg-paper hover:border-ink/20 hover:shadow-sm transition-all group overflow-hidden ${isDimmed ? "opacity-60" : ""}`}
     >
       {/* Figma preview thumbnail */}
-      <div className="w-[140px] shrink-0 h-[148px] relative bg-surface border-r border-border">
-        <FigmaPreview
-          previewUrl={item.figma_preview_url}
-          previewStatus={item.design_reference?.preview_status}
-          previewErrorReason={item.design_reference?.preview_error_reason}
-          frameName={item.design_reference?.frame_name ?? item.figma_comment?.frame_name}
-          fileName={item.figma_comment?.figma_file?.name}
-        />
+      <div className="w-[140px] shrink-0 h-[148px] relative bg-surface border-r border-border overflow-hidden">
+        {previewFetching ? (
+          <div className="absolute inset-0 skeleton" />
+        ) : (
+          <FigmaPreview
+            previewUrl={lazyPreviewUrl ?? item.figma_preview_url}
+            previewStatus={item.design_reference?.preview_status}
+            previewErrorReason={item.design_reference?.preview_error_reason}
+            frameName={item.design_reference?.frame_name ?? item.figma_comment?.frame_name}
+            fileName={item.figma_comment?.figma_file?.name}
+          />
+        )}
       </div>
 
       {/* Content */}

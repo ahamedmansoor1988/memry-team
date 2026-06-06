@@ -691,6 +691,9 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   // Summary
   const [summarising, setSummarising] = useState(false);
 
+  const [detailPreviewUrl, setDetailPreviewUrl] = useState<string | null>(null);
+  const [detailPreviewFetching, setDetailPreviewFetching] = useState(false);
+
   function fetchItem(silent = false) {
     fetch(`/api/feedback?projectId=${projectId}`)
       .then(r => r.json())
@@ -715,6 +718,25 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, itemId]);
+
+  useEffect(() => {
+    if (!item) return;
+    const existing = item.figma_preview_url
+      ?? (item.design_reference?.preview_status === "ready"
+          ? item.design_reference.thumbnail_url
+          : null);
+    if (existing) { setDetailPreviewUrl(existing); return; }
+    let cancelled = false;
+    setDetailPreviewFetching(true);
+    fetch(`/api/feedback/${item.id}/preview`)
+      .then(r => r.json())
+      .then((d: { preview_url?: string | null }) => {
+        if (!cancelled) { setDetailPreviewUrl(d.preview_url ?? null); setDetailPreviewFetching(false); }
+      })
+      .catch(() => { if (!cancelled) setDetailPreviewFetching(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id]);
 
   async function handleMakeDecision() {
     if (!decision || !item) return;
@@ -850,6 +872,21 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
 
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-5 space-y-5">
+
+            {/* ── Preview banner ── */}
+            {detailPreviewFetching && (
+              <div className="w-full h-48 skeleton rounded-xl" />
+            )}
+            {!detailPreviewFetching && detailPreviewUrl && (
+              <div className="w-full rounded-xl overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={detailPreviewUrl}
+                  alt="Figma frame preview"
+                  className="w-full max-h-48 object-cover"
+                />
+              </div>
+            )}
 
             {/* ── SECTION 1 · Decision Summary Hero ── */}
             <DecisionSummaryHero item={item} />
