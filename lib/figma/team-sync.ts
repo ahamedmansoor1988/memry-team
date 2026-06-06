@@ -10,11 +10,13 @@
  */
 
 import { figmaHeaders } from "./api";
+import { getBatchThumbnails } from "./thumbnails";
 import { classifyComment } from "@/lib/ai/classify";
 import { createAdminClient } from "@/lib/supabase/server";
 import { postCommentToSlack } from "@/lib/slack/bot";
 
 const FIGMA_API = "https://api.figma.com/v1";
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 // ─── Figma API shapes ─────────────────────────────────────────────────────────
 
@@ -132,6 +134,8 @@ export async function syncTeam(
         error: e instanceof Error ? e.message : String(e),
       });
     }
+    // Rate-limit safety: brief pause between files when syncing multiple at once
+    if (files.length > 1) await sleep(200);
   }
 
   return { files: results, totalAdded };
@@ -261,6 +265,7 @@ async function syncFile(
   let added = 0;
   let repliesAdded = 0;
   const deleted = deletedRows.length;
+  const nodeItemPairs: { itemId: string; nodeId: string }[] = [];
 
   for (const comment of newTopLevel) {
     const mentionsMe = figmaUserId ? detectMention(comment.message, figmaUserId) : false;
@@ -379,6 +384,7 @@ async function syncFile(
       ...(authorProfileId ? { author_profile_id: authorProfileId } : {}),
     }).select("id").single();
     const feedbackItemDbId = (newFeedbackItem as { id: string } | null)?.id ?? null;
+    if (feedbackItemDbId && nodeId) nodeItemPairs.push({ itemId: feedbackItemDbId, nodeId });
 
     // Post to Slack if this needs a decision and bot is configured.
     // slackToken + slackChannel come from the workspace DB record (DB-first, env fallback).
@@ -441,6 +447,30 @@ async function syncFile(
     }
 
     added++;
+  }
+
+  // ── Batch-fetch thumbnails for newly inserted items ───────────────────────
+  if (nodeItemPairs.length > 0) {
+    try {
+      const uniqueNodeIds = Array.from(new Set(nodeItemPairs.map(p => p.nodeId)));
+      const thumbnails = await getBatchThumbnails(file.key, uniqueNodeIds, pat);
+      for (const { itemId, nodeId } of nodeItemPairs) {
+        const url = thumbnails[nodeId];
+        if (url) {
+          await admin
+            .from("feedback_items")
+            .update({ preview_url: url })
+            .eq("id", itemId)
+            .is("preview_url", null);
+        }
+      }
+      const fetched = Object.keys(thumbnails).length;
+      if (fetched > 0) {
+        console.log(`[team-sync] ${file.name}: fetched ${fetched}/${uniqueNodeIds.length} thumbnails`);
+      }
+    } catch (e) {
+      console.warn("[team-sync] thumbnail batch failed (non-fatal):", e);
+    }
   }
 
   // Sync new replies to already-existing threads.

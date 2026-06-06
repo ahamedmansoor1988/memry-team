@@ -1,11 +1,3 @@
-/**
- * Lightweight Figma image-export helper.
- *
- * Calls the Figma Images API to get a 1× PNG export URL for a single node.
- * No caching here — the caller (preview route) is responsible for persisting
- * the URL so we never hit this endpoint more than once per item.
- */
-
 import { figmaHeaders } from "./api";
 
 const FIGMA_API = "https://api.figma.com/v1";
@@ -40,5 +32,41 @@ export async function getNodeThumbnail(
     return data.images[nodeId] ?? null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Fetches CDN URLs for multiple nodes in a single Figma Images API call.
+ * Returns a map of nodeId → URL; nodes with no image are omitted.
+ *
+ * Use this in the sync pipeline to batch all nodes for a file into one request
+ * instead of one request per comment.
+ */
+export async function getBatchThumbnails(
+  fileKey: string,
+  nodeIds: string[],
+  pat: string,
+): Promise<Record<string, string>> {
+  if (nodeIds.length === 0) return {};
+  try {
+    // Encode each ID (may contain ":"), join with literal "," (the separator)
+    const encodedIds = nodeIds.map(id => encodeURIComponent(id)).join(",");
+    const url = `${FIGMA_API}/images/${fileKey}?ids=${encodedIds}&format=png&scale=1`;
+
+    const res = await fetch(url, { headers: figmaHeaders(pat) });
+    if (!res.ok) return {};
+
+    const data = await res.json() as FigmaImagesResponse;
+    if (data.err) return {};
+
+    // Response keys use the original (un-encoded) nodeId
+    const result: Record<string, string> = {};
+    for (const nodeId of nodeIds) {
+      const thumbUrl = data.images[nodeId];
+      if (thumbUrl) result[nodeId] = thumbUrl;
+    }
+    return result;
+  } catch {
+    return {};
   }
 }
