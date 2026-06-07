@@ -1,31 +1,50 @@
 "use client";
-import { useState, useEffect } from "react";
-import { CheckCircle2, User, Loader2, ExternalLink } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { CheckCircle2, User, ExternalLink, Search, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DecisionItem {
-  id: string;
-  decision_text: string;
-  reason: string | null;
-  owner_name: string | null;
-  source: string;
-  decided_at: string;
+  id:               string;
+  decision_text:    string;
+  reason:           string | null;
+  owner_name:       string | null;
+  source:           string;
+  decided_at:       string;
   feedback_item_id: string | null;
-  feedback_item: {
-    id: string;
-    project_id: string | null;
-    ai_key_question: string | null;
-    project: { id: string; name: string } | null;
-  } | null;
-  owner_profile: {
-    display_name: string;
-    figma_handle: string | null;
-  } | null;
+  project_id:       string | null;
+  project_name:     string | null;
+  ai_key_question:  string | null;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+interface TimelineGroup {
+  date:      string;
+  label:     string;
+  decisions: DecisionItem[];
+}
+
+interface TimelineData {
+  timeline: TimelineGroup[];
+  total:    number;
+  projects: { id: string; name: string }[];
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
+  slack:  { label: "via Slack",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
+  manual: { label: "Manual",     cls: "bg-surface text-muted border border-border" },
+  ai:     { label: "AI",         cls: "bg-blue-50 text-blue-600 border border-blue-200" },
+};
+
+const SOURCE_DOT: Record<string, string> = {
+  slack:  "bg-violet-400",
+  manual: "bg-emerald-400",
+  ai:     "bg-blue-400",
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
@@ -39,26 +58,149 @@ function timeAgo(date: string): string {
   return `${Math.floor(d / 30)}mo ago`;
 }
 
-const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
-  slack:  { label: "via Slack",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
-  manual: { label: "Manual",     cls: "bg-surface text-muted border border-border" },
-  ai:     { label: "AI",         cls: "bg-blue-50 text-blue-600 border border-blue-200" },
-};
+function ownerInitials(name: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-function DecisionSkeleton() {
+function TimelineSkeleton() {
   return (
-    <div className="rounded-panel border border-border bg-paper p-4">
-      <div className="flex gap-3">
-        <div className="skeleton w-4 h-4 rounded-full shrink-0 mt-0.5" />
-        <div className="flex-1 space-y-2">
-          <div className="skeleton h-4 w-3/4 rounded" />
-          <div className="skeleton h-3 w-1/2 rounded" />
-          <div className="flex gap-2 mt-1">
-            <div className="skeleton h-4 w-16 rounded-full" />
-            <div className="skeleton h-4 w-20 rounded-full" />
+    <div className="space-y-8">
+      {[0, 1, 2].map(g => (
+        <div key={g} className="flex gap-6">
+          {/* Left date column */}
+          <div className="w-24 shrink-0">
+            <div className="skeleton h-4 w-16 rounded ml-auto" />
           </div>
+          {/* Right cards */}
+          <div className="flex-1 space-y-3">
+            {[0, 1].map(c => (
+              <div key={c} className="rounded-panel border border-border bg-paper p-4">
+                <div className="flex gap-3">
+                  <div className="skeleton w-2 h-2 rounded-full shrink-0 mt-1.5" />
+                  <div className="flex-1 space-y-2">
+                    <div className="skeleton h-4 w-3/4 rounded" />
+                    <div className="skeleton h-3 w-1/2 rounded" />
+                    <div className="flex gap-2 mt-2">
+                      <div className="skeleton h-4 w-12 rounded-full" />
+                      <div className="skeleton h-4 w-16 rounded-full" />
+                      <div className="skeleton h-4 w-20 rounded-full" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Decision card ────────────────────────────────────────────────────────────
+
+function DecisionCard({ decision }: { decision: DecisionItem }) {
+  const sb          = SOURCE_BADGE[decision.source] ?? SOURCE_BADGE.manual;
+  const dotCls      = SOURCE_DOT[decision.source] ?? SOURCE_DOT.manual;
+  const feedbackLink = decision.project_id && decision.feedback_item_id
+    ? `/inbox/${decision.project_id}/${decision.feedback_item_id}`
+    : null;
+
+  return (
+    <div className="relative flex gap-3 group">
+      {/* Timeline dot */}
+      <div className={`w-2 h-2 rounded-full shrink-0 mt-2 z-10 ring-2 ring-paper ${dotCls}`} />
+
+      {/* Card */}
+      <div className="flex-1 rounded-panel border border-border bg-paper p-4 mb-3 hover:border-ink/15 transition-colors">
+        {/* Decision text */}
+        <p className="text-body font-semibold text-ink leading-snug mb-1">
+          {decision.decision_text}
+        </p>
+
+        {/* Reason */}
+        {decision.reason && (
+          <p className="text-caption text-muted mb-3 leading-relaxed">
+            {decision.reason}
+          </p>
+        )}
+
+        {/* Meta row */}
+        <div className="flex items-center gap-2.5 flex-wrap mt-2">
+          {decision.owner_name && (
+            <span className="inline-flex items-center gap-1.5 text-caption text-muted">
+              <span className="w-4 h-4 rounded-full bg-surface border border-border flex items-center justify-center text-[8px] font-bold text-muted shrink-0">
+                {ownerInitials(decision.owner_name)}
+              </span>
+              {decision.owner_name}
+            </span>
+          )}
+
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${sb.cls}`}>
+            {sb.label}
+          </span>
+
+          {decision.project_name && (
+            <span className="text-caption text-muted">{decision.project_name}</span>
+          )}
+
+          <span className="text-caption text-muted ml-auto shrink-0">
+            {timeAgo(decision.decided_at)}
+          </span>
+        </div>
+
+        {/* View context link */}
+        {feedbackLink && (
+          <Link
+            href={feedbackLink}
+            className="inline-flex items-center gap-1 mt-2.5 text-[10px] text-muted hover:text-ink transition-colors"
+          >
+            <ExternalLink size={9} />
+            View context →
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Date group ───────────────────────────────────────────────────────────────
+
+function DateGroup({ group }: { group: TimelineGroup & { decisions: DecisionItem[] } }) {
+  if (group.decisions.length === 0) return null;
+
+  return (
+    <div className="flex gap-0 sm:gap-6">
+      {/* Left: date label */}
+      <div className="hidden sm:flex w-24 shrink-0 flex-col items-end pt-1.5 select-none">
+        <span className="text-[11px] font-bold text-ink leading-none">{group.label}</span>
+        <span className="text-[10px] text-muted mt-0.5">
+          {group.decisions.length} decision{group.decisions.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {/* Right: cards with vertical timeline line */}
+      <div className="flex-1 relative">
+        {/* Mobile date label */}
+        <div className="flex sm:hidden items-center gap-2 mb-3">
+          <span className="text-[11px] font-bold text-ink">{group.label}</span>
+          <span className="text-[10px] text-muted">
+            · {group.decisions.length} decision{group.decisions.length !== 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {/* Vertical line */}
+        <div className="absolute left-0.5 top-2 bottom-3 w-px bg-border" aria-hidden="true" />
+
+        {/* Cards */}
+        <div className="pl-5">
+          {group.decisions.map(d => (
+            <DecisionCard key={d.id} decision={d} />
+          ))}
         </div>
       </div>
     </div>
@@ -68,132 +210,167 @@ function DecisionSkeleton() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DecisionsPage() {
-  const [decisions, setDecisions] = useState<DecisionItem[]>([]);
+  const [data,    setData]    = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [search,  setSearch]  = useState("");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
 
   useEffect(() => {
-    fetch("/api/decisions")
+    fetch("/api/decisions/timeline")
       .then(r => r.json())
-      .then((d: { decisions?: DecisionItem[] }) => {
-        setDecisions(d.decisions ?? []);
-        setLoading(false);
-      })
+      .then((d: TimelineData) => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
+
+  // Close project dropdown on outside click
+  useEffect(() => {
+    if (!showProjectMenu) return;
+    const handler = () => setShowProjectMenu(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [showProjectMenu]);
+
+  // ── Client-side filtering ─────────────────────────────────────────────────
+  const filteredTimeline = useMemo<TimelineGroup[]>(() => {
+    if (!data) return [];
+    const q = search.trim().toLowerCase();
+
+    return data.timeline
+      .map(group => ({
+        ...group,
+        decisions: group.decisions.filter(d => {
+          const matchesProject =
+            projectFilter === "all" || d.project_id === projectFilter;
+          const matchesSearch =
+            !q ||
+            d.decision_text.toLowerCase().includes(q) ||
+            (d.reason ?? "").toLowerCase().includes(q);
+          return matchesProject && matchesSearch;
+        }),
+      }))
+      .filter(group => group.decisions.length > 0);
+  }, [data, projectFilter, search]);
+
+  const filteredTotal = useMemo(
+    () => filteredTimeline.reduce((sum, g) => sum + g.decisions.length, 0),
+    [filteredTimeline],
+  );
+
+  const selectedProjectName =
+    projectFilter === "all"
+      ? "All Projects"
+      : (data?.projects.find(p => p.id === projectFilter)?.name ?? "All Projects");
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-paper">
 
       {/* ── Header ── */}
-      <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
+      <div className="px-6 pt-6 pb-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2.5 mb-1">
           <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
           <h1 className="text-title font-semibold text-ink">Decisions</h1>
-          {!loading && decisions.length > 0 && (
+          {!loading && data && data.total > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-100">
-              {decisions.length}
+              {filteredTotal !== data.total ? `${filteredTotal} of ${data.total}` : data.total}
             </span>
           )}
         </div>
-        <p className="text-body text-muted">Decisions extracted from resolved feedback</p>
+        <p className="text-body text-muted mb-4">Decisions extracted from resolved feedback</p>
+
+        {/* ── Filters ── */}
+        {!loading && data && data.total > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[160px] max-w-sm">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search decisions…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-7 pr-3 py-1.5 text-body rounded-lg border border-border bg-paper text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ink/20 focus:border-ink/30 transition-colors"
+              />
+            </div>
+
+            {/* Project filter */}
+            {data.projects.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={e => { e.stopPropagation(); setShowProjectMenu(v => !v); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-paper text-body text-ink hover:border-ink/30 transition-colors"
+                >
+                  <span className="max-w-[120px] truncate">{selectedProjectName}</span>
+                  <ChevronDown size={12} className="text-muted shrink-0" />
+                </button>
+                {showProjectMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-paper shadow-lg z-20 py-1">
+                    <button
+                      onClick={() => { setProjectFilter("all"); setShowProjectMenu(false); }}
+                      className={`w-full text-left px-3 py-1.5 text-body hover:bg-surface transition-colors ${projectFilter === "all" ? "font-semibold text-ink" : "text-muted"}`}
+                    >
+                      All Projects
+                    </button>
+                    {data.projects.map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => { setProjectFilter(p.id); setShowProjectMenu(false); }}
+                        className={`w-full text-left px-3 py-1.5 text-body hover:bg-surface transition-colors truncate ${projectFilter === p.id ? "font-semibold text-ink" : "text-muted"}`}
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
+      <div className="flex-1 overflow-y-auto px-6 py-6">
         {loading ? (
-          <div className="space-y-3">
-            <DecisionSkeleton /><DecisionSkeleton /><DecisionSkeleton />
-          </div>
-        ) : decisions.length === 0 ? (
+          <TimelineSkeleton />
+        ) : !data || data.total === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
             <CheckCircle2 size={32} className="text-wash" />
             <p className="text-lead font-medium text-ink">No decisions yet</p>
             <p className="text-body text-muted max-w-xs">
-              Decisions are extracted automatically when feedback is resolved via Slack or Memry.
+              Decisions are recorded when feedback is resolved via Slack or Memry.
             </p>
           </div>
+        ) : filteredTimeline.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-2 text-center">
+            <Search size={24} className="text-wash" />
+            <p className="text-body text-muted">No decisions match your filters</p>
+            <button
+              onClick={() => { setSearch(""); setProjectFilter("all"); }}
+              className="text-body text-muted underline underline-offset-2 hover:text-ink transition-colors mt-1"
+            >
+              Clear filters
+            </button>
+          </div>
         ) : (
-          <div className="space-y-3 fade-in">
-            {decisions.map(decision => {
-              const fi   = Array.isArray(decision.feedback_item)
-                ? decision.feedback_item[0]
-                : decision.feedback_item;
-              const op   = Array.isArray(decision.owner_profile)
-                ? decision.owner_profile[0]
-                : decision.owner_profile;
-
-              const sb          = SOURCE_BADGE[decision.source] ?? SOURCE_BADGE.manual;
-              const ownerLabel  = op?.display_name ?? decision.owner_name;
-              const projectName = fi?.project
-                ? (Array.isArray(fi.project) ? fi.project[0] : fi.project)?.name
-                : null;
-              const feedbackLink = fi?.project_id && decision.feedback_item_id
-                ? `/inbox/${fi.project_id}/${decision.feedback_item_id}`
-                : null;
-
-              return (
-                <div
-                  key={decision.id}
-                  className="rounded-panel border border-border bg-paper p-4 hover:border-ink/15 transition-colors"
-                >
-                  <div className="flex gap-3">
-                    {/* Check icon */}
-                    <CheckCircle2 size={15} className="text-emerald-500 shrink-0 mt-0.5" />
-
-                    {/* Body */}
-                    <div className="flex-1 min-w-0">
-                      {/* Decision text */}
-                      <p className="text-body font-semibold text-ink leading-snug mb-1">
-                        {decision.decision_text}
-                      </p>
-
-                      {/* Reason */}
-                      {decision.reason && (
-                        <p className="text-caption text-muted mb-3 leading-relaxed">
-                          {decision.reason}
-                        </p>
-                      )}
-
-                      {/* Meta row */}
-                      <div className="flex items-center gap-3 flex-wrap mt-2">
-                        {ownerLabel && (
-                          <span className="inline-flex items-center gap-1 text-caption text-muted">
-                            <User size={10} className="shrink-0" />
-                            {ownerLabel}
-                          </span>
-                        )}
-
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${sb.cls}`}>
-                          {sb.label}
-                        </span>
-
-                        {projectName && (
-                          <span className="text-caption text-muted">{projectName}</span>
-                        )}
-
-                        <span className="text-caption text-muted ml-auto">
-                          {timeAgo(decision.decided_at)}
-                        </span>
-                      </div>
-
-                      {/* Link to original feedback item */}
-                      {feedbackLink && (
-                        <Link
-                          href={feedbackLink}
-                          className="inline-flex items-center gap-1 mt-2.5 text-[10px] text-muted hover:text-ink transition-colors"
-                        >
-                          <ExternalLink size={9} />
-                          View original comment
-                        </Link>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="space-y-8 fade-in max-w-2xl">
+            {filteredTimeline.map(group => (
+              <DateGroup key={group.date} group={group} />
+            ))}
           </div>
         )}
       </div>
+
+      {/* Legend — shown when data is loaded */}
+      {!loading && data && data.total > 0 && (
+        <div className="px-6 py-3 border-t border-border shrink-0 flex items-center gap-4 flex-wrap">
+          {(["slack", "manual", "ai"] as const).map(src => (
+            <span key={src} className="inline-flex items-center gap-1.5 text-caption text-muted">
+              <span className={`w-1.5 h-1.5 rounded-full ${SOURCE_DOT[src]}`} />
+              {SOURCE_BADGE[src].label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
