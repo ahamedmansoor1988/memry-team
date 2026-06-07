@@ -1,28 +1,49 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Loader2, MessageSquare, CheckCircle2, AlertTriangle, Sparkles, Clock } from "lucide-react";
+import { Activity } from "lucide-react";
+import Link from "next/link";
 
-interface FeedbackItem {
-  id: string; status: string; priority: string;
-  ai_summary: string | null; ai_classification: string | null;
-  ai_key_question: string | null;
-  ai_risk_flag: boolean; ai_vague_flag: boolean;
-  created_at: string;
-  figma_comment: {
-    author_name: string; raw_content: string; figma_created_at: string;
-    figma_file: { id: string; name: string; figma_file_key: string } | null;
-  } | null;
-  project: { id: string; name: string } | null;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface ActivityEvent {
-  id: string;
-  type: "comment" | "decision" | "risk" | "ai" | "stalled";
-  title: string;
-  subtitle: string;
-  time: string;
-  project?: string;
+  id:                string;
+  from_status:       string;
+  to_status:         string;
+  reason:            string | null;
+  changed_by:        string | null;
+  created_at:        string;
+  item_id:           string | null;
+  ai_key_question:   string | null;
+  ai_summary:        string | null;
+  ai_classification: string | null;
+  project_id:        string | null;
+  project_name:      string | null;
 }
+
+interface DateGroup {
+  label:  string;
+  events: ActivityEvent[];
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const STATUS_CLS: Record<string, string> = {
+  open:           "bg-blue-50 text-blue-600 border border-blue-200",
+  needs_decision: "bg-amber-50 text-amber-700 border border-amber-200",
+  resolved:       "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  archived:       "bg-gray-100 text-gray-500 border border-gray-200",
+  deleted:        "bg-gray-100 text-gray-400 border border-gray-200",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  open:           "Open",
+  needs_decision: "Needs Decision",
+  resolved:       "Resolved",
+  archived:       "Archived",
+  deleted:        "Deleted",
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(date: string): string {
   const diff = Date.now() - new Date(date).getTime();
@@ -31,172 +52,182 @@ function timeAgo(date: string): string {
   if (m < 60) return `${m}m ago`;
   const h = Math.floor(m / 60);
   if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return `${Math.floor(d / 30)}mo ago`;
 }
 
-function isStalled(item: FeedbackItem): boolean {
-  if (item.status === "resolved" || item.status === "dismissed") return false;
-  return Date.now() - new Date(item.created_at).getTime() > 48 * 60 * 60 * 1000;
+function toDateKey(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA");
 }
 
-const eventIcon: Record<string, React.ReactNode> = {
-  comment:  <MessageSquare size={14} />,
-  decision: <CheckCircle2 size={14} />,
-  risk:     <AlertTriangle size={14} />,
-  ai:       <Sparkles size={14} />,
-  stalled:  <Clock size={14} />,
-};
+function toDateLabel(key: string): string {
+  const today     = new Date().toLocaleDateString("en-CA");
+  const yesterday = new Date(Date.now() - 86400000).toLocaleDateString("en-CA");
+  if (key === today)     return "Today";
+  if (key === yesterday) return "Yesterday";
+  return new Date(key + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric" });
+}
 
-const eventColor: Record<string, string> = {
-  comment:  "bg-blue-50 text-blue-500",
-  decision: "bg-emerald-50 text-emerald-500",
-  risk:     "bg-red-50 text-red-500",
-  ai:       "bg-purple-50 text-purple-500",
-  stalled:  "bg-orange-50 text-orange-500",
-};
+function groupByDate(events: ActivityEvent[]): DateGroup[] {
+  const map = new Map<string, ActivityEvent[]>();
+  for (const e of events) {
+    const key = toDateKey(e.created_at);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(e);
+  }
+  return Array.from(map.entries()).map(([key, evts]) => ({
+    label:  toDateLabel(key),
+    events: evts,
+  }));
+}
+
+function itemTitle(e: ActivityEvent): string {
+  if (e.ai_key_question && e.ai_key_question !== "None") return e.ai_key_question;
+  if (e.ai_summary) return e.ai_summary;
+  return "Feedback item";
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+
+function StatusBadge({ status }: { status: string }) {
+  const cls   = STATUS_CLS[status]   ?? STATUS_CLS.open;
+  const label = STATUS_LABEL[status] ?? status;
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
+// ─── Event card ───────────────────────────────────────────────────────────────
+
+function EventCard({ event }: { event: ActivityEvent }) {
+  const href = event.project_id && event.item_id
+    ? `/inbox/${event.project_id}/${event.item_id}`
+    : null;
+
+  const inner = (
+    <div className="rounded-panel border border-border bg-paper p-4 hover:border-ink/15 transition-colors">
+      {/* Title */}
+      <p className="text-body font-medium text-ink line-clamp-2 mb-2">
+        {itemTitle(event)}
+      </p>
+
+      {/* Status transition */}
+      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+        <StatusBadge status={event.from_status} />
+        <span className="text-caption text-muted">→</span>
+        <StatusBadge status={event.to_status} />
+      </div>
+
+      {/* Reason */}
+      {event.reason && (
+        <p className="text-caption text-muted italic mb-2 leading-relaxed">{event.reason}</p>
+      )}
+
+      {/* Footer */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {event.project_name && (
+          <span className="text-caption text-muted">{event.project_name}</span>
+        )}
+        <span className="text-caption text-muted ml-auto shrink-0">
+          {timeAgo(event.created_at)}
+        </span>
+      </div>
+    </div>
+  );
+
+  return href
+    ? <Link href={href} className="block">{inner}</Link>
+    : inner;
+}
+
+// ─── Skeleton ────────────────────────────────────────────────────────────────
+
+function ActivitySkeleton() {
+  return (
+    <div className="space-y-2">
+      {[1, 2, 3, 4, 5].map(n => (
+        <div key={n} className="rounded-panel border border-border bg-paper p-4 space-y-2">
+          <div className="skeleton h-4 w-2/3 rounded" />
+          <div className="flex items-center gap-2">
+            <div className="skeleton h-4 w-20 rounded" />
+            <div className="skeleton h-3 w-3 rounded" />
+            <div className="skeleton h-4 w-16 rounded" />
+          </div>
+          <div className="skeleton h-3 w-1/3 rounded" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function ActivityPage() {
-  const [items, setItems] = useState<FeedbackItem[]>([]);
+  const [events,  setEvents]  = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/feedback")
+    fetch("/api/activity?limit=100")
       .then(r => r.json())
-      .then((d: { items?: FeedbackItem[] }) => {
-        setItems(d.items ?? []);
+      .then((d: { events?: ActivityEvent[] }) => {
+        setEvents(d.events ?? []);
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  // Build activity feed from feedback items
-  const events: ActivityEvent[] = [];
-
-  items.forEach(item => {
-    const author = item.figma_comment?.author_name ?? "Someone";
-    const title = item.ai_key_question ?? item.figma_comment?.raw_content ?? "Comment";
-    const project = item.project?.name;
-    const file = item.figma_comment?.figma_file?.name;
-    const location = [project, file].filter(Boolean).join(" / ");
-
-    // New comment event
-    events.push({
-      id: `comment-${item.id}`,
-      type: "comment",
-      title: `${author} left a comment`,
-      subtitle: title,
-      time: item.figma_comment?.figma_created_at ?? item.created_at,
-      project: location,
-    });
-
-    // Decision made
-    if (item.status === "resolved") {
-      events.push({
-        id: `decision-${item.id}`,
-        type: "decision",
-        title: "Decision made",
-        subtitle: title,
-        time: item.created_at,
-        project: location,
-      });
-    }
-
-    // Risk flagged
-    if (item.ai_risk_flag || item.ai_classification === "Risk" || item.ai_classification === "Blocked") {
-      events.push({
-        id: `risk-${item.id}`,
-        type: "risk",
-        title: item.ai_classification === "Blocked" ? "Item blocked" : "Risk detected",
-        subtitle: title,
-        time: item.created_at,
-        project: location,
-      });
-    }
-
-    // Stalled
-    if (isStalled(item)) {
-      events.push({
-        id: `stalled-${item.id}`,
-        type: "stalled",
-        title: "Item stalled",
-        subtitle: `Waiting for decision — ${title}`,
-        time: item.created_at,
-        project: location,
-      });
-    }
-
-    // AI classified
-    if (item.ai_classification) {
-      events.push({
-        id: `ai-${item.id}`,
-        type: "ai",
-        title: `AI classified as ${item.ai_classification}`,
-        subtitle: title,
-        time: item.created_at,
-        project: location,
-      });
-    }
-  });
-
-  // Sort by time, newest first
-  events.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-
-  // Group by day
-  const grouped: { label: string; events: ActivityEvent[] }[] = [];
-  const seen = new Set<string>();
-  events.forEach(event => {
-    const date = new Date(event.time);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    const isYesterday = date.toDateString() === new Date(now.getTime() - 86400000).toDateString();
-    const label = isToday ? "Today" : isYesterday ? "Yesterday" : date.toLocaleDateString("en-US", { month: "long", day: "numeric" });
-    if (!seen.has(label)) { seen.add(label); grouped.push({ label, events: [] }); }
-    grouped[grouped.length - 1].events.push(event);
-  });
+  const groups = groupByDate(events);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#f5f5f7]">
-      <div className="px-8 pt-7 pb-5">
-        <h1 className="text-gray-900 text-2xl font-bold tracking-tight mb-0.5">Activity</h1>
-        <p className="text-gray-400 text-sm">Everything that happened across your projects</p>
+    <div className="flex flex-col h-screen overflow-hidden bg-paper">
+
+      {/* ── Header ── */}
+      <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
+        <div className="flex items-center gap-2.5 mb-1">
+          <Activity size={18} className="text-muted shrink-0" />
+          <h1 className="text-title font-semibold text-ink">Activity</h1>
+          {!loading && events.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-surface text-muted text-[11px] font-bold border border-border">
+              {events.length}
+            </span>
+          )}
+        </div>
+        <p className="text-body text-muted">Status changes across your workspace</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 pb-8">
+      {/* ── Content ── */}
+      <div className="flex-1 overflow-y-auto px-6 py-5">
         {loading ? (
-          <div className="flex items-center justify-center p-12 text-gray-400">
-            <Loader2 size={18} className="animate-spin mr-2" /> Loading…
-          </div>
+          <ActivitySkeleton />
         ) : events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-16 text-center bg-white rounded-2xl border border-gray-100">
-            <MessageSquare size={36} className="text-gray-200 mb-3" />
-            <p className="text-gray-400 text-sm font-medium">No activity yet</p>
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+            <Activity size={32} className="text-wash" />
+            <p className="text-lead font-medium text-ink">No activity yet</p>
+            <p className="text-body text-muted max-w-xs">
+              Status changes will appear here as your team reviews feedback.
+            </p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {grouped.map(group => (
+          <div className="space-y-8 fade-in">
+            {groups.map(group => (
               <div key={group.label}>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">{group.label}</p>
-                <div className="space-y-1">
-                  {group.events.map(event => (
-                    <div key={event.id} className="flex items-start gap-4 bg-white rounded-2xl px-5 py-4 border border-gray-100 shadow-sm">
-                      {/* Icon */}
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${eventColor[event.type]}`}>
-                        {eventIcon[event.type]}
-                      </div>
+                {/* Date heading */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                    {group.label}
+                  </span>
+                  <span className="text-caption text-muted/60">
+                    · {group.events.length} {group.events.length === 1 ? "event" : "events"}
+                  </span>
+                </div>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-gray-900 text-sm font-semibold">{event.title}</p>
-                            <p className="text-gray-500 text-xs mt-0.5 line-clamp-1">{event.subtitle}</p>
-                          </div>
-                          <span className="text-gray-400 text-xs flex-shrink-0 mt-0.5">{timeAgo(event.time)}</span>
-                        </div>
-                        {event.project && (
-                          <p className="text-gray-300 text-xs mt-1.5">{event.project}</p>
-                        )}
-                      </div>
-                    </div>
+                {/* Event cards */}
+                <div className="space-y-2">
+                  {group.events.map(event => (
+                    <EventCard key={event.id} event={event} />
                   ))}
                 </div>
               </div>

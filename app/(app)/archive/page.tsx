@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Archive } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Archive, RotateCcw } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,11 +67,36 @@ function ItemSkeleton() {
 
 // ─── Item Card ────────────────────────────────────────────────────────────────
 
-function ArchiveItemCard({ item }: { item: ArchivedItem }) {
+interface ArchiveItemCardProps {
+  item:      ArchivedItem;
+  onRestore: (id: string) => void;
+}
+
+function ArchiveItemCard({ item, onRestore }: ArchiveItemCardProps) {
   const fc = item.figma_comment;
   const classCls = item.ai_classification
     ? CLASSIFICATION_CLS[item.ai_classification] ?? "text-muted bg-wash border-border"
     : null;
+
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState(false);
+
+  async function handleRestore() {
+    setRestoring(true);
+    setRestoreError(false);
+    try {
+      const res = await fetch(`/api/archive/${item.id}/restore`, { method: "POST" });
+      if (res.ok) {
+        onRestore(item.id);
+      } else {
+        setRestoreError(true);
+      }
+    } catch {
+      setRestoreError(true);
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   return (
     <div className="rounded-panel border border-border bg-paper p-4 hover:border-ink/15 transition-colors">
@@ -116,12 +141,26 @@ function ArchiveItemCard({ item }: { item: ArchivedItem }) {
           </div>
         </div>
 
-        {/* Right: AI badge */}
-        {classCls && item.ai_classification && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shrink-0 ${classCls}`}>
-            {item.ai_classification}
-          </span>
-        )}
+        {/* Right: AI badge + restore */}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          {classCls && item.ai_classification && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${classCls}`}>
+              {item.ai_classification}
+            </span>
+          )}
+          <button
+            onClick={handleRestore}
+            disabled={restoring}
+            className={`inline-flex items-center gap-1 text-caption border border-border rounded px-2 py-1 transition-colors disabled:opacity-40
+              ${restoreError
+                ? "text-red-500 border-red-200 hover:bg-red-50"
+                : "text-muted hover:text-ink hover:bg-surface"
+              }`}
+          >
+            <RotateCcw size={10} className={restoring ? "animate-spin" : ""} />
+            {restoring ? "Restoring…" : restoreError ? "Failed — retry" : "Restore"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -141,6 +180,10 @@ export default function ArchivePage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }, []);
+
+  const handleRestore = useCallback((id: string) => {
+    setItems(prev => prev.filter(item => item.id !== id));
   }, []);
 
   // Group by project
@@ -197,7 +240,7 @@ export default function ArchivePage() {
                 {/* Item cards */}
                 <div className="space-y-2">
                   {group.items.map(item => (
-                    <ArchiveItemCard key={item.id} item={item} />
+                    <ArchiveItemCard key={item.id} item={item} onRestore={handleRestore} />
                   ))}
                 </div>
               </div>

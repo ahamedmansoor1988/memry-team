@@ -46,9 +46,19 @@ export async function POST(
 
   const pat: string | null = (ws as { figma_pat?: string } | null)?.figma_pat ?? file.figma_pat ?? null;
   if (!pat) return NextResponse.json({ error: "No PAT configured" }, { status: 400 });
-  const fileKey: string = file.figma_file_key;
+
+  const fileKey: string     = file.figma_file_key;
   const workspaceId: string = file.workspace_id;
-  const projectId: string = (file.project as { id: string }).id;
+  const projectId: string   = (file.project as { id: string }).id;
+
+  // Load Slack credentials from workspace (non-fatal if missing)
+  const { data: wsSlack } = await admin
+    .from("workspaces")
+    .select("slack_bot_token, slack_channel_id")
+    .eq("id", workspaceId)
+    .single();
+  const slackToken   = (wsSlack as { slack_bot_token?: string | null } | null)?.slack_bot_token   ?? "";
+  const slackChannel = (wsSlack as { slack_channel_id?: string | null } | null)?.slack_channel_id ?? "";
 
   // Mark syncing
   await admin.from("figma_files").update({ sync_status: "syncing" }).eq("id", figmaFileId);
@@ -262,7 +272,7 @@ export async function POST(
       }
 
       // Insert feedback_item with AI data, owner, and accountability timestamps
-      await admin.from("feedback_items").insert({
+      const { data: newFeedbackItem } = await admin.from("feedback_items").insert({
         figma_comment_id: (newComment as { id: string }).id,
         workspace_id: workspaceId,
         project_id: projectId,
@@ -289,7 +299,37 @@ export async function POST(
         ...(ownerProfileId ? { owner_profile_id: ownerProfileId } : {}),
         ...(authorProfileId ? { author_profile_id: authorProfileId } : {}),
         ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
-      });
+      }).select("id").single();
+      const feedbackItemId = (newFeedbackItem as { id: string } | null)?.id ?? null;
+
+      // Auto-post to Slack for actionable items
+      if (slackToken && slackChannel && (ai?.classification === "Needs Decision" || ai?.classification === "Blocked")) {
+        const { postCommentToSlack } = await import("@/lib/slack/bot");
+        const figmaUrl = nodeId
+          ? `https://www.figma.com/file/${fileKey}?node-id=${encodeURIComponent(nodeId)}`
+          : `https://www.figma.com/file/${fileKey}`;
+        postCommentToSlack({
+          feedbackItemId: (newComment as { id: string }).id,
+          comment: comment.message,
+          authorName: comment.user?.handle ?? "Unknown",
+          projectName: (file.project as { name: string }).name,
+          fileName: file.name ?? "",
+          pageName: null,
+          classification: ai.classification,
+          aiKeyQuestion: ai.key_question ?? null,
+          figmaUrl,
+          channel: slackChannel,
+          itemId: feedbackItemId,
+          projectId,
+          authorSlackHandle: null,
+        }, slackToken)
+          .then(({ ts, channel: ch }) =>
+            admin.from("feedback_items")
+              .update({ slack_message_ts: ts, slack_channel_id: ch })
+              .eq("figma_comment_id", (newComment as { id: string }).id)
+          )
+          .catch(e => console.warn("[sync] Slack post failed (non-fatal):", e));
+      }
 
       // Insert replies for this new comment.
       // reply.parent_id = parent's comment ID (not order_id).
