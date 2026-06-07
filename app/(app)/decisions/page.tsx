@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { CheckCircle2, User, ExternalLink, Search, ChevronDown } from "lucide-react";
+import { CheckCircle2, ExternalLink, Search, ChevronDown, Plus, X } from "lucide-react";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,6 +16,8 @@ interface DecisionItem {
   project_id:       string | null;
   project_name:     string | null;
   ai_key_question:  string | null;
+  outcome:          string | null;
+  alternatives:     string[] | null;
 }
 
 interface TimelineGroup {
@@ -101,9 +103,80 @@ function TimelineSkeleton() {
   );
 }
 
+// ─── Outcome form ─────────────────────────────────────────────────────────────
+
+interface OutcomeFormProps {
+  decisionId: string;
+  onSave: (outcome: string, alternatives: string[]) => void;
+  onCancel: () => void;
+}
+
+function OutcomeForm({ decisionId, onSave, onCancel }: OutcomeFormProps) {
+  const [outcomeText, setOutcomeText] = useState("");
+  const [altsText,    setAltsText]    = useState("");
+  const [saving,      setSaving]      = useState(false);
+
+  async function handleSave() {
+    const outcome      = outcomeText.trim();
+    const alternatives = altsText.split(",").map(s => s.trim()).filter(Boolean);
+    if (!outcome) return;
+    setSaving(true);
+    try {
+      await fetch(`/api/decisions/${decisionId}/outcome`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ outcome, alternatives }),
+      });
+      onSave(outcome, alternatives);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border space-y-2">
+      <textarea
+        value={outcomeText}
+        onChange={e => setOutcomeText(e.target.value)}
+        placeholder="What actually happened? How did this play out?"
+        rows={3}
+        className="w-full px-3 py-2 text-body rounded-lg border border-border bg-surface text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ink/20 focus:border-ink/30 transition-colors resize-none"
+      />
+      <input
+        type="text"
+        value={altsText}
+        onChange={e => setAltsText(e.target.value)}
+        placeholder="Option A, Option B, Option C"
+        className="w-full px-3 py-2 text-body rounded-lg border border-border bg-surface text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ink/20 focus:border-ink/30 transition-colors"
+      />
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="text-caption text-muted hover:text-ink transition-colors px-2 py-1"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving || !outcomeText.trim()}
+          className="text-caption font-medium px-3 py-1 rounded-lg bg-ink text-paper hover:bg-ink/80 transition-colors disabled:opacity-40"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Decision card ────────────────────────────────────────────────────────────
 
-function DecisionCard({ decision }: { decision: DecisionItem }) {
+interface DecisionCardProps {
+  decision:  DecisionItem;
+  onUpdate:  (id: string, patch: Partial<DecisionItem>) => void;
+}
+
+function DecisionCard({ decision, onUpdate }: DecisionCardProps) {
+  const [showForm, setShowForm] = useState(false);
   const sb          = SOURCE_BADGE[decision.source] ?? SOURCE_BADGE.manual;
   const dotCls      = SOURCE_DOT[decision.source] ?? SOURCE_DOT.manual;
   const feedbackLink = decision.project_id && decision.feedback_item_id
@@ -127,6 +200,29 @@ function DecisionCard({ decision }: { decision: DecisionItem }) {
           <p className="text-caption text-muted mb-3 leading-relaxed">
             {decision.reason}
           </p>
+        )}
+
+        {/* Outcome */}
+        {decision.outcome && (
+          <div className="mt-2 mb-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-0.5">Outcome</p>
+            <p className="text-body text-emerald-900 leading-relaxed">{decision.outcome}</p>
+          </div>
+        )}
+
+        {/* Alternatives */}
+        {decision.alternatives && decision.alternatives.length > 0 && (
+          <div className="mt-2 mb-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted mb-1">Alternatives considered</p>
+            <ul className="space-y-0.5">
+              {decision.alternatives.map((alt, i) => (
+                <li key={i} className="text-caption text-muted flex items-start gap-1.5">
+                  <span className="opacity-40 shrink-0">·</span>
+                  {alt}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* Meta row */}
@@ -153,15 +249,48 @@ function DecisionCard({ decision }: { decision: DecisionItem }) {
           </span>
         </div>
 
-        {/* View context link */}
-        {feedbackLink && (
-          <Link
-            href={feedbackLink}
-            className="inline-flex items-center gap-1 mt-2.5 text-[10px] text-muted hover:text-ink transition-colors"
-          >
-            <ExternalLink size={9} />
-            View context →
-          </Link>
+        {/* Footer: view link + add outcome */}
+        <div className="flex items-center justify-between mt-2.5 flex-wrap gap-2">
+          {feedbackLink ? (
+            <Link
+              href={feedbackLink}
+              className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-ink transition-colors"
+            >
+              <ExternalLink size={9} />
+              View context →
+            </Link>
+          ) : <span />}
+
+          {!decision.outcome && !showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-ink transition-colors"
+            >
+              <Plus size={9} />
+              Add outcome
+            </button>
+          )}
+          {showForm && (
+            <button
+              onClick={() => setShowForm(false)}
+              className="inline-flex items-center gap-1 text-[10px] text-muted hover:text-ink transition-colors"
+            >
+              <X size={9} />
+              Cancel
+            </button>
+          )}
+        </div>
+
+        {/* Inline outcome form */}
+        {showForm && (
+          <OutcomeForm
+            decisionId={decision.id}
+            onSave={(outcome, alternatives) => {
+              onUpdate(decision.id, { outcome, alternatives });
+              setShowForm(false);
+            }}
+            onCancel={() => setShowForm(false)}
+          />
         )}
       </div>
     </div>
@@ -170,7 +299,12 @@ function DecisionCard({ decision }: { decision: DecisionItem }) {
 
 // ─── Date group ───────────────────────────────────────────────────────────────
 
-function DateGroup({ group }: { group: TimelineGroup & { decisions: DecisionItem[] } }) {
+interface DateGroupProps {
+  group:    TimelineGroup & { decisions: DecisionItem[] };
+  onUpdate: (id: string, patch: Partial<DecisionItem>) => void;
+}
+
+function DateGroup({ group, onUpdate }: DateGroupProps) {
   if (group.decisions.length === 0) return null;
 
   return (
@@ -199,7 +333,7 @@ function DateGroup({ group }: { group: TimelineGroup & { decisions: DecisionItem
         {/* Cards */}
         <div className="pl-5">
           {group.decisions.map(d => (
-            <DecisionCard key={d.id} decision={d} />
+            <DecisionCard key={d.id} decision={d} onUpdate={onUpdate} />
           ))}
         </div>
       </div>
@@ -213,6 +347,20 @@ export default function DecisionsPage() {
   const [data,    setData]    = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
+
+  // Patch a single decision in the local timeline state (outcome/alternatives)
+  function handleUpdate(id: string, patch: Partial<DecisionItem>) {
+    setData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        timeline: prev.timeline.map(group => ({
+          ...group,
+          decisions: group.decisions.map(d => d.id === id ? { ...d, ...patch } : d),
+        })),
+      };
+    });
+  }
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [showProjectMenu, setShowProjectMenu] = useState(false);
 
@@ -354,7 +502,7 @@ export default function DecisionsPage() {
         ) : (
           <div className="space-y-8 fade-in max-w-2xl">
             {filteredTimeline.map(group => (
-              <DateGroup key={group.date} group={group} />
+              <DateGroup key={group.date} group={group} onUpdate={handleUpdate} />
             ))}
           </div>
         )}

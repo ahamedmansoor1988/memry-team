@@ -25,6 +25,8 @@ type RawDecision = {
   source:           string;
   decided_at:       string;
   feedback_item_id: string | null;
+  outcome:          string | null;
+  alternatives:     string[] | null;
   feedback_item:
     | { id: string; project_id: string | null; ai_key_question: string | null; project: { id: string; name: string } | { id: string; name: string }[] | null }
     | { id: string; project_id: string | null; ai_key_question: string | null; project: { id: string; name: string } | { id: string; name: string }[] | null }[]
@@ -42,6 +44,8 @@ export type DecisionItem = {
   project_id:       string | null;
   project_name:     string | null;
   ai_key_question:  string | null;
+  outcome:          string | null;
+  alternatives:     string[] | null;
 };
 
 export type TimelineGroup = {
@@ -106,6 +110,7 @@ export async function GET() {
     .from("decisions")
     .select(`
       id, decision_text, reason, owner_name, source, decided_at, feedback_item_id,
+      outcome, alternatives,
       feedback_item:feedback_items(
         id, project_id, ai_key_question,
         project:projects(id, name)
@@ -136,6 +141,8 @@ export async function GET() {
       project_id:       fi?.project_id ?? null,
       project_name:     project?.name ?? null,
       ai_key_question:  fi?.ai_key_question ?? null,
+      outcome:          row.outcome       ?? null,
+      alternatives:     row.alternatives  ?? null,
     };
   });
 

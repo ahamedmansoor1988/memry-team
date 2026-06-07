@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio, Users } from "lucide-react";
+import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio, Users, FileText } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -229,6 +229,33 @@ export default function PulsePage() {
   const [monitoring, setMonitoring] = useState<MonitoringReport | null>(null);
   const [scanning, setScanning] = useState(false);
 
+  // ── Weekly Brief ──────────────────────────────────────────────────────────
+  const [brief, setBrief] = useState<{
+    headline: string;
+    decisions_summary: string;
+    attention_needed: string[];
+    blockers_summary: string;
+    momentum: "high" | "medium" | "low";
+    momentum_reason: string;
+  } | null>(null);
+  const [briefLoading, setBriefLoading] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
+
+  function generateBrief() {
+    setBriefLoading(true);
+    setBriefError(null);
+    fetch("/api/brief")
+      .then(r => r.json())
+      .then(d => {
+        setBrief(d);
+        setBriefLoading(false);
+      })
+      .catch(() => {
+        setBriefError("Failed to generate brief. Try again.");
+        setBriefLoading(false);
+      });
+  }
+
   const loadData = useCallback(() => {
     fetch("/api/pulse")
       .then(r => r.json())
@@ -439,6 +466,98 @@ export default function PulsePage() {
                 </div>
               </div>
             )}
+
+            {/* ── Weekly Brief ── */}
+            <div className="rounded-panel border border-border bg-paper">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2">
+                  <FileText size={14} className="text-muted" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                    Weekly Brief
+                  </span>
+                </div>
+                <button
+                  onClick={generateBrief}
+                  disabled={briefLoading}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-border text-caption text-muted hover:text-ink hover:border-ink/30 transition-colors disabled:opacity-40"
+                >
+                  {briefLoading ? (
+                    <span className="w-3 h-3 rounded-full border-2 border-muted/30 border-t-muted animate-spin" />
+                  ) : (
+                    <FileText size={11} />
+                  )}
+                  {briefLoading ? "Generating…" : "Generate Brief"}
+                </button>
+              </div>
+
+              <div className="px-4 py-4">
+                {!brief && !briefLoading && !briefError && (
+                  <p className="text-body text-muted text-center py-4">
+                    Click "Generate Brief" for an AI summary of the past 7 days.
+                  </p>
+                )}
+                {briefError && (
+                  <p className="text-body text-red-500 py-2">{briefError}</p>
+                )}
+                {briefLoading && (
+                  <div className="space-y-3 py-2">
+                    <div className="skeleton h-4 w-3/4 rounded" />
+                    <div className="skeleton h-3 w-full rounded" />
+                    <div className="skeleton h-3 w-5/6 rounded" />
+                    <div className="skeleton h-3 w-2/3 rounded" />
+                  </div>
+                )}
+                {brief && !briefLoading && (
+                  <div className="space-y-4">
+                    {/* Headline + momentum */}
+                    <div className="flex items-start gap-3">
+                      <p className="flex-1 text-body font-semibold text-ink leading-snug">
+                        {brief.headline}
+                      </p>
+                      <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                        brief.momentum === "high"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : brief.momentum === "medium"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-red-50 text-red-600 border-red-200"
+                      }`}>
+                        {brief.momentum} momentum
+                      </span>
+                    </div>
+
+                    {/* Decisions */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1">Decisions</p>
+                      <p className="text-body text-ink leading-relaxed">{brief.decisions_summary}</p>
+                    </div>
+
+                    {/* Attention needed */}
+                    {brief.attention_needed.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1.5">Attention Needed</p>
+                        <ul className="space-y-1">
+                          {brief.attention_needed.map((item, i) => (
+                            <li key={i} className="flex items-start gap-2 text-body text-ink">
+                              <span className="text-amber-500 shrink-0 mt-0.5">•</span>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Blockers */}
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1">Blockers</p>
+                      <p className="text-body text-ink leading-relaxed">{brief.blockers_summary}</p>
+                    </div>
+
+                    {/* Momentum reason */}
+                    <p className="text-caption text-muted italic">{brief.momentum_reason}</p>
+                  </div>
+                )}
+              </div>
+            </div>
 
             {/* ── Last updated ── */}
             <p className="text-caption text-muted text-center py-2">
