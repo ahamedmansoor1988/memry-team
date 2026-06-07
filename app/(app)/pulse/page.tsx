@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio, Users } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -11,6 +12,7 @@ interface SignalItem {
   created_at: string;
   project_id: string | null;
   project_name: string | null;
+  accountability_label: string | null;
 }
 
 interface SignalGroup {
@@ -163,9 +165,12 @@ function SignalCard({ title, icon, iconBg, countBadgeCls, group, onClickItem }: 
               disabled={!item.project_id}
               className="w-full flex items-start justify-between gap-3 px-2 py-1.5 rounded-lg hover:bg-surface transition-colors text-left disabled:cursor-default"
             >
-              <p className="text-body text-ink line-clamp-1 flex-1 min-w-0">
-                {itemLabel(item)}
-              </p>
+              <div className="flex-1 min-w-0">
+                <p className="text-body text-ink line-clamp-1">{itemLabel(item)}</p>
+                {item.accountability_label && (
+                  <p className="text-[10px] text-orange-500 font-medium mt-0.5">{item.accountability_label}</p>
+                )}
+              </div>
               <span className="text-caption text-muted shrink-0">{timeAgo(item.created_at)}</span>
             </button>
           ))}
@@ -346,6 +351,14 @@ export default function PulsePage() {
                       <IssueRow key={`${issue.type}-${i}`} issue={issue} />
                     ))
                   )}
+                  <div className="py-2.5 flex justify-end">
+                    <Link
+                      href="/accountability"
+                      className="text-caption text-muted hover:text-ink transition-colors"
+                    >
+                      View all →
+                    </Link>
+                  </div>
                 </div>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { computeAccountability } from "@/lib/accountability/tracker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,6 +12,10 @@ type RawItem = {
   ai_vague_flag: boolean | null;
   ai_key_question: string | null;
   created_at: string;
+  updated_at: string;
+  waiting_since: string | null;
+  blocked_since: string | null;
+  escalation_count: number | null;
   project: { id: string; name: string } | { id: string; name: string }[] | null;
 };
 
@@ -24,16 +29,28 @@ type SignalItem = {
   created_at: string;
   project_id: string | null;
   project_name: string | null;
+  accountability_label: string | null;
 };
 
 function toSignalItems(items: NormalizedItem[]): SignalItem[] {
-  return items.slice(0, 3).map(i => ({
-    id: i.id,
-    ai_key_question: i.ai_key_question,
-    created_at: i.created_at,
-    project_id: i.project?.id ?? null,
-    project_name: i.project?.name ?? null,
-  }));
+  return items.slice(0, 3).map(i => {
+    const acc = computeAccountability({
+      status:            i.status,
+      ai_classification: i.ai_classification,
+      waiting_since:     i.waiting_since,
+      blocked_since:     i.blocked_since,
+      escalation_count:  i.escalation_count,
+      updated_at:        i.updated_at,
+    });
+    return {
+      id: i.id,
+      ai_key_question: i.ai_key_question,
+      created_at: i.created_at,
+      project_id: i.project?.id ?? null,
+      project_name: i.project?.name ?? null,
+      accountability_label: acc.label || null,
+    };
+  });
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -56,7 +73,7 @@ export async function GET() {
 
   const { data: rawRows, error } = await admin
     .from("feedback_items")
-    .select("id, status, ai_classification, ai_risk_flag, ai_vague_flag, ai_key_question, created_at, project:projects(id, name)")
+    .select("id, status, ai_classification, ai_risk_flag, ai_vague_flag, ai_key_question, created_at, updated_at, waiting_since, blocked_since, escalation_count, project:projects(id, name)")
     .eq("workspace_id", membership.workspace_id)
     .is("deleted_at", null)
     .order("created_at", { ascending: false });

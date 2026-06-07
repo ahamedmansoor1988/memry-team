@@ -382,6 +382,9 @@ async function syncFile(
       ai_suggested_action: ai?.suggested_action ?? null,
       figma_node_id: nodeId,
       figma_preview_url: fileThumbnailUrl,  // file-level thumbnail as initial placeholder
+      // Set blocked_since immediately when AI classifies as Blocked so accountability
+      // tracking starts from the moment the item is ingested.
+      ...(ai?.classification === "Blocked" ? { blocked_since: new Date().toISOString() } : {}),
       ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
       ...(authorProfileId ? { author_profile_id: authorProfileId } : {}),
     }).select("id").single();

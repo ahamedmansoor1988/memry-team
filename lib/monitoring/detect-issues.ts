@@ -55,11 +55,13 @@ export async function detectIssues(workspaceId: string): Promise<MonitoringRepor
       updated_at: string;
       created_at: string;
       owner_name: string | null;
+      waiting_since: string | null;
+      blocked_since: string | null;
     };
 
     const { data: rows, error } = await admin
       .from("feedback_items")
-      .select("id, status, ai_classification, ai_risk_flag, ai_vague_flag, updated_at, created_at, owner_name")
+      .select("id, status, ai_classification, ai_risk_flag, ai_vague_flag, updated_at, created_at, owner_name, waiting_since, blocked_since")
       .eq("workspace_id", workspaceId)
       .in("status", ["open", "needs_decision"]);
 
@@ -71,8 +73,15 @@ export async function detectIssues(workspaceId: string): Promise<MonitoringRepor
     const items = rows as ItemRow[];
     const issues: MonitoringIssue[] = [];
 
-    // ── 1. Stalled items (no activity in 72 h) ────────────────────────────────
-    const stalled = items.filter(i => i.updated_at < cutoff72h);
+    // ── 1. Stalled items (no activity in 72 h, or blocked/waiting with no update) ─
+    const stalled = items.filter(i => {
+      // An item is stalled if it hasn't been updated in 72h OR has been in a
+      // blocked/waiting state (blocked_since / waiting_since) since the cutoff.
+      const noRecentUpdate = i.updated_at < cutoff72h;
+      const blockedLong    = i.blocked_since  != null && i.blocked_since  < cutoff72h;
+      const waitingLong    = i.waiting_since  != null && i.waiting_since  < cutoff72h;
+      return noRecentUpdate || blockedLong || waitingLong;
+    });
     if (stalled.length > 0) {
       issues.push({
         type: "stalled",
@@ -87,11 +96,17 @@ export async function detectIssues(workspaceId: string): Promise<MonitoringRepor
     // ── 2. Active blockers (one issue per blocker — each is high severity) ────
     const blockers = items.filter(i => i.ai_classification === "Blocked");
     for (const blocker of blockers) {
+      const blockedDays = blocker.blocked_since
+        ? Math.floor((now - new Date(blocker.blocked_since).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+      const daysNote = blockedDays != null && blockedDays > 0
+        ? ` — blocked for ${blockedDays} day${blockedDays !== 1 ? "s" : ""}`
+        : "";
       issues.push({
         type: "blocker",
         severity: "high",
         title: "Active blocker",
-        description: "This item is classified as Blocked and needs immediate resolution",
+        description: `This item is classified as Blocked and needs immediate resolution${daysNote}`,
         feedback_item_ids: [blocker.id],
         owner_name: blocker.owner_name,
       });

@@ -49,7 +49,7 @@ export async function PATCH(
   // Load current item
   const { data: item } = await admin
     .from("feedback_items")
-    .select("id, status")
+    .select("id, status, blocked_since")
     .eq("id", id)
     .eq("workspace_id", membership.workspace_id)
     .single();
@@ -57,6 +57,7 @@ export async function PATCH(
   if (!item) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const fromStatus = item.status as string;
+  const existingBlockedSince = (item as { blocked_since?: string | null }).blocked_since ?? null;
 
   // Guard: no-op if already in target state
   if (fromStatus === toStatus) {
@@ -75,7 +76,7 @@ export async function PATCH(
   const now = new Date().toISOString();
 
   // Build update payload — manage timestamp columns
-  const updates: Record<string, string | null> = {
+  const updates: Record<string, string | null | number> = {
     status: toStatus,
     updated_at: now,
   };
@@ -88,6 +89,19 @@ export async function PATCH(
   // Clear archived_at when unarchiving
   if (fromStatus === "archived" && toStatus === "open") {
     updates.archived_at = null;
+  }
+
+  // ── blocked_since management ──────────────────────────────────────────────
+  // Set when first entering needs_decision (if not already set).
+  if (toStatus === "needs_decision" && !existingBlockedSince) {
+    updates.blocked_since = now;
+  }
+  // Clear when leaving an active blocked state.
+  if (
+    (toStatus === "resolved" || toStatus === "archived") ||
+    (fromStatus === "needs_decision" && toStatus === "open")
+  ) {
+    updates.blocked_since = null;
   }
 
   const { error: updateError } = await admin

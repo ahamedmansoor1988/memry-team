@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Inbox, GitPullRequestDraft, AlertTriangle, Activity, Settings, LogOut, FolderOpen, ArrowRightLeft, Plug, LayoutDashboard, Archive, Radio, Users } from "lucide-react";
+import { Inbox, GitPullRequestDraft, AlertTriangle, AlertCircle, Activity, Settings, LogOut, FolderOpen, ArrowRightLeft, Plug, LayoutDashboard, Archive, Radio, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,8 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
 
   const mainNav = [
     { href: "/inbox",     label: "Inbox",     icon: Inbox,                  badge: openCount > 0 ? openCount : null },
-    { href: "/pulse",     label: "Pulse",     icon: Radio,                  badge: null },
+    { href: "/pulse",          label: "Pulse",          icon: Radio,          badge: null },
+    { href: "/accountability", label: "Accountability", icon: AlertCircle,    badge: null },
     { href: "/team",      label: "Team",      icon: Users,                  badge: null },
     { href: "/decisions", label: "Decisions", icon: GitPullRequestDraft,    badge: null },
     { href: "/risks",     label: "Risks",     icon: AlertTriangle,          badge: null },
