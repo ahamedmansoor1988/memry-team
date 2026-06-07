@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { fetchComments } from "@/lib/figma/sync";
 import { classifyComment } from "@/lib/ai/classify";
+import { resolveOwner, type OwnerProfile } from "@/lib/ai/resolve-owner";
 
 export async function POST(
   req: NextRequest,
@@ -103,6 +104,29 @@ export async function POST(
 
     // 6. Insert new top-level comments + their feedback_items
     // Note: previews are fetched lazily via /api/feedback/:id/preview to avoid rate limits
+
+    // Pre-load workspace profiles once for owner resolution (non-fatal if missing)
+    let workspaceProfiles: OwnerProfile[] = [];
+    try {
+      const { data: profileRows } = await admin
+        .from("profiles")
+        .select("id, display_name, figma_handle, slack_handle")
+        .eq("workspace_id", workspaceId);
+      workspaceProfiles = ((profileRows ?? []) as Array<{
+        id: string;
+        display_name: string;
+        figma_handle: string | null;
+        slack_handle: string | null;
+      }>).map(r => ({
+        id: r.id,
+        display_name: r.display_name,
+        figma_handle: r.figma_handle ?? "",
+        slack_handle: r.slack_handle,
+      }));
+    } catch {
+      // profiles table may not exist yet — continue without owner resolution
+    }
+
     let added = 0;
     let newDrCount = 0; // track newly inserted design_references (vs. existing ones)
     for (const comment of newTopLevel) {
@@ -178,10 +202,66 @@ export async function POST(
         }
       }
 
+      // Best-effort: upsert the comment author as a profile so the team roster
+      // stays current without a manual backfill.
+      let authorProfileId: string | null = null;
+      if (comment.user?.handle) {
+        try {
+          const profilePayload: Record<string, unknown> = {
+            workspace_id: workspaceId,
+            display_name: comment.user.handle,
+            figma_handle: comment.user.handle,
+            avatar_url: comment.user.img_url ?? null,
+            updated_at: new Date().toISOString(),
+          };
+          if (comment.user.email) profilePayload.email = comment.user.email;
+
+          const { data: profile } = await admin
+            .from("profiles")
+            .upsert(profilePayload, { onConflict: "workspace_id,figma_handle" })
+            .select("id, slack_handle")
+            .single();
+
+          if (profile) {
+            const p = profile as { id: string; slack_handle: string | null };
+            authorProfileId = p.id;
+            // Keep local profiles list warm so later comments in this batch can match
+            if (!workspaceProfiles.find(pr => pr.id === p.id)) {
+              workspaceProfiles.push({
+                id: p.id,
+                display_name: comment.user.handle,
+                figma_handle: comment.user.handle,
+                slack_handle: p.slack_handle,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("[sync] profile upsert failed (non-fatal):", e);
+        }
+      }
+
       // AI classification
       const ai = await classifyComment(comment.message);
 
-      // Insert feedback_item with AI data
+      // Owner resolution — run after AI classify so we have the full comment text.
+      // Use empty replies array at insert time; replies arrive on subsequent syncs
+      // and the owner can be updated then.
+      const now = new Date().toISOString();
+      let ownerName: string | null = null;
+      let ownerProfileId: string | null = null;
+      if (workspaceProfiles.length > 0) {
+        try {
+          const ownerResult = await resolveOwner(comment.message, [], workspaceProfiles);
+          if (ownerResult.owner_name) {
+            ownerName = ownerResult.owner_name;
+            ownerProfileId = ownerResult.profile_id;
+          }
+        } catch {
+          // Non-fatal
+        }
+      }
+
+      // Insert feedback_item with AI data, owner, and accountability timestamps
       await admin.from("feedback_items").insert({
         figma_comment_id: (newComment as { id: string }).id,
         workspace_id: workspaceId,
@@ -198,8 +278,16 @@ export async function POST(
         ai_risk_flag: ai?.risk_flag ?? false,
         ai_vague_flag: ai?.vague_flag ?? false,
         ai_vague_reason: ai?.vague_reason ?? null,
+        ai_suggested_action: ai?.suggested_action ?? null,
         figma_node_id: nodeId,
         figma_preview_url: previewUrl,
+        // Accountability timestamps — start the clock immediately at ingest time
+        ...(ai?.classification === "Blocked"        ? { blocked_since: now } : {}),
+        ...(ai?.classification === "Needs Decision" ? { waiting_since: now } : {}),
+        // Owner (may be null — user can set manually)
+        ...(ownerName      ? { owner_name: ownerName }           : {}),
+        ...(ownerProfileId ? { owner_profile_id: ownerProfileId } : {}),
+        ...(authorProfileId ? { author_profile_id: authorProfileId } : {}),
         ...(designReferenceId ? { design_reference_id: designReferenceId } : {}),
       });
 

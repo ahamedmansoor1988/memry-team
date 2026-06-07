@@ -24,6 +24,7 @@ export async function GET() {
     .from("projects")
     .select("*, figma_files(id, name, figma_file_key, sync_status, last_synced_at)")
     .eq("workspace_id", wsId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
   if (!projects?.length) return NextResponse.json({ projects: [] });
@@ -86,6 +87,12 @@ export async function DELETE(req: NextRequest) {
   const wsId = await getWorkspaceId(admin, user.id);
   if (!wsId) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
-  await admin.from("projects").delete().eq("id", id).eq("workspace_id", wsId);
+  // Soft-delete: stamp deleted_at rather than hard-deleting so linked
+  // feedback_items, decisions, and history records are preserved.
+  await admin
+    .from("projects")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("workspace_id", wsId);
   return NextResponse.json({ ok: true });
 }
