@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle } from "lucide-react";
-import { AccountabilityUrgency } from "@/lib/accountability/tracker";
+import type { AccountabilityUrgency } from "@/lib/accountability/tracker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
