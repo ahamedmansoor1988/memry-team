@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio, Users, FileText } from "lucide-react";
+import { Clock, ShieldAlert, AlertTriangle, MessageSquare, Zap, Radio, Users, FileText, TrendingUp, TrendingDown, Minus, BarChart2 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,30 @@ interface MonitoringReport {
   scanned_at: string;
   total_open: number;
   health_score: number;
+}
+
+interface TrendEntry {
+  direction: "up" | "down" | "flat";
+  delta: number;
+}
+
+interface TrendsData {
+  current: {
+    total: number; resolved: number; blocked: number;
+    risk_flags: number; needs_decision: number;
+  };
+  trends: {
+    total: TrendEntry; resolved: TrendEntry; blocked: TrendEntry;
+    risk_flags: TrendEntry; needs_decision: TrendEntry;
+  };
+}
+
+interface ProjectHealth {
+  id: string; name: string;
+  total: number; open: number; resolved: number;
+  blocked: number; risk_flags: number;
+  avg_wait_days: number; resolution_rate: number;
+  health: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -229,6 +253,12 @@ export default function PulsePage() {
   const [monitoring, setMonitoring] = useState<MonitoringReport | null>(null);
   const [scanning, setScanning] = useState(false);
 
+  // ── Trends ───────────────────────────────────────────────────────────────
+  const [trends, setTrends] = useState<TrendsData | null>(null);
+
+  // ── Project Health ────────────────────────────────────────────────────────
+  const [projectHealth, setProjectHealth] = useState<ProjectHealth[]>([]);
+
   // ── Weekly Brief ──────────────────────────────────────────────────────────
   const [brief, setBrief] = useState<{
     headline: string;
@@ -284,6 +314,18 @@ export default function PulsePage() {
     const refresh = setInterval(() => { loadData(); loadMonitoring(); }, 60_000);
     return () => clearInterval(refresh);
   }, [loadData, loadMonitoring]);
+
+  // Load trends + project health once on mount
+  useEffect(() => {
+    fetch("/api/pulse/trends")
+      .then(r => r.json())
+      .then((d: TrendsData) => setTrends(d))
+      .catch(() => {});
+    fetch("/api/projects/intelligence")
+      .then(r => r.json())
+      .then((d: { projects?: ProjectHealth[] }) => setProjectHealth(d.projects ?? []))
+      .catch(() => {});
+  }, []);
 
   // Tick the "seconds ago" counter every second
   useEffect(() => {
@@ -354,6 +396,106 @@ export default function PulsePage() {
               </div>
               <p className="text-body text-muted">{health!.description}</p>
             </div>
+
+            {/* ── Trends: This Week vs Last Week ── */}
+            {trends && (() => {
+              type MetricKey = "total" | "resolved" | "blocked" | "risk_flags" | "needs_decision";
+
+              const metaCfg: {
+                key: MetricKey;
+                label: string;
+                goodDir: "up" | "down" | "flat";
+              }[] = [
+                { key: "total",          label: "New Items",      goodDir: "flat" },
+                { key: "resolved",       label: "Resolved",       goodDir: "up"   },
+                { key: "blocked",        label: "Blocked",        goodDir: "down" },
+                { key: "risk_flags",     label: "Risks",          goodDir: "down" },
+                { key: "needs_decision", label: "Needs Decision", goodDir: "down" },
+              ];
+
+              return (
+                <div className="rounded-panel border border-border bg-paper p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BarChart2 size={14} className="text-muted shrink-0" />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                      This Week vs Last Week
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2">
+                    {metaCfg.map(({ key, label, goodDir }) => {
+                      const t = trends.trends[key];
+                      const val = trends.current[key];
+
+                      const isGood = t.direction === goodDir || (goodDir === "flat" && t.direction !== "up");
+                      const isBad  = (goodDir === "up"   && t.direction === "down") ||
+                                     (goodDir === "down" && t.direction === "up")   ||
+                                     (goodDir === "flat" && t.direction === "up");
+                      const isFlat = t.direction === "flat";
+
+                      const numColor = isGood ? "text-emerald-600" : isBad ? "text-red-500" : "text-muted";
+                      const deltaCls = isGood ? "text-emerald-600" : isBad ? "text-red-500" : "text-muted";
+                      const ArrowIcon = t.direction === "up" ? TrendingUp : t.direction === "down" ? TrendingDown : Minus;
+
+                      return (
+                        <div key={key} className="flex flex-col items-center gap-0.5 rounded-lg bg-surface border border-border p-2.5 text-center">
+                          <span className="text-caption text-muted leading-tight mb-1 text-[10px]">{label}</span>
+                          <span className={`text-[22px] font-bold leading-none tabular-nums ${numColor}`}>{val}</span>
+                          <div className={`flex items-center gap-0.5 mt-1 ${deltaCls}`}>
+                            <ArrowIcon size={11} />
+                            <span className="text-[10px] font-semibold">
+                              {t.delta > 0 ? `+${t.delta}` : t.delta === 0 ? "—" : t.delta}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Project Health ── */}
+            {projectHealth.length >= 2 && (
+              <div className="rounded-panel border border-border bg-paper">
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+                  <BarChart2 size={14} className="text-muted shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                    Project Health
+                  </span>
+                </div>
+                <div className="divide-y divide-border">
+                  {projectHealth.map(p => {
+                    const barColor = p.health >= 80 ? "bg-emerald-500" : p.health >= 60 ? "bg-amber-400" : "bg-red-500";
+                    const scoreColor = p.health >= 80 ? "text-emerald-600" : p.health >= 60 ? "text-amber-600" : "text-red-500";
+                    return (
+                      <div key={p.id} className="px-4 py-3 flex items-center gap-3">
+                        {/* Name + bar */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-body font-medium text-ink truncate">{p.name}</span>
+                            <span className={`text-[11px] font-bold tabular-nums ml-2 shrink-0 ${scoreColor}`}>{p.health}</span>
+                          </div>
+                          <div className="h-1.5 rounded-full bg-surface overflow-hidden">
+                            <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${p.health}%` }} />
+                          </div>
+                        </div>
+                        {/* Stats */}
+                        <div className="flex items-center gap-3 shrink-0 text-caption">
+                          <span className="text-muted">{p.open} open</span>
+                          {p.blocked > 0
+                            ? <span className="text-red-500 font-semibold">{p.blocked} blocked</span>
+                            : <span className="text-muted">0 blocked</span>}
+                          <span className={p.avg_wait_days > 5 ? "text-amber-600 font-semibold" : "text-muted"}>
+                            {p.avg_wait_days}d wait
+                          </span>
+                          <span className="text-muted">{p.resolution_rate}% resolved</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── Issues Detected ── */}
             {monitoring && (
