@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 type AccountabilityUrgency = "critical" | "high" | "medium" | "low" | "none";
 
@@ -79,21 +79,17 @@ function timeAgo(date: string): string {
 
 // ─── Item row ─────────────────────────────────────────────────────────────────
 
-interface ItemRowProps {
-  item: AccountabilityItem;
-  onClick: () => void;
-}
-
-function ItemRow({ item, onClick }: ItemRowProps) {
+function ItemRow({ item }: { item: AccountabilityItem }) {
   const question = item.ai_key_question && item.ai_key_question !== "None"
     ? item.ai_key_question
     : item.ai_summary ?? "—";
+  const href = item.project_id ? `/inbox/${item.project_id}/${item.id}` : "#";
 
   return (
-    <button
-      onClick={onClick}
+    <Link
+      href={href}
       className={`
-        w-full text-left border border-border bg-paper rounded-panel mb-2
+        block border border-border bg-paper rounded-panel mb-2
         border-l-4 ${URGENCY_BORDER[item.urgency]}
         hover:bg-surface transition-colors
         p-4
@@ -127,7 +123,7 @@ function ItemRow({ item, onClick }: ItemRowProps) {
           <span className="text-caption text-muted">{timeAgo(item.updated_at)}</span>
         </div>
       </div>
-    </button>
+    </Link>
   );
 }
 
@@ -149,7 +145,6 @@ function Skeleton() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function AccountabilityPage() {
-  const router = useRouter();
   const [data, setData] = useState<AccountabilityData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -159,12 +154,6 @@ export default function AccountabilityPage() {
       .then((d: AccountabilityData) => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
-
-  function handleClick(item: AccountabilityItem) {
-    if (item.project_id) {
-      router.push(`/inbox/${item.project_id}/${item.id}`);
-    }
-  }
 
   // Group items by urgency
   const groups: Record<AccountabilityUrgency, AccountabilityItem[]> = {
@@ -219,11 +208,7 @@ export default function AccountabilityPage() {
 
                 {/* Item rows */}
                 {groups[urgency].map(item => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    onClick={() => handleClick(item)}
-                  />
+                  <ItemRow key={item.id} item={item} />
                 ))}
               </div>
             ))}
