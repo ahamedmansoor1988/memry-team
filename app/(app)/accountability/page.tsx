@@ -161,7 +161,8 @@ export default function AccountabilityPage() {
   };
   if (data) {
     for (const item of data.items) {
-      groups[item.urgency].push(item);
+      const u = item.urgency in groups ? item.urgency : "low";
+      groups[u].push(item);
     }
   }
 
