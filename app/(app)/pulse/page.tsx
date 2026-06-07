@@ -39,6 +39,22 @@ interface PulseData {
   generatedAt: string;
 }
 
+interface MonitoringIssue {
+  type: "stalled" | "blocker" | "risk" | "ownership_gap" | "vague_cluster";
+  severity: "high" | "medium" | "low";
+  title: string;
+  description: string;
+  feedback_item_ids: string[];
+  owner_name: string | null;
+}
+
+interface MonitoringReport {
+  issues: MonitoringIssue[];
+  scanned_at: string;
+  total_open: number;
+  health_score: number;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(date: string): string {
@@ -162,6 +178,40 @@ function SignalCard({ title, icon, iconBg, countBadgeCls, group, onClickItem }: 
   );
 }
 
+// ─── Issue row ────────────────────────────────────────────────────────────────
+
+const SEVERITY_DOT: Record<MonitoringIssue["severity"], string> = {
+  high:   "bg-red-500",
+  medium: "bg-amber-400",
+  low:    "bg-gray-300",
+};
+
+const SEVERITY_BADGE: Record<MonitoringIssue["severity"], string> = {
+  high:   "bg-red-50 text-red-600",
+  medium: "bg-amber-50 text-amber-600",
+  low:    "bg-gray-100 text-gray-500",
+};
+
+function IssueRow({ issue }: { issue: MonitoringIssue }) {
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
+      <div className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${SEVERITY_DOT[issue.severity]}`} />
+      <div className="flex-1 min-w-0">
+        <p className="text-body font-semibold text-ink">{issue.title}</p>
+        <p className="text-caption text-muted mt-0.5">{issue.description}</p>
+        {issue.owner_name && (
+          <p className="text-caption text-muted mt-0.5">
+            <span className="opacity-50">→</span> {issue.owner_name}
+          </p>
+        )}
+      </div>
+      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full shrink-0 self-start mt-0.5 ${SEVERITY_BADGE[issue.severity]}`}>
+        {issue.severity}
+      </span>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function PulsePage() {
@@ -170,6 +220,9 @@ export default function PulsePage() {
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
   const [secondsAgo, setSecondsAgo] = useState(0);
+
+  const [monitoring, setMonitoring] = useState<MonitoringReport | null>(null);
+  const [scanning, setScanning] = useState(false);
 
   const loadData = useCallback(() => {
     fetch("/api/pulse")
@@ -183,12 +236,22 @@ export default function PulsePage() {
       .catch(() => setLoading(false));
   }, []);
 
-  // Initial load + 60s auto-refresh
+  const loadMonitoring = useCallback((showSpinner = false) => {
+    if (showSpinner) setScanning(true);
+    fetch("/api/monitoring/report")
+      .then(r => r.json())
+      .then((r: MonitoringReport) => setMonitoring(r))
+      .catch(() => {})
+      .finally(() => { if (showSpinner) setScanning(false); });
+  }, []);
+
+  // Initial load + 60s auto-refresh for both data sources
   useEffect(() => {
     loadData();
-    const refresh = setInterval(loadData, 60_000);
+    loadMonitoring();
+    const refresh = setInterval(() => { loadData(); loadMonitoring(); }, 60_000);
     return () => clearInterval(refresh);
-  }, [loadData]);
+  }, [loadData, loadMonitoring]);
 
   // Tick the "seconds ago" counter every second
   useEffect(() => {
@@ -212,9 +275,23 @@ export default function PulsePage() {
 
       {/* ── Header ── */}
       <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <Radio size={18} className="text-muted shrink-0" />
-          <h1 className="text-title font-semibold text-ink">Workspace Pulse</h1>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Radio size={18} className="text-muted shrink-0" />
+            <h1 className="text-title font-semibold text-ink">Workspace Pulse</h1>
+          </div>
+          <button
+            onClick={() => loadMonitoring(true)}
+            disabled={scanning}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors disabled:opacity-40"
+          >
+            {scanning ? (
+              <span className="w-3 h-3 rounded-full border-2 border-muted/30 border-t-muted animate-spin" />
+            ) : (
+              <Radio size={12} className="shrink-0" />
+            )}
+            {scanning ? "Scanning…" : "Scan now"}
+          </button>
         </div>
         <p className="text-body text-muted">Live view of what needs attention</p>
       </div>
@@ -245,6 +322,33 @@ export default function PulsePage() {
               </div>
               <p className="text-body text-muted">{health!.description}</p>
             </div>
+
+            {/* ── Issues Detected ── */}
+            {monitoring && (
+              <div className="rounded-panel border border-border bg-paper">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted">
+                    Issues Detected
+                  </span>
+                  {monitoring.issues.length > 0 && (
+                    <span className="text-caption text-muted">
+                      {monitoring.total_open} open · scanned {timeAgo(monitoring.scanned_at)}
+                    </span>
+                  )}
+                </div>
+                <div className="px-4">
+                  {monitoring.issues.length === 0 ? (
+                    <p className="py-3 text-body text-emerald-600 flex items-center gap-1.5">
+                      <span>✓</span> No issues detected
+                    </p>
+                  ) : (
+                    monitoring.issues.map((issue, i) => (
+                      <IssueRow key={`${issue.type}-${i}`} issue={issue} />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* ── Signal Cards ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

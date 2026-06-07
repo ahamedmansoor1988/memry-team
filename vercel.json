@@ -1,6 +1,7 @@
 {
   "crons": [
-    { "path": "/api/cron/sync-all",     "schedule": "0 8 * * *"    },
-    { "path": "/api/figma/preview-job", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/sync-all",        "schedule": "0 8 * * *"   },
+    { "path": "/api/figma/preview-job",    "schedule": "0 9 * * *"   },
+    { "path": "/api/notifications/scan",   "schedule": "0 */6 * * *" }
   ]
 }
