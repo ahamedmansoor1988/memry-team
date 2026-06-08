@@ -369,12 +369,12 @@ export async function POST(
       figma_pat: pat,
     }).eq("id", figmaFileId);
 
-    // 9. Fire background preview generation — only if new design_references were created.
-    // Avoids triggering concurrent enrich-previews workers when no new preview work exists.
-    // Existing pending/failed records are handled by the next scheduled cron/sync cycle.
-    if (newDrCount > 0) {
-      console.log(`[sync] ${newDrCount} new DR(s) — triggering background enrich`);
-      fireBackgroundEnrich(appUrl, cronSecret ?? "", workspaceId);
+    // 9. Fire background preview generation after every sync.
+    // The enrich route exits early if no pending/failed DRs exist, so this is safe
+    // to call unconditionally — it covers both new DRs and pre-existing pending ones.
+    if (cronSecret) {
+      console.log(`[sync] triggering background enrich (${newDrCount} new DR(s))`);
+      fireBackgroundEnrich(appUrl, cronSecret, workspaceId);
     }
 
     return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length, deleted: deletedCount });

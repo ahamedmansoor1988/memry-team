@@ -241,7 +241,7 @@ function CommentCard({ item, onSelect }: {
       className={`w-full text-left flex rounded-panel border border-border bg-paper hover:border-ink/20 hover:shadow-sm transition-all group overflow-hidden ${isDimmed ? "opacity-60" : ""}`}
     >
       {/* Figma preview thumbnail */}
-      <div className="w-[140px] shrink-0 h-[148px] relative bg-surface border-r border-border overflow-hidden">
+      <div className="w-[148px] shrink-0 h-[148px] relative bg-surface border-r border-border overflow-hidden">
         {previewFetching ? (
           <div className="absolute inset-0 skeleton" />
         ) : (
@@ -515,7 +515,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
           <div className="space-y-3">
             {[1,2,3].map(n => (
               <div key={n} className="flex rounded-panel border border-border overflow-hidden h-[148px]">
-                <div className="skeleton w-[140px] shrink-0" />
+                <div className="skeleton w-[148px] shrink-0" />
                 <div className="flex-1 p-4 space-y-2.5">
                   <div className="skeleton h-4 w-24 rounded-full" />
                   <div className="skeleton h-5 w-3/4 rounded" />
