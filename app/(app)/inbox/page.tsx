@@ -1,10 +1,83 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ChevronRight, Folder, RefreshCw } from "lucide-react";
+import { Loader2, ChevronRight, Folder, RefreshCw, Zap, X } from "lucide-react";
 import { useAmbientSync } from "@/lib/hooks/useAmbientSync";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+// ─── Triage types ─────────────────────────────────────────────────────────────
+
+interface TriageItem {
+  id:                string;
+  score:             number;
+  status:            string;
+  priority:          string;
+  ai_classification: string | null;
+  ai_key_question:   string | null;
+  ai_summary:        string | null;
+  ai_risk_flag:      boolean | null;
+  owner_name:        string | null;
+  project_id:        string | null;
+  project_name:      string | null;
+  age_days:          number;
+}
+
+const TRIAGE_CLASS_CLS: Record<string, string> = {
+  "Blocked":        "bg-red-50 text-red-600 border border-red-200",
+  "Needs Decision": "bg-amber-50 text-amber-700 border border-amber-200",
+  "Risk":           "bg-orange-50 text-orange-600 border border-orange-200",
+};
+
+function TriageBanner({ items, onDismiss }: { items: TriageItem[]; onDismiss: () => void }) {
+  const router = useRouter();
+  if (!items.length) return null;
+  return (
+    <div className="rounded-panel border border-amber-200 bg-amber-50 p-3 mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Zap size={13} className="text-amber-600 shrink-0" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700">Needs Attention</span>
+        </div>
+        <button onClick={onDismiss} className="text-amber-500 hover:text-amber-700 transition-colors">
+          <X size={13} />
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {items.map(item => {
+          const title = item.ai_key_question && item.ai_key_question !== "None"
+            ? item.ai_key_question
+            : item.ai_summary ?? "Feedback item";
+          const href  = item.project_id ? `/inbox/${item.project_id}/${item.id}` : "#";
+          const clsCls = item.ai_classification ? (TRIAGE_CLASS_CLS[item.ai_classification] ?? null) : null;
+          return (
+            <button
+              key={item.id}
+              onClick={() => router.push(href)}
+              className="flex flex-col gap-1.5 text-left rounded-lg bg-paper border border-amber-200 px-3 py-2.5 hover:border-amber-300 transition-colors"
+            >
+              {clsCls && (
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded self-start ${clsCls}`}>
+                  {item.ai_classification}
+                </span>
+              )}
+              <p className="text-body text-ink font-medium line-clamp-1">{title}</p>
+              <div className="flex items-center gap-1.5 text-caption text-muted">
+                {item.project_name && <span>{item.project_name}</span>}
+                {item.age_days > 0 && (
+                  <>
+                    <span className="opacity-40">·</span>
+                    <span>{item.age_days}d old</span>
+                  </>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface FigmaFile {
   id: string; name: string; figma_file_key: string;
@@ -163,6 +236,10 @@ export default function InboxPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
+  // Triage
+  const [triageItems,     setTriageItems]     = useState<TriageItem[]>([]);
+  const [triageDismissed, setTriageDismissed] = useState(false);
+
   // Ambient: auto-sync on load + tab focus + every 5 min
   useAmbientSync(() => {
     void loadProjects();
@@ -176,6 +253,14 @@ export default function InboxPage() {
   }
 
   useEffect(() => { void loadProjects(); }, []);
+
+  // Silent triage fetch
+  useEffect(() => {
+    fetch("/api/feedback/triage")
+      .then(r => r.json())
+      .then((d: { triage?: TriageItem[] }) => setTriageItems(d.triage ?? []))
+      .catch(() => {});
+  }, []);
 
   async function syncNow() {
     setSyncing(true); setSyncMsg(null);
@@ -229,6 +314,11 @@ export default function InboxPage() {
 
       {/* ── Content ── */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
+        {/* Triage banner — silent load, dismissible */}
+        {!triageDismissed && triageItems.length > 0 && (
+          <TriageBanner items={triageItems} onDismiss={() => setTriageDismissed(true)} />
+        )}
+
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <ProjectCardSkeleton /><ProjectCardSkeleton /><ProjectCardSkeleton />
