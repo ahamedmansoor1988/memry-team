@@ -467,7 +467,8 @@ export async function enrichPreviews(
     //    the /images call below WILL fail identically — so skip it entirely,
     //    saving one Figma quota call per file, and record the precise reason.
     if (nodeError === "rate_limited") {
-      const retryAfterSeconds = nodeRetryAfterSeconds ?? 3600;
+      // Cap retry backoff at 5 minutes so failed records are picked up on next sync cycle
+      const retryAfterSeconds = Math.min(nodeRetryAfterSeconds ?? 300, 300);
       const rateLimitedUntil = new Date(Date.now() + retryAfterSeconds * 1000).toISOString();
       result.rateLimitedUntil = rateLimitedUntil;
       console.warn(
@@ -498,7 +499,8 @@ export async function enrichPreviews(
 
     if (imgResult.error === "rate_limited") {
       // Account-level quota exhausted — stop all further processing
-      const retryAfterSeconds = imgResult.retryAfterSeconds ?? 3600;
+      // Cap at 5 minutes so records are retried on next sync cycle
+      const retryAfterSeconds = Math.min(imgResult.retryAfterSeconds ?? 300, 300);
       const rateLimitedUntil = new Date(Date.now() + retryAfterSeconds * 1000).toISOString();
       result.rateLimitedUntil = rateLimitedUntil;
 

@@ -85,6 +85,18 @@ export async function POST(req: NextRequest) {
     pat = wsPat;
   }
 
+  // ── Reset stale rate-limited records ─────────────────────────────────────
+  // Records that were rate-limited with the old 1-hour backoff get reset to
+  // pending so they're retried on the next sync cycle (now capped at 5 min).
+  const fiveMinutesFromNow = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+  await admin
+    .from("design_references")
+    .update({ preview_status: "pending", preview_next_retry_at: null })
+    .eq("workspace_id", workspaceId)
+    .eq("preview_status", "failed")
+    .eq("preview_error_reason", "rate_limited")
+    .gt("preview_next_retry_at", fiveMinutesFromNow);
+
   // ── Check whether anything is due for processing ──────────────────────────
   // Manual requests bypass the retry window: count ALL actionable records
   // regardless of preview_next_retry_at.  Cron/background requests respect it.
