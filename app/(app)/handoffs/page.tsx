@@ -20,7 +20,27 @@ interface HandoffItem {
   author_name:       string | null;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+type AccountabilityUrgency = "critical" | "high" | "medium" | "low" | "none";
+
+interface AccountabilityItem {
+  id:                string;
+  status:            string;
+  ai_classification: string | null;
+  ai_key_question:   string | null;
+  ai_summary:        string | null;
+  owner_name:        string | null;
+  project_id:        string | null;
+  project_name:      string | null;
+  updated_at:        string;
+  waiting_days:      number;
+  blocked_days:      number;
+  is_overdue:        boolean;
+  urgency:           AccountabilityUrgency;
+  label:             string;
+  should_escalate:   boolean;
+}
+
+// ─── Shared constants ─────────────────────────────────────────────────────────
 
 const STATUS_CLS: Record<string, string> = {
   open:           "bg-blue-50 text-blue-600 border border-blue-200",
@@ -40,6 +60,40 @@ const CLASS_CLS: Record<string, string> = {
   "Info":           "bg-blue-50 text-blue-600 border border-blue-200",
 };
 
+const URGENCY_BORDER: Record<AccountabilityUrgency, string> = {
+  critical: "border-l-red-500",
+  high:     "border-l-orange-400",
+  medium:   "border-l-amber-400",
+  low:      "border-l-gray-300",
+  none:     "border-l-transparent",
+};
+
+const URGENCY_LABEL_CLS: Record<AccountabilityUrgency, string> = {
+  critical: "bg-red-50 text-red-700",
+  high:     "bg-orange-50 text-orange-700",
+  medium:   "bg-amber-50 text-amber-700",
+  low:      "bg-gray-100 text-gray-500",
+  none:     "bg-gray-100 text-gray-400",
+};
+
+const URGENCY_HEADING: Record<AccountabilityUrgency, string> = {
+  critical: "CRITICAL",
+  high:     "HIGH",
+  medium:   "MEDIUM",
+  low:      "LOW",
+  none:     "",
+};
+
+const URGENCY_HEADING_CLS: Record<AccountabilityUrgency, string> = {
+  critical: "text-red-500",
+  high:     "text-orange-500",
+  medium:   "text-amber-500",
+  low:      "text-gray-400",
+  none:     "text-gray-300",
+};
+
+const URGENCY_ORDER: AccountabilityUrgency[] = ["critical", "high", "medium", "low"];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(date: string): string {
@@ -54,19 +108,24 @@ function timeAgo(date: string): string {
   return `${Math.floor(d / 30)}mo ago`;
 }
 
-function itemTitle(item: HandoffItem): string {
+function handoffTitle(item: HandoffItem): string {
   if (item.ai_key_question && item.ai_key_question !== "None") return item.ai_key_question;
   if (item.ai_summary) return item.ai_summary;
   return "Feedback item";
 }
 
-// ─── Handoff card ─────────────────────────────────────────────────────────────
+function accountTitle(item: AccountabilityItem): string {
+  if (item.ai_key_question && item.ai_key_question !== "None") return item.ai_key_question;
+  if (item.ai_summary) return item.ai_summary;
+  return "—";
+}
+
+// ─── By-Owner view ────────────────────────────────────────────────────────────
 
 function HandoffCard({ item }: { item: HandoffItem }) {
-  const href = item.project_id ? `/inbox/${item.project_id}/${item.id}` : "#";
+  const href       = item.project_id ? `/inbox/${item.project_id}/${item.id}` : "#";
   const statusCls  = STATUS_CLS[item.status] ?? STATUS_CLS.open;
   const classCls   = item.ai_classification ? (CLASS_CLS[item.ai_classification] ?? null) : null;
-
   const waitingCls = item.waiting_days > 7
     ? "text-red-600 bg-red-50 border border-red-200"
     : item.waiting_days > 3
@@ -79,10 +138,8 @@ function HandoffCard({ item }: { item: HandoffItem }) {
       className="block rounded-panel border border-border bg-paper p-4 hover:border-ink/20 transition-colors mb-2"
     >
       <p className="text-body font-medium text-ink line-clamp-2 leading-snug mb-2">
-        {itemTitle(item)}
+        {handoffTitle(item)}
       </p>
-
-      {/* Badges */}
       <div className="flex items-center gap-1.5 flex-wrap mb-2">
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${statusCls}`}>
           {STATUS_LABEL[item.status] ?? item.status}
@@ -98,8 +155,6 @@ function HandoffCard({ item }: { item: HandoffItem }) {
           </span>
         )}
       </div>
-
-      {/* Footer */}
       <div className="flex items-center gap-2 text-caption text-muted flex-wrap">
         {item.project_name && <span>{item.project_name}</span>}
         {item.author_name && (
@@ -114,7 +169,109 @@ function HandoffCard({ item }: { item: HandoffItem }) {
   );
 }
 
-// ─── Skeleton ────────────────────────────────────────────────────────────────
+function ByOwnerView({ handoffs, loading }: { handoffs: HandoffItem[]; loading: boolean }) {
+  const groups = new Map<string, HandoffItem[]>();
+  for (const h of handoffs) {
+    if (!groups.has(h.owner_name)) groups.set(h.owner_name, []);
+    groups.get(h.owner_name)!.push(h);
+  }
+
+  if (loading) return <HandoffSkeleton />;
+  if (handoffs.length === 0) return <EmptyState />;
+
+  return (
+    <div className="space-y-6 fade-in">
+      {Array.from(groups.entries()).map(([owner, items]) => (
+        <div key={owner}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-5 h-5 rounded-full bg-ink/10 flex items-center justify-center text-[9px] font-bold text-ink/50 shrink-0">
+              {owner.slice(0, 2).toUpperCase()}
+            </span>
+            <span className="text-body font-semibold text-ink">{owner}</span>
+            <span className="text-caption text-muted">
+              · {items.length} item{items.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {items.map(item => <HandoffCard key={item.id} item={item} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── By-Urgency view ──────────────────────────────────────────────────────────
+
+function AccountabilityRow({ item }: { item: AccountabilityItem }) {
+  const title = accountTitle(item);
+  const href  = item.project_id ? `/inbox/${item.project_id}/${item.id}` : "#";
+
+  return (
+    <Link
+      href={href}
+      className={`block border border-border bg-paper rounded-panel mb-2 border-l-4 ${URGENCY_BORDER[item.urgency]} hover:bg-surface transition-colors p-4`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-body font-medium text-ink line-clamp-2">{title}</p>
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            {item.project_name && <span className="text-caption text-muted">{item.project_name}</span>}
+            {item.owner_name && (
+              <span className="text-caption text-muted">
+                <span className="opacity-40">·</span> {item.owner_name}
+              </span>
+            )}
+            {item.ai_classification && (
+              <span className="text-caption text-muted">
+                <span className="opacity-40">·</span> {item.ai_classification}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          {item.label && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${URGENCY_LABEL_CLS[item.urgency]}`}>
+              {item.label}
+            </span>
+          )}
+          <span className="text-caption text-muted">{timeAgo(item.updated_at)}</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function ByUrgencyView({ items, loading }: { items: AccountabilityItem[]; loading: boolean }) {
+  const groups: Record<AccountabilityUrgency, AccountabilityItem[]> = {
+    critical: [], high: [], medium: [], low: [], none: [],
+  };
+  for (const item of items) {
+    const u = item.urgency in groups ? item.urgency : "low";
+    groups[u].push(item);
+  }
+
+  if (loading) return <HandoffSkeleton />;
+  if (items.length === 0) return <EmptyState />;
+
+  return (
+    <div className="space-y-6 fade-in">
+      {URGENCY_ORDER.filter(u => groups[u].length > 0).map(urgency => (
+        <div key={urgency}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`text-[10px] font-bold uppercase tracking-widest ${URGENCY_HEADING_CLS[urgency]}`}>
+              {URGENCY_HEADING[urgency]}
+            </span>
+            <span className="text-caption text-muted">
+              {groups[urgency].length} item{groups[urgency].length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {groups[urgency].map(item => <AccountabilityRow key={item.id} item={item} />)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Shared UI ────────────────────────────────────────────────────────────────
 
 function HandoffSkeleton() {
   return (
@@ -133,79 +290,103 @@ function HandoffSkeleton() {
   );
 }
 
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+      <ArrowRightLeft size={32} className="text-wash" />
+      <p className="text-lead font-medium text-ink">Nothing pending</p>
+      <p className="text-body text-muted max-w-xs">
+        Items requiring follow-up will appear here.
+      </p>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function HandoffsPage() {
-  const [handoffs, setHandoffs] = useState<HandoffItem[]>([]);
-  const [loading,  setLoading]  = useState(true);
+type TabView = "owner" | "urgency";
 
+export default function HandoffsPage() {
+  const [view, setView] = useState<TabView>("owner");
+
+  const [handoffs,         setHandoffs]         = useState<HandoffItem[]>([]);
+  const [handoffsLoading,  setHandoffsLoading]  = useState(true);
+
+  const [urgencyItems,     setUrgencyItems]     = useState<AccountabilityItem[]>([]);
+  const [urgencyLoading,   setUrgencyLoading]   = useState(false); // lazy — fetch on first switch
+
+  // Load handoffs on mount
   useEffect(() => {
     fetch("/api/handoffs")
       .then(r => r.json())
       .then((d: { handoffs?: HandoffItem[] }) => {
         setHandoffs(d.handoffs ?? []);
-        setLoading(false);
+        setHandoffsLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => setHandoffsLoading(false));
   }, []);
 
-  // Group by owner_name
-  const groups = new Map<string, HandoffItem[]>();
-  for (const h of handoffs) {
-    if (!groups.has(h.owner_name)) groups.set(h.owner_name, []);
-    groups.get(h.owner_name)!.push(h);
-  }
+  // Load accountability data when switching to urgency view
+  useEffect(() => {
+    if (view !== "urgency" || urgencyItems.length > 0) return;
+    setUrgencyLoading(true);
+    fetch("/api/accountability")
+      .then(r => r.json())
+      .then((d: { items?: AccountabilityItem[] }) => {
+        setUrgencyItems(d.items ?? []);
+        setUrgencyLoading(false);
+      })
+      .catch(() => setUrgencyLoading(false));
+  }, [view, urgencyItems.length]);
+
+  const totalCount = view === "owner" ? handoffs.length : urgencyItems.length;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-paper">
 
       {/* Header */}
       <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
-        <div className="flex items-center gap-2.5 mb-1">
-          <ArrowRightLeft size={18} className="text-muted shrink-0" />
-          <h1 className="text-title font-semibold text-ink">Handoffs</h1>
-          {!loading && handoffs.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-100">
-              {handoffs.length}
-            </span>
-          )}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2.5">
+            <ArrowRightLeft size={18} className="text-muted shrink-0" />
+            <h1 className="text-title font-semibold text-ink">Handoffs</h1>
+            {!handoffsLoading && totalCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-100">
+                {totalCount}
+              </span>
+            )}
+          </div>
+
+          {/* Toggle */}
+          <div className="flex items-center rounded-lg border border-border overflow-hidden">
+            {(["owner", "urgency"] as TabView[]).map(t => (
+              <button
+                key={t}
+                onClick={() => setView(t)}
+                className={`px-3 py-1.5 text-caption font-medium transition-colors ${
+                  view === t
+                    ? "bg-surface text-ink"
+                    : "text-muted hover:text-ink"
+                }`}
+              >
+                {t === "owner" ? "By Owner" : "By Urgency"}
+              </button>
+            ))}
+          </div>
         </div>
-        <p className="text-body text-muted">Items waiting on a named owner</p>
+        <p className="text-body text-muted">
+          {view === "owner"
+            ? "Items waiting on a named owner"
+            : "Items grouped by follow-up urgency"}
+        </p>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-6 py-5">
-        {loading ? (
-          <HandoffSkeleton />
-        ) : handoffs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-            <ArrowRightLeft size={32} className="text-wash" />
-            <p className="text-lead font-medium text-ink">No handoffs pending</p>
-            <p className="text-body text-muted max-w-xs">
-              Items with assigned owners will appear here.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6 fade-in">
-            {Array.from(groups.entries()).map(([owner, items]) => (
-              <div key={owner}>
-                {/* Owner heading */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="w-5 h-5 rounded-full bg-ink/10 flex items-center justify-center text-[9px] font-bold text-ink/50 shrink-0">
-                    {owner.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="text-body font-semibold text-ink">{owner}</span>
-                  <span className="text-caption text-muted">
-                    · {items.length} item{items.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-
-                {/* Cards */}
-                {items.map(item => <HandoffCard key={item.id} item={item} />)}
-              </div>
-            ))}
-          </div>
-        )}
+        {view === "owner"
+          ? <ByOwnerView   handoffs={handoffs}     loading={handoffsLoading} />
+          : <ByUrgencyView items={urgencyItems}    loading={urgencyLoading}  />
+        }
       </div>
     </div>
   );

@@ -29,20 +29,18 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
   }
 
   const mainNav = [
-    { href: "/inbox",     label: "Inbox",     icon: Inbox,                  badge: openCount > 0 ? openCount : null },
-    { href: "/search",    label: "Search",    icon: Search,                 badge: null },
-    { href: "/pulse",          label: "Pulse",          icon: Radio,          badge: null },
-    { href: "/accountability", label: "Accountability", icon: AlertCircle,    badge: null },
-    { href: "/team",      label: "Team",      icon: Users,                  badge: null },
-    { href: "/decisions", label: "Decisions", icon: GitPullRequestDraft,    badge: null },
-    { href: "/meetings",  label: "Meetings",  icon: Video,                  badge: null },
-    { href: "/memory",    label: "Memory",    icon: BookOpen,               badge: null },
-    { href: "/risks",     label: "Risks",     icon: AlertTriangle,          badge: null },
-    { href: "/activity",  label: "Activity",  icon: Activity,               badge: null },
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard,        badge: null },
-    { href: "/handoffs",      label: "Handoffs",     icon: ArrowRightLeft, badge: null },
-    { href: "/integrations",  label: "Integrations", icon: Plug,           badge: null },
-    { href: "/archive",       label: "Archive",      icon: Archive,        badge: null },
+    { href: "/inbox",        label: "Inbox",        icon: Inbox,             badge: openCount > 0 ? openCount : null },
+    { href: "/search",       label: "Search",       icon: Search,            badge: null },
+    { href: "/team",         label: "Team",         icon: Users,             badge: null },
+    { href: "/decisions",    label: "Decisions",    icon: GitPullRequestDraft, badge: null },
+    { href: "/meetings",     label: "Meetings",     icon: Video,             badge: null },
+    { href: "/memory",       label: "Memory",       icon: BookOpen,          badge: null },
+    { href: "/risks",        label: "Risks",        icon: AlertTriangle,     badge: null },
+    { href: "/activity",     label: "Activity",     icon: Activity,          badge: null },
+    { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard,   badge: null },
+    { href: "/handoffs",     label: "Handoffs",     icon: ArrowRightLeft,    badge: null },
+    { href: "/integrations", label: "Integrations", icon: Plug,              badge: null },
+    { href: "/archive",      label: "Archive",      icon: Archive,           badge: null },
   ];
 
   return (
@@ -92,29 +90,6 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
           );
         })}
       </nav>
-
-      {/* Projects */}
-      {projects.length > 0 && (
-        <div className="px-4 mb-3">
-          <p className="text-white/20 text-[10px] font-semibold uppercase tracking-widest mb-2">Projects</p>
-          {projects.map(project => {
-            const active = pathname.includes(project.id);
-            return (
-              <Link
-                key={project.id}
-                href={`/projects`}
-                className={cn(
-                  "flex items-center gap-2 px-1 py-1.5 rounded-lg text-[13px] transition-colors mb-0.5",
-                  active ? "text-white/80" : "text-white/35 hover:text-white/60"
-                )}
-              >
-                <FolderOpen size={13} className="flex-shrink-0" />
-                <span className="truncate">{project.name}</span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
 
       <div className="flex-1" />
 

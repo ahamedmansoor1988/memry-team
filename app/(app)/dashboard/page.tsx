@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { LayoutDashboard, RefreshCw, ExternalLink, Columns, Clock, ShieldAlert, AlertTriangle, MessageSquare, CheckCircle2, ChevronRight } from "lucide-react";
+import { LayoutDashboard, RefreshCw, ExternalLink, Columns, Clock, ShieldAlert, AlertTriangle, MessageSquare, CheckCircle2, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,25 @@ interface DecisionItem {
 interface TimelineGroup {
   date:      string;
   decisions: DecisionItem[];
+}
+
+interface TrendEntry {
+  direction: "up" | "down" | "flat";
+  delta:     number;
+}
+
+interface TrendsData {
+  current: {
+    total: number; resolved: number; blocked: number;
+    risk_flags: number; needs_decision: number;
+  };
+  trends: {
+    total:          TrendEntry;
+    resolved:       TrendEntry;
+    blocked:        TrendEntry;
+    risk_flags:     TrendEntry;
+    needs_decision: TrendEntry;
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,10 +133,6 @@ function HealthCard({ pulse }: { pulse: PulseData }) {
         ))}
       </div>
 
-      {/* Link */}
-      <Link href="/pulse" className="sm:ml-auto flex items-center gap-1 text-caption text-muted hover:text-ink transition-colors shrink-0">
-        Full Pulse <ChevronRight size={12} />
-      </Link>
     </div>
   );
 }
@@ -309,6 +324,7 @@ export default function DashboardPage() {
   const [feedbackLoading, setFeedbackLoading] = useState(true);
   const [decisions,     setDecisions]     = useState<DecisionItem[]>([]);
   const [decisionsLoading, setDecisionsLoading] = useState(true);
+  const [trendsData,    setTrendsData]    = useState<TrendsData | null>(null);
 
   const loadAll = useCallback(() => {
     // Pulse
@@ -335,6 +351,13 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  useEffect(() => {
+    fetch("/api/pulse/trends")
+      .then(r => r.json())
+      .then((d: TrendsData) => setTrendsData(d))
+      .catch(() => {});
+  }, []);
 
   // Derive needs-attention list
   const needsAttention = feedbackItems
@@ -370,6 +393,52 @@ export default function DashboardPage() {
 
         {/* Section 4 — Waiting On */}
         {pulse && <WaitingOnRow entries={pulse.topWaitingOn ?? []} />}
+
+        {/* Section 5 — Trends this week */}
+        {trendsData && (() => {
+          type MetricKey = "total" | "resolved" | "blocked" | "risk_flags" | "needs_decision";
+          const metaCfg: { key: MetricKey; label: string; goodDir: "up" | "down" | "flat" }[] = [
+            { key: "total",          label: "New Items",      goodDir: "flat" },
+            { key: "resolved",       label: "Resolved",       goodDir: "up"   },
+            { key: "blocked",        label: "Blocked",        goodDir: "down" },
+            { key: "risk_flags",     label: "Risks",          goodDir: "down" },
+            { key: "needs_decision", label: "Needs Decision", goodDir: "down" },
+          ];
+
+          return (
+            <div className="space-y-3">
+              <h2 className="text-title font-semibold text-ink">Trends this week</h2>
+              <div className="grid grid-cols-5 gap-2">
+                {metaCfg.map(({ key, label, goodDir }) => {
+                  const t   = trendsData.trends[key];
+                  const val = trendsData.current[key];
+
+                  const isGood = t.direction === goodDir || (goodDir === "flat" && t.direction !== "up");
+                  const isBad  = (goodDir === "up"   && t.direction === "down") ||
+                                 (goodDir === "down" && t.direction === "up")   ||
+                                 (goodDir === "flat" && t.direction === "up");
+
+                  const numColor  = isGood ? "text-emerald-600" : isBad ? "text-red-500" : "text-muted";
+                  const deltaCls  = isGood ? "text-emerald-600" : isBad ? "text-red-500" : "text-muted";
+                  const ArrowIcon = t.direction === "up" ? TrendingUp : t.direction === "down" ? TrendingDown : Minus;
+
+                  return (
+                    <div key={key} className="flex flex-col items-center gap-0.5 rounded-panel border border-border bg-surface p-3 text-center">
+                      <span className="text-[10px] text-muted leading-tight mb-1">{label}</span>
+                      <span className={`text-[22px] font-bold leading-none tabular-nums ${numColor}`}>{val}</span>
+                      <div className={`flex items-center gap-0.5 mt-1 ${deltaCls}`}>
+                        <ArrowIcon size={11} />
+                        <span className="text-[10px] font-semibold">
+                          {t.delta > 0 ? `+${t.delta}` : t.delta === 0 ? "—" : t.delta}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
       </div>
     </div>
