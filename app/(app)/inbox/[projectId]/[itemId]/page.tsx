@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
   HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
@@ -94,6 +95,83 @@ function Avatar({ name, size = "md" }: { name?: string | null; size?: "sm" | "md
     <span className={`${cls} rounded-full bg-ink text-paper flex items-center justify-center font-semibold shrink-0 select-none`}>
       {initials(name)}
     </span>
+  );
+}
+
+// ─── Related Decisions panel ─────────────────────────────────────────────────
+
+interface SearchResult {
+  id: string;
+  status: string;
+  ai_key_question: string | null;
+  ai_summary: string | null;
+  created_at: string;
+  project: { id: string; name: string } | null;
+}
+
+function RelatedDecisions({ item }: { item: FeedbackItem }) {
+  const [results, setResults]   = useState<SearchResult[]>([]);
+  const [loading, setLoading]   = useState(false);
+
+  useEffect(() => {
+    const q = item.ai_key_question ?? item.ai_summary;
+    if (!q) return;
+
+    let cancelled = false;
+    setLoading(true);
+    fetch(`/api/search?q=${encodeURIComponent(q)}&limit=4`)
+      .then(r => r.json())
+      .then((d: { results?: SearchResult[] }) => {
+        if (cancelled) return;
+        const filtered = (d.results ?? [])
+          .filter(r => r.id !== item.id)
+          .slice(0, 3);
+        setResults(filtered);
+        setLoading(false);
+      })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [item.id, item.ai_key_question, item.ai_summary]);
+
+  if (!loading && results.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-2">
+        Related Decisions
+      </p>
+      {loading ? (
+        <div className="space-y-2">
+          <div className="animate-pulse bg-zinc-100 rounded h-3 w-full" />
+          <div className="animate-pulse bg-zinc-100 rounded h-3 w-4/5" />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {results.map(r => {
+            const title = r.ai_key_question && r.ai_key_question !== "None"
+              ? r.ai_key_question
+              : r.ai_summary ?? "Feedback item";
+            const href = r.project?.id
+              ? `/inbox/${r.project.id}/${r.id}`
+              : "#";
+            return (
+              <Link
+                key={r.id}
+                href={href}
+                className="flex flex-col gap-0.5 group"
+              >
+                <span className="text-xs text-zinc-500 font-medium truncate group-hover:text-zinc-900 transition-colors">
+                  {title}
+                </span>
+                <span className="text-[10px] text-zinc-400">
+                  {r.status.replace("_", " ")} · {timeAgo(r.created_at)}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1285,6 +1363,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
         <div className="p-4 space-y-4">
           <DesignContextPreview item={item} frameCommentCount={frameCommentCount} />
           <OwnerPanel item={item} profiles={profiles} onOwnerChange={handleOwnerChange} />
+          <RelatedDecisions item={item} />
           <ActivityLog item={item} />
         </div>
       </div>
