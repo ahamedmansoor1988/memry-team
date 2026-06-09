@@ -25,13 +25,13 @@ function TriageBanner({ items, onDismiss }: { items: TriageItem[]; onDismiss: ()
   const router = useRouter();
   if (!items.length) return null;
   return (
-    <div className="rounded-xl border border-zinc-200 bg-zinc-900 p-3 mb-5">
+    <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 mb-5">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
-          <Zap size={13} className="text-white shrink-0" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-white">Needs Attention</span>
+          <Zap size={13} className="text-zinc-400 shrink-0" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Needs Attention</span>
         </div>
-        <button onClick={onDismiss} className="text-zinc-400 hover:text-white transition-colors">
+        <button onClick={onDismiss} className="text-zinc-400 hover:text-zinc-600 transition-colors">
           <X size={13} />
         </button>
       </div>
@@ -46,18 +46,18 @@ function TriageBanner({ items, onDismiss }: { items: TriageItem[]; onDismiss: ()
             <button
               key={item.id}
               onClick={() => router.push(href)}
-              className="flex flex-col gap-1.5 text-left rounded-lg bg-white/10 border border-white/20 px-3 py-2.5 hover:bg-white/20 transition-colors"
+              className="flex flex-col gap-1.5 text-left bg-white border border-zinc-200 rounded-lg p-3 hover:border-zinc-300 hover:shadow-sm transition-all"
             >
               {item.ai_classification && (
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded self-start border ${
                   isBlocked
                     ? "bg-red-50 text-red-700 border-red-200"
-                    : "bg-white/10 text-white border-white/20"
+                    : "bg-zinc-100 text-zinc-600 border-zinc-200"
                 }`}>
                   {item.ai_classification}
                 </span>
               )}
-              <p className="text-sm font-medium text-white line-clamp-1">{title}</p>
+              <p className="text-sm font-medium text-zinc-900 line-clamp-1">{title}</p>
               <div className="flex items-center gap-1.5 text-xs text-zinc-400">
                 {item.project_name && <span>{item.project_name}</span>}
                 {item.age_days > 0 && (
@@ -338,11 +338,11 @@ export default function InboxPage() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-4">
                   At a glance
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-3">
                   {stats.map(s => (
-                    <div key={s.label} className="bg-white border border-zinc-200 rounded-lg p-3">
-                      <p className={`text-xl font-semibold ${s.numCls}`}>{s.value}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">{s.label}</p>
+                    <div key={s.label} className="bg-white border border-zinc-200 rounded-xl p-4">
+                      <p className={`text-2xl font-semibold ${s.numCls}`}>{s.value}</p>
+                      <p className="text-xs text-zinc-500 mt-1">{s.label}</p>
                     </div>
                   ))}
                 </div>

@@ -50,7 +50,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
           <span className="text-zinc-900 font-semibold text-sm ml-2 tracking-tight">memry</span>
         </div>
         {workspaceName && (
-          <p className="text-zinc-400 text-[11px] mt-1.5 pl-[36px] truncate">{workspaceName}</p>
+          <p className="text-[10px] text-zinc-400 mt-1.5 pl-[36px] truncate">{workspaceName}</p>
         )}
       </div>
 
@@ -88,7 +88,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
       </nav>
 
       {/* ── Bottom ── */}
-      <div className="px-2 py-3 border-t border-zinc-100">
+      <div className="mt-auto px-2 pt-4 pb-3 border-t border-zinc-100">
         <Link
           href="/settings"
           className={cn(
@@ -112,7 +112,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
               </span>
             </div>
           )}
-          <span className="text-zinc-500 text-xs truncate flex-1">{userName}</span>
+          <span className="text-zinc-600 text-xs truncate flex-1">{userName}</span>
           <button onClick={logout} className="text-zinc-300 hover:text-zinc-600 transition-colors">
             <LogOut className="w-3.5 h-3.5" />
           </button>
