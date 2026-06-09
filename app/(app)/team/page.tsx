@@ -180,7 +180,7 @@ function ProfileCard({
           {/* Identity badges */}
           <div className="flex items-center gap-1.5 flex-wrap">
             {profile.figma_handle && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-orange-50 text-orange-600 border border-orange-200">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-600 border border-zinc-200">
                 {/* Mini Figma logo */}
                 <svg width="7" height="10" viewBox="0 0 38 57" fill="none" className="shrink-0">
                   <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
@@ -194,7 +194,7 @@ function ProfileCard({
             )}
 
             {profile.slack_handle ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-violet-50 text-violet-600 border border-violet-200">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                 {/* Slack hash */}
                 <span className="font-bold text-[9px]">#</span>
                 Slack · @{profile.slack_handle}
@@ -247,7 +247,7 @@ function ProfileCard({
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Invite to Memry</p>
           {inviteResult?.ok ? (
             <div className="flex items-center justify-between">
-              <p className="text-caption text-green-600">✓ {inviteResult.message}</p>
+              <p className="text-caption text-zinc-700">✓ {inviteResult.message}</p>
               <button
                 onClick={cancelInvite}
                 className="text-caption text-muted hover:text-ink transition-colors"
@@ -368,7 +368,7 @@ export default function TeamPage() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2">Invite someone to Memry</p>
             {headerResult?.ok ? (
               <div className="flex items-center justify-between">
-                <p className="text-caption text-green-600">✓ {headerResult.message}</p>
+                <p className="text-caption text-zinc-700">✓ {headerResult.message}</p>
                 <button
                   onClick={() => { setShowInviteForm(false); setHeaderResult(null); }}
                   className="text-caption text-muted hover:text-ink transition-colors"

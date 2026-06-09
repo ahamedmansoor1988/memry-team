@@ -42,10 +42,10 @@ function initials(name?: string | null): string {
 const CLASSIFICATION_CLS: Record<string, string> = {
   "Needs Decision": "text-red-500 bg-red-50 border-red-200",
   "Blocked":        "text-red-500 bg-red-50 border-red-200",
-  "Approved":       "text-emerald-600 bg-emerald-50 border-emerald-200",
-  "Risk":           "text-orange-500 bg-orange-50 border-orange-200",
-  "Vague":          "text-yellow-600 bg-yellow-50 border-yellow-200",
-  "Info":           "text-blue-500 bg-blue-50 border-blue-200",
+  "Approved":       "text-zinc-700 bg-zinc-100 border-zinc-200",
+  "Risk":           "text-zinc-600 bg-zinc-100 border-zinc-200",
+  "Vague":          "text-zinc-600 bg-zinc-100 border-zinc-200",
+  "Info":           "text-zinc-600 bg-zinc-100 border-zinc-200",
 };
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────

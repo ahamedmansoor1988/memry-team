@@ -49,7 +49,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
       {/* ── Logo ── */}
       <div className="px-4 pt-5 pb-4 border-b border-zinc-100">
         <div className="flex items-center">
-          <div className="w-7 h-7 rounded-md bg-indigo-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 rounded-md bg-zinc-900 flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-xs">M</span>
           </div>
           <span className="text-zinc-900 font-semibold text-sm ml-2 tracking-tight">memry</span>
@@ -74,7 +74,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
               className={cn(
                 "flex items-center justify-between gap-2 px-3 py-1.5 rounded-md mb-0.5 text-sm transition-colors",
                 active
-                  ? "bg-indigo-50 text-indigo-600 font-medium"
+                  ? "bg-zinc-100 text-zinc-900 font-medium"
                   : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900"
               )}
             >
@@ -99,7 +99,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-md text-sm mb-1 transition-colors",
             pathname.startsWith("/settings")
-              ? "bg-indigo-50 text-indigo-600 font-medium"
+              ? "bg-zinc-100 text-zinc-900 font-medium"
               : "text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900"
           )}
         >
@@ -111,7 +111,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
           {userAvatar ? (
             <img src={userAvatar} alt="" className="w-6 h-6 rounded-full flex-shrink-0 object-cover" />
           ) : (
-            <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-6 h-6 rounded-full bg-zinc-900 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-[10px] font-bold">
                 {(userName ?? "?")[0]?.toUpperCase()}
               </span>

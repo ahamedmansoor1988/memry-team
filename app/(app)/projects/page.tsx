@@ -240,7 +240,7 @@ export default function ProjectsPage() {
                             : "Never synced"}
                         </p>
                         {syncResult[file.id] && (
-                          <p className={`text-xs mt-0.5 ${syncResult[file.id].startsWith("✓") ? "text-emerald-400" : "text-red-400"}`}>
+                          <p className={`text-xs mt-0.5 ${syncResult[file.id].startsWith("✓") ? "text-zinc-700" : "text-red-400"}`}>
                             {syncResult[file.id]}
                           </p>
                         )}

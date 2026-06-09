@@ -26,8 +26,8 @@ interface ExtractionResult {
 
 const PRIORITY_CLS: Record<string, string> = {
   high:   "bg-red-50 text-red-600 border border-red-200",
-  medium: "bg-amber-50 text-amber-700 border border-amber-200",
-  low:    "bg-blue-50 text-blue-600 border border-blue-200",
+  medium: "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  low:    "bg-zinc-100 text-zinc-600 border border-zinc-200",
 };
 
 function PriorityBadge({ priority }: { priority: string | null | undefined }) {
@@ -54,13 +54,13 @@ function SummaryCard({ summary }: { summary: string | null }) {
 
 function DecisionsCard({ decisions, saved }: { decisions: ExtractedDecision[]; saved: number }) {
   return (
-    <div className="rounded-panel border-l-4 border-l-emerald-400 border border-border bg-paper p-4">
+    <div className="rounded-panel border-l-4 border-l-zinc-300 border border-border bg-paper p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
           Decisions ({decisions.length})
         </p>
         {saved > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-700 bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded">
             <CheckCircle2 size={10} /> {saved} saved
           </span>
         )}
@@ -75,7 +75,7 @@ function DecisionsCard({ decisions, saved }: { decisions: ExtractedDecision[]; s
               {d.reason && <p className="text-caption text-muted italic">{d.reason}</p>}
               <div className="flex items-center gap-2 flex-wrap">
                 {d.owner && <span className="text-caption text-muted">→ {d.owner}</span>}
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-700">
                   <CheckCircle2 size={10} /> Saved to Decisions
                 </span>
               </div>
@@ -91,19 +91,19 @@ function ActionItemsCard({
   items, saved, hasProject,
 }: { items: ExtractedAction[]; saved: number; hasProject: boolean }) {
   return (
-    <div className="rounded-panel border-l-4 border-l-amber-400 border border-border bg-paper p-4">
+    <div className="rounded-panel border-l-4 border-l-zinc-400 border border-border bg-paper p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-[10px] font-bold uppercase tracking-widest text-muted">
           Action Items ({items.length})
         </p>
         {saved > 0 && hasProject && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-zinc-600 bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded">
             {saved} created
           </span>
         )}
       </div>
       {!hasProject && items.length > 0 && (
-        <p className="text-caption text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mb-3">
+        <p className="text-caption text-zinc-600 bg-zinc-100 border border-zinc-200 rounded px-2 py-1.5 mb-3">
           Select a project above to save action items to the inbox
         </p>
       )}
@@ -128,7 +128,7 @@ function ActionItemsCard({
 
 function OpenQuestionsCard({ questions }: { questions: ExtractedQuestion[] }) {
   return (
-    <div className="rounded-panel border-l-4 border-l-blue-400 border border-border bg-paper p-4">
+    <div className="rounded-panel border-l-4 border-l-zinc-300 border border-border bg-paper p-4">
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">
         Open Questions ({questions.length})
       </p>
@@ -139,7 +139,7 @@ function OpenQuestionsCard({ questions }: { questions: ExtractedQuestion[] }) {
           {questions.map((q, i) => (
             <div key={i} className="space-y-0.5">
               <div className="flex items-start gap-2">
-                <HelpCircle size={13} className="text-blue-400 shrink-0 mt-0.5" />
+                <HelpCircle size={13} className="text-zinc-600 shrink-0 mt-0.5" />
                 <p className="text-body text-ink">{q.text}</p>
               </div>
               {q.owner && <p className="text-caption text-muted pl-5">raised by {q.owner}</p>}
@@ -304,7 +304,7 @@ export default function MeetingsPage() {
 
             {/* Save summary line */}
             <div className="flex items-center gap-2 text-body text-muted px-1">
-              <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+              <CheckCircle2 size={14} className="text-zinc-700 shrink-0" />
               <span>
                 <span className="font-semibold text-ink">{result.saved.decisions}</span> decision{result.saved.decisions !== 1 ? "s" : ""} saved
                 {hasProject && (

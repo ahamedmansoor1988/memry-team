@@ -160,7 +160,7 @@ export default function SettingsPage() {
           </p>
 
           {figmaHandle && pat === "set" && (
-            <div className="flex items-center gap-2 mb-4 text-emerald-600">
+            <div className="flex items-center gap-2 mb-4 text-zinc-700">
               <CheckCircle size={14} />
               <span className="text-sm font-medium">Connected as @{figmaHandle}</span>
             </div>
@@ -283,7 +283,7 @@ export default function SettingsPage() {
             </button>
           </div>
           {inviteResult && (
-            <p className={`text-xs mt-2 ${inviteResult.ok ? "text-emerald-500" : "text-red-400"}`}>
+            <p className={`text-xs mt-2 ${inviteResult.ok ? "text-zinc-700" : "text-red-400"}`}>
               {inviteResult.msg}
             </p>
           )}

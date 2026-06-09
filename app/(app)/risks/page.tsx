@@ -49,8 +49,8 @@ function isStalled(item: FeedbackItem): boolean {
 
 const priorityConfig = {
   high:   { label: "High",   cls: "text-red-500 bg-red-50",       icon: <AlertTriangle size={12} /> },
-  medium: { label: "Medium", cls: "text-orange-500 bg-orange-50", icon: <AlertCircle size={12} /> },
-  low:    { label: "Low",    cls: "text-blue-500 bg-blue-50",     icon: <Info size={12} /> },
+  medium: { label: "Medium", cls: "text-zinc-600 bg-zinc-100", icon: <AlertCircle size={12} /> },
+  low:    { label: "Low",    cls: "text-zinc-600 bg-zinc-100",     icon: <Info size={12} /> },
 };
 
 // ─── AI Insights panel ────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ function InsightsPanel({ data }: { data: InsightsData }) {
     <div className="rounded-panel border border-border bg-paper p-4 space-y-4 mb-5">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Sparkles size={15} className="text-violet-500 shrink-0" />
+        <Sparkles size={15} className="text-zinc-700 shrink-0" />
         <span className="text-body font-semibold text-ink">AI Risk Analysis</span>
         {data.risk_count > 0 && (
           <span className="ml-auto text-caption text-muted">{data.risk_count} active risk{data.risk_count !== 1 ? "s" : ""}</span>
@@ -104,7 +104,7 @@ function InsightsPanel({ data }: { data: InsightsData }) {
               <p className="text-body font-semibold text-ink">{insight.title}</p>
               <p className="text-caption text-muted leading-snug">{insight.description}</p>
               <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] text-blue-600 bg-blue-50 border border-blue-100 font-semibold px-2 py-0.5 rounded-full">
+                <span className="text-[10px] text-zinc-600 bg-zinc-100 border border-zinc-200 font-semibold px-2 py-0.5 rounded-full">
                   → {insight.action}
                 </span>
               </div>
@@ -159,8 +159,8 @@ export default function RisksPage() {
 
   const groups = [
     { label: "High",   color: "text-red-500",    bg: "bg-red-50 border-red-100",       items: high   },
-    { label: "Medium", color: "text-orange-500", bg: "bg-orange-50 border-orange-100", items: medium },
-    { label: "Low",    color: "text-blue-500",   bg: "bg-blue-50 border-blue-100",     items: low    },
+    { label: "Medium", color: "text-zinc-600", bg: "bg-zinc-100 border-zinc-200", items: medium },
+    { label: "Low",    color: "text-zinc-600",   bg: "bg-zinc-100 border-zinc-200",     items: low    },
   ];
 
   return (
@@ -219,13 +219,13 @@ export default function RisksPage() {
                                     <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">BLOCKED</span>
                                   )}
                                   {item.ai_risk_flag && item.ai_classification !== "Blocked" && (
-                                    <span className="text-[10px] font-bold text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100">RISK</span>
+                                    <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">RISK</span>
                                   )}
                                   {stalled && (
-                                    <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">STALLED</span>
+                                    <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">STALLED</span>
                                   )}
                                   {item.status === "resolved" && (
-                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">RESOLVED</span>
+                                    <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">RESOLVED</span>
                                   )}
                                 </div>
 

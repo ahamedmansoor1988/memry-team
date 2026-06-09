@@ -26,9 +26,9 @@ interface BoardItem {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COLUMNS = [
-  { key: "open",           label: "Open",           borderCls: "border-l-blue-400",    badgeCls: "bg-blue-50 text-blue-600"           },
-  { key: "needs_decision", label: "Needs Decision", borderCls: "border-l-amber-400",   badgeCls: "bg-amber-50 text-amber-700"         },
-  { key: "resolved",       label: "Resolved",       borderCls: "border-l-emerald-400", badgeCls: "bg-emerald-50 text-emerald-700"     },
+  { key: "open",           label: "Open",           borderCls: "border-l-zinc-300",    badgeCls: "bg-zinc-100 text-zinc-600"           },
+  { key: "needs_decision", label: "Needs Decision", borderCls: "border-l-zinc-400",   badgeCls: "bg-zinc-100 text-zinc-600"         },
+  { key: "resolved",       label: "Resolved",       borderCls: "border-l-zinc-300", badgeCls: "bg-zinc-100 text-zinc-700"     },
 ] as const;
 
 type ColKey = typeof COLUMNS[number]["key"];
@@ -47,17 +47,17 @@ const MOVE_LABEL: Record<ColKey, string> = {
 
 const PRIORITY_CLS: Record<string, string> = {
   high:   "bg-red-50 text-red-600 border border-red-200",
-  medium: "bg-amber-50 text-amber-700 border border-amber-200",
+  medium: "bg-zinc-100 text-zinc-600 border border-zinc-200",
   low:    "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
 const CLASS_CLS: Record<string, string> = {
-  "Needs Decision": "bg-amber-50 text-amber-700 border border-amber-200",
+  "Needs Decision": "bg-zinc-100 text-zinc-600 border border-zinc-200",
   "Blocked":        "bg-red-50 text-red-600 border border-red-200",
-  "Approved":       "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  "Risk":           "bg-orange-50 text-orange-600 border border-orange-200",
-  "Vague":          "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  "Info":           "bg-blue-50 text-blue-600 border border-blue-200",
+  "Approved":       "bg-zinc-100 text-zinc-700 border border-zinc-200",
+  "Risk":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  "Vague":          "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  "Info":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

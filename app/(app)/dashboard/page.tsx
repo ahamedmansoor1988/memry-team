@@ -82,8 +82,8 @@ const CLASS_CLS: Record<string, string> = {
 const SOURCE_CLS: Record<string, string> = {
   figma:   "bg-zinc-100 text-zinc-600 border-zinc-200",
   manual:  "bg-zinc-100 text-zinc-500 border-zinc-200",
-  ai:      "bg-indigo-50 text-indigo-600 border-indigo-200",
-  meeting: "bg-indigo-50 text-indigo-600 border-indigo-200",
+  ai:      "bg-zinc-100 text-zinc-900 border-zinc-200",
+  meeting: "bg-zinc-100 text-zinc-900 border-zinc-200",
 };
 
 // ─── Skeleton atoms ───────────────────────────────────────────────────────────
@@ -96,10 +96,10 @@ function SkeletonLine({ w = "w-full", h = "h-3" }: { w?: string; h?: string }) {
 
 function HealthCard({ pulse }: { pulse: PulseData }) {
   const { score, label } = pulse.health;
-  const ringColor = score >= 80 ? "border-indigo-500" : score >= 60 ? "border-zinc-400" : "border-red-400";
-  const scoreColor = score >= 80 ? "text-indigo-600" : score >= 60 ? "text-zinc-700" : "text-red-600";
+  const ringColor = score >= 80 ? "border-zinc-900" : score >= 60 ? "border-zinc-400" : "border-red-400";
+  const scoreColor = score >= 80 ? "text-zinc-900" : score >= 60 ? "text-zinc-700" : "text-red-600";
   const labelCls   = score >= 80
-    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+    ? "bg-zinc-100 text-zinc-900 border-zinc-200"
     : score >= 60
     ? "bg-zinc-100 text-zinc-600 border-zinc-200"
     : "bg-red-50 text-red-600 border-red-200";
@@ -169,7 +169,7 @@ function QuickActions() {
   }
 
   const syncLabel = syncing === "syncing" ? "Syncing…" : syncing === "done" ? "Done ✓" : syncing === "error" ? "Error" : "Sync Figma";
-  const syncCls   = syncing === "done" ? "text-indigo-600 border-indigo-300" : syncing === "error" ? "text-red-500 border-red-300" : "text-zinc-700 border-zinc-200 hover:bg-zinc-50";
+  const syncCls   = syncing === "done" ? "text-zinc-900 border-zinc-200" : syncing === "error" ? "text-red-500 border-red-300" : "text-zinc-700 border-zinc-200 hover:bg-zinc-50";
 
   return (
     <div className="flex gap-2 flex-wrap">
@@ -431,8 +431,8 @@ export default function DashboardPage() {
                                  (goodDir === "down" && t.direction === "up")   ||
                                  (goodDir === "flat" && t.direction === "up");
 
-                  const numColor  = isBad ? "text-red-500" : isGood ? "text-indigo-600" : "text-zinc-600";
-                  const deltaCls  = isBad ? "text-red-400" : isGood ? "text-indigo-500" : "text-zinc-400";
+                  const numColor  = isBad ? "text-red-500" : isGood ? "text-zinc-900" : "text-zinc-600";
+                  const deltaCls  = isBad ? "text-red-400" : isGood ? "text-zinc-900" : "text-zinc-400";
                   const ArrowIcon = t.direction === "up" ? TrendingUp : t.direction === "down" ? TrendingDown : Minus;
 
                   return (

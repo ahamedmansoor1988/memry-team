@@ -28,9 +28,9 @@ interface DateGroup {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CLS: Record<string, string> = {
-  open:           "bg-blue-50 text-blue-600 border border-blue-200",
-  needs_decision: "bg-amber-50 text-amber-700 border border-amber-200",
-  resolved:       "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  open:           "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  needs_decision: "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  resolved:       "bg-zinc-100 text-zinc-700 border border-zinc-200",
   archived:       "bg-gray-100 text-gray-500 border border-gray-200",
   deleted:        "bg-gray-100 text-gray-400 border border-gray-200",
 };

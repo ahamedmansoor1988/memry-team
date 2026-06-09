@@ -24,8 +24,8 @@ interface MemoryEntry {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CONFIDENCE_CLS: Record<MemoryAnswer["confidence"], string> = {
-  high:   "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  medium: "bg-amber-50 text-amber-700 border border-amber-200",
+  high:   "bg-zinc-100 text-zinc-700 border border-zinc-200",
+  medium: "bg-zinc-100 text-zinc-600 border border-zinc-200",
   low:    "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
@@ -36,9 +36,9 @@ const CONFIDENCE_LABEL: Record<MemoryAnswer["confidence"], string> = {
 };
 
 const TYPE_BADGE: Record<MemoryEntry["type"], { label: string; cls: string }> = {
-  decision: { label: "Decision", cls: "bg-emerald-50 text-emerald-700" },
-  pattern:  { label: "Pattern",  cls: "bg-violet-50 text-violet-700"  },
-  context:  { label: "Context",  cls: "bg-blue-50 text-blue-700"      },
+  decision: { label: "Decision", cls: "bg-zinc-100 text-zinc-700" },
+  pattern:  { label: "Pattern",  cls: "bg-zinc-100 text-zinc-700"  },
+  context:  { label: "Context",  cls: "bg-zinc-100 text-zinc-600"      },
 };
 
 const ENTRY_TYPES = ["decision", "pattern", "context"] as const;
@@ -66,10 +66,10 @@ interface AnswerCardProps {
 
 function AnswerCard({ answer, onSuggestionClick }: AnswerCardProps) {
   return (
-    <div className="rounded-panel border border-emerald-200 bg-emerald-50/30 p-5 space-y-4 fade-in">
+    <div className="rounded-panel border border-zinc-200 bg-zinc-50 p-5 space-y-4 fade-in">
       {/* Answer + confidence */}
       <div className="flex items-start gap-3">
-        <Sparkles size={16} className="text-emerald-500 shrink-0 mt-0.5" />
+        <Sparkles size={16} className="text-zinc-700 shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <p className="text-body text-ink leading-relaxed">{answer.answer}</p>
         </div>
@@ -83,7 +83,7 @@ function AnswerCard({ answer, onSuggestionClick }: AnswerCardProps) {
         <div className="pl-7 space-y-1.5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Based on</p>
           {answer.sources.map((src, i) => (
-            <p key={i} className="text-caption text-muted italic border-l-2 border-emerald-200 pl-2.5">
+            <p key={i} className="text-caption text-muted italic border-l-2 border-zinc-200 pl-2.5">
               "{src}"
             </p>
           ))}

@@ -23,9 +23,9 @@ interface SearchResult {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_CLS: Record<string, string> = {
-  open:           "bg-blue-50 text-blue-600 border border-blue-200",
-  needs_decision: "bg-amber-50 text-amber-700 border border-amber-200",
-  resolved:       "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  open:           "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  needs_decision: "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  resolved:       "bg-zinc-100 text-zinc-700 border border-zinc-200",
   archived:       "bg-gray-100 text-gray-500 border border-gray-200",
 };
 
@@ -37,12 +37,12 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const CLASS_CLS: Record<string, string> = {
-  "Needs Decision": "bg-amber-50 text-amber-700 border border-amber-200",
+  "Needs Decision": "bg-zinc-100 text-zinc-600 border border-zinc-200",
   "Blocked":        "bg-red-50 text-red-600 border border-red-200",
-  "Approved":       "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  "Risk":           "bg-orange-50 text-orange-600 border border-orange-200",
-  "Vague":          "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  "Info":           "bg-blue-50 text-blue-600 border border-blue-200",
+  "Approved":       "bg-zinc-100 text-zinc-700 border border-zinc-200",
+  "Risk":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  "Vague":          "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  "Info":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

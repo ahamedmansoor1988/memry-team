@@ -43,8 +43,8 @@ interface AccountabilityItem {
 // ─── Shared constants ─────────────────────────────────────────────────────────
 
 const STATUS_CLS: Record<string, string> = {
-  open:           "bg-blue-50 text-blue-600 border border-blue-200",
-  needs_decision: "bg-amber-50 text-amber-700 border border-amber-200",
+  open:           "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  needs_decision: "bg-zinc-100 text-zinc-600 border border-zinc-200",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -53,25 +53,25 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const CLASS_CLS: Record<string, string> = {
-  "Needs Decision": "bg-amber-50 text-amber-700 border border-amber-200",
+  "Needs Decision": "bg-zinc-100 text-zinc-600 border border-zinc-200",
   "Blocked":        "bg-red-50 text-red-600 border border-red-200",
-  "Approved":       "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  "Risk":           "bg-orange-50 text-orange-600 border border-orange-200",
-  "Info":           "bg-blue-50 text-blue-600 border border-blue-200",
+  "Approved":       "bg-zinc-100 text-zinc-700 border border-zinc-200",
+  "Risk":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
+  "Info":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
 };
 
 const URGENCY_BORDER: Record<AccountabilityUrgency, string> = {
   critical: "border-l-red-500",
-  high:     "border-l-orange-400",
-  medium:   "border-l-amber-400",
+  high:     "border-l-zinc-500",
+  medium:   "border-l-zinc-400",
   low:      "border-l-gray-300",
   none:     "border-l-transparent",
 };
 
 const URGENCY_LABEL_CLS: Record<AccountabilityUrgency, string> = {
   critical: "bg-red-50 text-red-700",
-  high:     "bg-orange-50 text-orange-700",
-  medium:   "bg-amber-50 text-amber-700",
+  high:     "bg-zinc-100 text-zinc-600",
+  medium:   "bg-zinc-100 text-zinc-600",
   low:      "bg-gray-100 text-gray-500",
   none:     "bg-gray-100 text-gray-400",
 };
@@ -86,8 +86,8 @@ const URGENCY_HEADING: Record<AccountabilityUrgency, string> = {
 
 const URGENCY_HEADING_CLS: Record<AccountabilityUrgency, string> = {
   critical: "text-red-500",
-  high:     "text-orange-500",
-  medium:   "text-amber-500",
+  high:     "text-zinc-600",
+  medium:   "text-zinc-600",
   low:      "text-gray-400",
   none:     "text-gray-300",
 };
@@ -129,7 +129,7 @@ function HandoffCard({ item }: { item: HandoffItem }) {
   const waitingCls = item.waiting_days > 7
     ? "text-red-600 bg-red-50 border border-red-200"
     : item.waiting_days > 3
-    ? "text-amber-700 bg-amber-50 border border-amber-200"
+    ? "text-zinc-600 bg-zinc-100 border border-zinc-200"
     : "text-muted bg-surface border border-border";
 
   return (
@@ -351,7 +351,7 @@ export default function HandoffsPage() {
             <ArrowRightLeft size={18} className="text-muted shrink-0" />
             <h1 className="text-title font-semibold text-ink">Handoffs</h1>
             {!handoffsLoading && totalCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-100">
+              <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 text-[11px] font-bold border border-zinc-200">
                 {totalCount}
               </span>
             )}

@@ -226,7 +226,7 @@ export default function IntegrationsPage() {
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-gray-900 text-base font-bold">Figma</h3>
                     {figmaConnected ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded-full">
                         <CheckCircle2 size={10} /> Connected
                       </span>
                     ) : (
@@ -267,12 +267,12 @@ export default function IntegrationsPage() {
             </div>
 
             {syncMsg && (
-              <p className={`text-xs mb-2 ${syncMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
+              <p className={`text-xs mb-2 ${syncMsg.startsWith("✓") ? "text-zinc-700" : "text-zinc-600"}`}>
                 {syncMsg}
               </p>
             )}
             {enrichMsg && (
-              <p className={`text-xs mb-3 ${enrichMsg.startsWith("✓") ? "text-emerald-500" : "text-amber-500"}`}>
+              <p className={`text-xs mb-3 ${enrichMsg.startsWith("✓") ? "text-zinc-700" : "text-zinc-600"}`}>
                 {enrichMsg}
               </p>
             )}
@@ -298,8 +298,8 @@ export default function IntegrationsPage() {
                     <div className="grid grid-cols-4 gap-2">
                       {[
                         { label: "Total",   value: metrics.total,     color: "text-gray-600" },
-                        { label: "Ready",   value: metrics.ready,     color: "text-emerald-600" },
-                        { label: "Pending", value: metrics.pending + metrics.generating, color: "text-yellow-600" },
+                        { label: "Ready",   value: metrics.ready,     color: "text-zinc-700" },
+                        { label: "Pending", value: metrics.pending + metrics.generating, color: "text-zinc-600" },
                         { label: "Failed",  value: metrics.failed,    color: "text-red-500" },
                       ].map(stat => (
                         <div key={stat.label} className="bg-white rounded-lg border border-gray-100 px-3 py-2 text-center">
@@ -313,7 +313,7 @@ export default function IntegrationsPage() {
                     {metrics.total > 0 && (
                       <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                          className="h-full bg-zinc-900 rounded-full transition-all duration-500"
                           style={{ width: `${Math.round((metrics.ready / metrics.total) * 100)}%` }}
                         />
                       </div>
@@ -408,7 +408,7 @@ export default function IntegrationsPage() {
                   Save settings
                 </button>
                 {figmaMsg && (
-                  <p className={`text-xs ${figmaMsg.startsWith("✓") ? "text-emerald-500" : "text-red-400"}`}>
+                  <p className={`text-xs ${figmaMsg.startsWith("✓") ? "text-zinc-700" : "text-red-400"}`}>
                     {figmaMsg}
                   </p>
                 )}
@@ -426,7 +426,7 @@ export default function IntegrationsPage() {
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-gray-900 text-base font-bold">Slack</h3>
                   {slackConnected ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded-full">
                       <CheckCircle2 size={10} /> Connected
                     </span>
                   ) : (
@@ -498,7 +498,7 @@ export default function IntegrationsPage() {
                   {slackConnected ? "Update" : "Connect Slack"}
                 </button>
                 {slackMsg && (
-                  <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-emerald-500" : "text-red-400"}`}>
+                  <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-zinc-700" : "text-red-400"}`}>
                     {slackMsg}
                   </p>
                 )}

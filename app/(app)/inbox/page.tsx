@@ -105,7 +105,7 @@ function timeAgo(date: string | null): string {
 function projectInitialColor(id: string): string {
   let n = 0;
   for (const c of id) n = (n * 31 + c.charCodeAt(0)) & 0xffff;
-  const shades = ["bg-indigo-600", "bg-indigo-500", "bg-indigo-700", "bg-zinc-700", "bg-zinc-600"];
+  const shades = ["bg-zinc-900", "bg-zinc-800", "bg-zinc-700", "bg-zinc-600", "bg-zinc-500"];
   return shades[n % shades.length];
 }
 
@@ -318,7 +318,7 @@ export default function InboxPage() {
                 <button
                   onClick={syncNow}
                   disabled={syncing}
-                  className="mt-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-40 flex items-center gap-2"
+                  className="mt-2 px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-40 flex items-center gap-2"
                 >
                   {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                   {syncing ? "Syncing…" : "Sync from Figma"}

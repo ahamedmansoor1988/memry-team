@@ -137,7 +137,7 @@ function FigmaPreview({ previewUrl, previewStatus, previewErrorReason, frameName
   if (!previewUrl || errored) {
     const isFailed = effectiveStatus === "failed";
     const failure  = previewFailureInfo(previewErrorReason);
-    const failColor = failure.tone === "warning" ? "text-amber-500" : "text-red-400";
+    const failColor = failure.tone === "warning" ? "text-zinc-600" : "text-red-400";
     const topLabel    = errored ? "Load error" : isFailed ? "Unavailable"  : "FRAME";
     const bottomLabel = errored ? "Load error" : isFailed ? failure.label  : "Syncing…";
     const topColor    = errored ? "text-red-400" : isFailed ? failColor : "text-gray-400";
@@ -342,7 +342,7 @@ function CommentCard({ item, onSelect }: {
         {/* Suggested Action pill */}
         {item.ai_suggested_action && (
           <div className="mt-auto pt-0.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-[11px] font-medium text-indigo-600">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-[11px] font-medium text-zinc-900">
               <Zap size={9} className="shrink-0" />
               {item.ai_suggested_action}
             </span>
@@ -456,7 +456,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search comments…"
-          className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors mb-3"
+          className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-zinc-900 focus:border-zinc-900 transition-colors mb-3"
         />
 
         <div className="flex items-center gap-1 overflow-x-auto">

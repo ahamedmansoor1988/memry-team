@@ -15,14 +15,14 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
         return (
           <div key={step} className="flex items-center gap-2">
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-              done   ? "bg-emerald-500 text-white"
+              done   ? "bg-zinc-600 text-white"
               : active ? "bg-zinc-700 text-white ring-2 ring-zinc-500 ring-offset-2 ring-offset-[#0f0f13]"
               : "bg-white/10 text-white/30"
             }`}>
               {done ? <CheckCircle2 size={14} /> : step}
             </div>
             {step < total && (
-              <div className={`w-8 h-px ${done ? "bg-emerald-500" : "bg-white/10"}`} />
+              <div className={`w-8 h-px ${done ? "bg-zinc-600" : "bg-white/10"}`} />
             )}
           </div>
         );
@@ -157,7 +157,7 @@ function Step2({
       <Field label="Figma User ID (optional)" value={userId} onChange={setUserId} placeholder="leave blank to import all" />
 
       {status === "ok" && (
-        <p className="text-emerald-400 text-sm mb-4 flex items-center gap-1.5"><CheckCircle2 size={14} />{msg}</p>
+        <p className="text-white/80 text-sm mb-4 flex items-center gap-1.5"><CheckCircle2 size={14} />{msg}</p>
       )}
       {status === "error" && (
         <p className="text-red-400 text-sm mb-4 flex items-center gap-1.5"><AlertCircle size={14} />{msg}</p>
@@ -179,7 +179,7 @@ function Step2({
           <button
             onClick={saveAndNext}
             disabled={saving}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-white font-semibold text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
           >
             {saving && <Loader2 size={14} className="animate-spin" />}
             Continue →
@@ -262,7 +262,7 @@ function Step3({
       <Field label="Signing Secret (optional)" value={signingSecret} onChange={setSigningSecret} placeholder="abc123…" type="password" />
 
       {status === "ok" && (
-        <p className="text-emerald-400 text-sm mb-4 flex items-center gap-1.5"><CheckCircle2 size={14} />{msg}</p>
+        <p className="text-white/80 text-sm mb-4 flex items-center gap-1.5"><CheckCircle2 size={14} />{msg}</p>
       )}
       {status === "error" && (
         <p className="text-red-400 text-sm mb-4 flex items-center gap-1.5"><AlertCircle size={14} />{msg}</p>

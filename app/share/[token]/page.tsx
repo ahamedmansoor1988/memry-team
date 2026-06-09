@@ -73,10 +73,10 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
   const clsBadge: Record<string, string> = {
     "Needs Decision": "text-red-500 bg-red-50",
     "Blocked":        "text-red-500 bg-red-50",
-    "Approved":       "text-emerald-600 bg-emerald-50",
-    "Risk":           "text-orange-500 bg-orange-50",
-    "Vague":          "text-yellow-600 bg-yellow-50",
-    "Info":           "text-blue-500 bg-blue-50",
+    "Approved":       "text-zinc-700 bg-zinc-100",
+    "Risk":           "text-zinc-600 bg-zinc-100",
+    "Vague":          "text-zinc-600 bg-zinc-100",
+    "Info":           "text-zinc-600 bg-zinc-100",
   };
 
   return (
@@ -106,8 +106,8 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-10">
           {[
-            { label: "Decisions Needed", value: needsDecision, icon: <MessageSquare size={16} />, color: "text-blue-500", bg: "bg-blue-50" },
-            { label: "Resolved",         value: resolved,      icon: <CheckCircle2 size={16} />,  color: "text-emerald-500", bg: "bg-emerald-50" },
+            { label: "Decisions Needed", value: needsDecision, icon: <MessageSquare size={16} />, color: "text-zinc-600", bg: "bg-zinc-100" },
+            { label: "Resolved",         value: resolved,      icon: <CheckCircle2 size={16} />,  color: "text-zinc-700", bg: "bg-zinc-100" },
             { label: "Open Items",       value: open,          icon: <Clock size={16} />,          color: "text-gray-500", bg: "bg-gray-100" },
             { label: "Risks / Blockers", value: risks,         icon: <AlertTriangle size={16} />,  color: "text-red-500", bg: "bg-red-50" },
           ].map(s => (
@@ -183,7 +183,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
             <div className="space-y-2">
               {recentDecisions.map(item => (
                 <div key={item.id} className="bg-white rounded-2xl border border-gray-100 px-5 py-4 shadow-sm flex items-center gap-3">
-                  <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
+                  <CheckCircle2 size={14} className="text-zinc-700 flex-shrink-0" />
                   <p className="text-gray-700 text-sm flex-1 truncate">{item.ai_key_question ?? item.figma_comment?.raw_content ?? "—"}</p>
                   <span className="text-gray-400 text-xs flex-shrink-0">{timeAgo(item.created_at)}</span>
                 </div>

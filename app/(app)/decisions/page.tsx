@@ -35,15 +35,15 @@ interface TimelineData {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SOURCE_BADGE: Record<string, { label: string; cls: string }> = {
-  slack:  { label: "via Slack",  cls: "bg-violet-50 text-violet-600 border border-violet-200" },
+  slack:  { label: "via Slack",  cls: "bg-zinc-100 text-zinc-700 border border-zinc-200" },
   manual: { label: "Manual",     cls: "bg-surface text-muted border border-border" },
-  ai:     { label: "AI",         cls: "bg-blue-50 text-blue-600 border border-blue-200" },
+  ai:     { label: "AI",         cls: "bg-zinc-100 text-zinc-600 border border-zinc-200" },
 };
 
 const SOURCE_DOT: Record<string, string> = {
-  slack:  "bg-violet-400",
-  manual: "bg-emerald-400",
-  ai:     "bg-blue-400",
+  slack:  "bg-zinc-100",
+  manual: "bg-zinc-100",
+  ai:     "bg-zinc-100",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -204,9 +204,9 @@ function DecisionCard({ decision, onUpdate }: DecisionCardProps) {
 
         {/* Outcome */}
         {decision.outcome && (
-          <div className="mt-2 mb-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-0.5">Outcome</p>
-            <p className="text-body text-emerald-900 leading-relaxed">{decision.outcome}</p>
+          <div className="mt-2 mb-2 rounded-lg bg-zinc-100 border border-zinc-200 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 mb-0.5">Outcome</p>
+            <p className="text-body text-zinc-700 leading-relaxed">{decision.outcome}</p>
           </div>
         )}
 
@@ -416,10 +416,10 @@ export default function DecisionsPage() {
       {/* ── Header ── */}
       <div className="px-6 pt-6 pb-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2.5 mb-1">
-          <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />
+          <CheckCircle2 size={18} className="text-zinc-700 shrink-0" />
           <h1 className="text-title font-semibold text-ink">Decisions</h1>
           {!loading && data && data.total > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-100">
+            <span className="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 text-[11px] font-bold border border-zinc-200">
               {filteredTotal !== data.total ? `${filteredTotal} of ${data.total}` : data.total}
             </span>
           )}
