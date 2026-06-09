@@ -2,6 +2,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import SearchBar from "@/components/layout/SearchBar";
+import NotificationBell from "@/components/layout/NotificationBell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -44,8 +45,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="h-12 border-b border-zinc-100 bg-white flex items-center px-6 shrink-0">
+        <div className="h-12 border-b border-zinc-100 bg-white flex items-center px-6 gap-3 shrink-0">
           <SearchBar />
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationBell />
+          </div>
         </div>
         <main className="flex-1 overflow-y-auto">
           {children}

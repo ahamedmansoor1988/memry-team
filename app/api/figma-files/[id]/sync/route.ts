@@ -302,6 +302,20 @@ export async function POST(
       }).select("id").single();
       const feedbackItemId = (newFeedbackItem as { id: string } | null)?.id ?? null;
 
+      // Notify on new blocker
+      if (ai?.classification === "Blocked" && feedbackItemId) {
+        try {
+          await admin.from("notifications").insert({
+            type: "new_blocker",
+            title: "New blocker detected",
+            body: ai.key_question ?? ai.summary ?? null,
+            feedback_item_id: feedbackItemId,
+            workspace_id: workspaceId,
+            ...(ownerProfileId ? { user_id: ownerProfileId } : {}),
+          });
+        } catch { /* non-fatal */ }
+      }
+
       // Auto-post to Slack for actionable items
       if (slackToken && slackChannel && (ai?.classification === "Needs Decision" || ai?.classification === "Blocked")) {
         const { postCommentToSlack } = await import("@/lib/slack/bot");

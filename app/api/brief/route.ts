@@ -54,6 +54,32 @@ export async function GET() {
   const workspaceId = (membership as { workspace_id: string } | null)?.workspace_id;
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
+  // ── Check weekly brief cache ─────────────────────────────────────────────
+  const nowDate = new Date();
+  const weekDay = nowDate.getDay();
+  const diffDays = weekDay === 0 ? -6 : 1 - weekDay;
+  const weekStart = new Date(nowDate);
+  weekStart.setDate(nowDate.getDate() + diffDays);
+  const weekStartDate = weekStart.toISOString().split("T")[0];
+
+  const { data: cached } = await admin
+    .from("weekly_briefs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("week_start", weekStartDate)
+    .single();
+
+  if (cached) {
+    return NextResponse.json({
+      headline:          cached.headline          ?? FALLBACK.headline,
+      decisions_summary: cached.decisions_summary ?? FALLBACK.decisions_summary,
+      attention_needed:  Array.isArray(cached.attention_needed) ? cached.attention_needed : [],
+      blockers_summary:  cached.blockers_summary  ?? FALLBACK.blockers_summary,
+      momentum:          (cached.momentum === "high" || cached.momentum === "medium" || cached.momentum === "low") ? cached.momentum : "low",
+      momentum_reason:   cached.momentum_reason   ?? FALLBACK.momentum_reason,
+    });
+  }
+
   // ── Load data in parallel ────────────────────────────────────────────────
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -187,6 +213,18 @@ Return a JSON object with these exact keys:
       momentum,
       momentum_reason:   parsed.momentum_reason   ?? FALLBACK.momentum_reason,
     };
+
+    // Save to cache for future requests this week
+    await admin.from("weekly_briefs").upsert({
+      workspace_id:      workspaceId,
+      week_start:        weekStartDate,
+      headline:          result.headline,
+      decisions_summary: result.decisions_summary,
+      attention_needed:  result.attention_needed,
+      blockers_summary:  result.blockers_summary,
+      momentum:          result.momentum,
+      momentum_reason:   result.momentum_reason,
+    }, { onConflict: "workspace_id,week_start" });
 
     return NextResponse.json(result);
   } catch (err) {
