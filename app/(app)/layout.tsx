@@ -1,6 +1,7 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
+import SearchBar from "@/components/layout/SearchBar";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -40,11 +41,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         userName={user.user_metadata?.full_name ?? user.email}
         userAvatar={user.user_metadata?.avatar_url ?? null}
         openCount={openCount ?? 0}
-        projects={(projects ?? []) as { id: string; name: string }[]}
       />
-      <main className="flex-1 overflow-y-auto">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="h-12 border-b border-zinc-100 bg-white flex items-center px-6 shrink-0">
+          <SearchBar />
+        </div>
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

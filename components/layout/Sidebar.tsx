@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Inbox, GitPullRequestDraft, AlertTriangle, Activity, Settings, LogOut,
-         ArrowRightLeft, Plug, LayoutDashboard, Archive, Users, Search, Video } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  Inbox, GitPullRequestDraft, AlertTriangle, Activity,
+  Settings, LogOut, Plug, Archive, Video,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAmbientSync } from "@/lib/hooks/useAmbientSync";
 
@@ -13,7 +14,6 @@ interface Props {
   userName?: string;
   userAvatar?: string | null;
   openCount?: number;
-  projects?: { id: string; name: string }[];
 }
 
 export default function Sidebar({ workspaceName, userName, userAvatar, openCount = 0 }: Props) {
@@ -30,14 +30,10 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
 
   const mainNav = [
     { href: "/inbox",        label: "Inbox",        icon: Inbox,               badge: openCount > 0 ? openCount : null },
-    { href: "/search",       label: "Search",       icon: Search,              badge: null },
-    { href: "/team",         label: "Team",         icon: Users,               badge: null },
     { href: "/decisions",    label: "Decisions",    icon: GitPullRequestDraft, badge: null },
-    { href: "/meetings",     label: "Meetings",     icon: Video,               badge: null },
     { href: "/risks",        label: "Risks",        icon: AlertTriangle,       badge: null },
     { href: "/activity",     label: "Activity",     icon: Activity,            badge: null },
-    { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard,     badge: null },
-    { href: "/handoffs",     label: "Handoffs",     icon: ArrowRightLeft,      badge: null },
+    { href: "/meetings",     label: "Meetings",     icon: Video,               badge: null },
     { href: "/integrations", label: "Integrations", icon: Plug,                badge: null },
     { href: "/archive",      label: "Archive",      icon: Archive,             badge: null },
   ];
