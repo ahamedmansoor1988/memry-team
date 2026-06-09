@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Inbox, GitPullRequestDraft, AlertTriangle, Activity,
-  Settings, LogOut, Plug, Archive, Video,
+  Settings, LogOut, Plug, Archive, Video, Brain, LayoutDashboard,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -29,8 +29,10 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
   }
 
   const mainNav = [
+    { href: "/dashboard",    label: "Dashboard",    icon: LayoutDashboard,     badge: null },
     { href: "/inbox",        label: "Inbox",        icon: Inbox,               badge: openCount > 0 ? openCount : null },
     { href: "/decisions",    label: "Decisions",    icon: GitPullRequestDraft, badge: null },
+    { href: "/memory",       label: "Memory",       icon: Brain,               badge: null },
     { href: "/risks",        label: "Risks",        icon: AlertTriangle,       badge: null },
     { href: "/activity",     label: "Activity",     icon: Activity,            badge: null },
     { href: "/meetings",     label: "Meetings",     icon: Video,               badge: null },

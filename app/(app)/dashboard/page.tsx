@@ -182,11 +182,11 @@ function QuickActions() {
         {syncLabel}
       </button>
       <Link
-        href="/decisions"
+        href="/memory"
         className="flex items-center gap-2 px-4 py-2 rounded-lg border border-zinc-200 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 shadow-sm transition-colors"
       >
         <ExternalLink size={14} />
-        Generate Brief
+        Ask Memory
       </Link>
       <Link
         href="/inbox"
