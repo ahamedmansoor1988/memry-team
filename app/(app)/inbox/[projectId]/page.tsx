@@ -56,52 +56,42 @@ function initials(name?: string | null): string {
 
 // ─── Status pill ──────────────────────────────────────────────────────────────
 
-const STATUS_META: Record<string, { bg: string; text: string; label: string }> = {
-  open:           { bg: "bg-sky-50",     text: "text-sky-700",     label: "Open"           },
-  needs_decision: { bg: "bg-orange-50",  text: "text-orange-700",  label: "Needs Decision" },
-  resolved:       { bg: "bg-emerald-50", text: "text-emerald-700", label: "Resolved"       },
-  archived:       { bg: "bg-gray-100",   text: "text-gray-500",    label: "Archived"       },
+const STATUS_META: Record<string, { cls: string; label: string }> = {
+  open:           { cls: "bg-zinc-100 text-zinc-600 border-zinc-200",  label: "Open"           },
+  needs_decision: { cls: "bg-zinc-900 text-white border-zinc-900",     label: "Needs Decision" },
+  resolved:       { cls: "bg-zinc-100 text-zinc-400 border-zinc-200",  label: "Resolved"       },
+  archived:       { cls: "bg-zinc-100 text-zinc-400 border-zinc-200",  label: "Archived"       },
+  blocked:        { cls: "bg-red-50 text-red-700 border-red-200",      label: "Blocked"        },
 };
 
 function StatusPill({ status }: { status: string }) {
   const s = STATUS_META[status] ?? STATUS_META.open;
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.bg} ${s.text}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${s.cls}`}>
       {s.label}
     </span>
   );
 }
 
-// ─── AI classification badge (secondary) ─────────────────────────────────────
-
-const BADGE: Record<string, { bg: string; text: string; dot: string }> = {
-  "Needs Decision": { bg: "bg-orange-50",   text: "text-orange-600",  dot: "bg-orange-400" },
-  "Blocked":        { bg: "bg-red-50",       text: "text-red-600",     dot: "bg-red-400"    },
-  "Approved":       { bg: "bg-emerald-50",   text: "text-emerald-700", dot: "bg-emerald-400"},
-  "Risk":           { bg: "bg-rose-50",      text: "text-rose-600",    dot: "bg-rose-400"   },
-  "Vague":          { bg: "bg-yellow-50",    text: "text-yellow-700",  dot: "bg-yellow-400" },
-  "Info":           { bg: "bg-blue-50",      text: "text-blue-600",    dot: "bg-blue-400"   },
-  "Open":           { bg: "bg-surface",      text: "text-muted",       dot: "bg-muted/50"   },
-};
+// ─── AI classification badge ──────────────────────────────────────────────────
 
 function ClassBadge({ label }: { label: string | null }) {
   if (!label) return null;
-  const key = label;
-  const s = BADGE[key] ?? BADGE["Open"];
+  const isBlocked = label === "Blocked";
+  const cls = isBlocked
+    ? "bg-red-50 text-red-700 border-red-200"
+    : "bg-zinc-100 text-zinc-600 border-zinc-200";
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.bg} ${s.text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.dot}`} />
-      {key}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>
+      {label}
     </span>
   );
 }
 
 function Avatar({ name, size = "md" }: { name?: string | null; size?: "sm" | "md" }) {
-  const cls = size === "sm"
-    ? "w-6 h-6 text-[9px]"
-    : "w-7 h-7 text-[10px]";
+  const cls = size === "sm" ? "w-5 h-5 text-[9px]" : "w-6 h-6 text-[9px]";
   return (
-    <span className={`${cls} rounded-full bg-ink text-paper flex items-center justify-center font-semibold shrink-0 select-none`}>
+    <span className={`${cls} rounded-full bg-zinc-200 text-zinc-600 flex items-center justify-center font-medium shrink-0 select-none`}>
       {initials(name)}
     </span>
   );
@@ -184,7 +174,7 @@ function FigmaPreview({ previewUrl, previewStatus, previewErrorReason, frameName
   }
 
   return (
-    <div className="relative w-full h-full bg-surface rounded-l-panel overflow-hidden">
+    <div className="relative w-full h-full bg-zinc-50 rounded-l-xl overflow-hidden">
       {!loaded && <div className="absolute inset-0 skeleton" />}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -228,20 +218,23 @@ function CommentCard({ item, onSelect }: {
   let insight: { text: string; color: string } | null = null;
   const isActive = item.status === "open" || item.status === "needs_decision";
   if (isActive) {
-    if (item.ai_vague_flag) insight = { text: "Vague comment detected · Needs clarification", color: "text-yellow-600" };
-    else if (item.ai_risk_flag) insight = { text: "Risk detected · Needs attention", color: "text-red-500" };
-    else if (item.ai_summary) insight = { text: item.ai_summary.slice(0, 100) + (item.ai_summary.length > 100 ? "…" : ""), color: "text-muted" };
+    if (item.ai_vague_flag) insight = { text: "Vague comment detected · Needs clarification", color: "text-zinc-500" };
+    else if (item.ai_risk_flag) insight = { text: "Risk detected · Needs attention", color: "text-zinc-500" };
+    else if (item.ai_summary) insight = { text: item.ai_summary.slice(0, 100) + (item.ai_summary.length > 100 ? "…" : ""), color: "text-zinc-400" };
   }
 
   const isDimmed = item.status === "resolved" || item.status === "archived";
 
+  const isBlocked = item.ai_classification === "Blocked";
   return (
     <button
       onClick={onSelect}
-      className={`w-full text-left flex rounded-panel border border-border bg-paper hover:border-ink/20 hover:shadow-sm transition-all group overflow-hidden ${isDimmed ? "opacity-60" : ""}`}
+      className={`w-full text-left flex rounded-xl border bg-white hover:border-zinc-300 hover:shadow-sm transition-all group overflow-hidden cursor-pointer ${
+        isBlocked ? "border-l-4 border-l-red-400 border-zinc-200" : "border-zinc-200"
+      } ${isDimmed ? "opacity-60" : ""}`}
     >
       {/* Figma preview thumbnail */}
-      <div className="w-[148px] shrink-0 h-[148px] relative bg-surface border-r border-border overflow-hidden">
+      <div className="w-[148px] shrink-0 h-[148px] relative bg-zinc-50 border-r border-zinc-200 overflow-hidden">
         {previewFetching ? (
           <div className="absolute inset-0 skeleton" />
         ) : (
@@ -267,28 +260,28 @@ function CommentCard({ item, onSelect }: {
         </div>
 
         {/* Title */}
-        <p className="text-lead font-semibold text-ink line-clamp-2 leading-snug">
+        <p className="text-sm font-medium text-zinc-900 line-clamp-2 leading-snug mt-0.5">
           {(item.ai_key_question && item.ai_key_question !== "None") ? item.ai_key_question : (fc?.raw_content ?? "Comment")}
         </p>
 
         {/* Owner hint */}
         {item.owner_name && (
-          <p className="text-caption text-muted -mt-0.5">
+          <p className="text-xs text-zinc-400 -mt-0.5">
             <span className="opacity-50">→</span> {item.owner_name}
           </p>
         )}
 
         {/* Meta */}
-        <div className="flex items-center gap-1.5 text-caption text-muted">
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
           <Avatar name={fc?.author_name} size="sm" />
-          <span className="font-medium text-ink">{fc?.author_name ?? "Unknown"}</span>
+          <span className="font-medium text-zinc-600">{fc?.author_name ?? "Unknown"}</span>
           <span>·</span>
           <span>{fc?.figma_created_at ? timeAgo(fc.figma_created_at) : timeAgo(item.created_at)}</span>
           {replyCount > 0 && <><span>·</span><span>{replyCount} {replyCount === 1 ? "reply" : "replies"}</span></>}
         </div>
 
         {/* Breadcrumb: Page / Frame */}
-        <div className="flex items-center gap-1 text-caption text-muted overflow-hidden">
+        <div className="flex items-center gap-1 text-xs text-zinc-400 overflow-hidden">
           <svg width="8" height="11" viewBox="0 0 38 57" fill="none" className="shrink-0 opacity-40">
             <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
             <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
@@ -303,7 +296,7 @@ function CommentCard({ item, onSelect }: {
           {/* Frame name */}
           {(item.design_reference?.frame_name ?? fc?.frame_name) && (
             <><span className="opacity-40 shrink-0">/</span>
-            <span className="truncate font-medium text-ink/70">{item.design_reference?.frame_name ?? fc?.frame_name}</span></>
+            <span className="truncate font-medium text-zinc-500">{item.design_reference?.frame_name ?? fc?.frame_name}</span></>
           )}
           {/* Fallback: file name */}
           {!(item.design_reference?.page_name ?? fc?.page_name) && fc?.figma_file?.name && (
@@ -321,20 +314,20 @@ function CommentCard({ item, onSelect }: {
             {item.ai_tags.slice(0, 4).map(tag => (
               <span
                 key={tag}
-                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-surface border border-border text-muted"
+                className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-zinc-50 border border-zinc-200 text-zinc-400"
               >
                 {tag}
               </span>
             ))}
             {item.ai_tags.length > 4 && (
-              <span className="text-[9px] text-muted">+{item.ai_tags.length - 4}</span>
+              <span className="text-[9px] text-zinc-400">+{item.ai_tags.length - 4}</span>
             )}
           </div>
         )}
 
         {/* AI insight */}
         {insight && (
-          <div className={`flex items-center gap-1.5 text-caption ${insight.color}`}>
+          <div className={`flex items-center gap-1.5 text-xs ${insight.color}`}>
             {item.ai_vague_flag ? (
               <span className="opacity-60">⚠</span>
             ) : item.ai_risk_flag ? (
@@ -349,7 +342,7 @@ function CommentCard({ item, onSelect }: {
         {/* Suggested Action pill */}
         {item.ai_suggested_action && (
           <div className="mt-auto pt-0.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 border border-violet-200 text-[11px] font-medium text-violet-600">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-[11px] font-medium text-indigo-600">
               <Zap size={9} className="shrink-0" />
               {item.ai_suggested_action}
             </span>
@@ -359,7 +352,7 @@ function CommentCard({ item, onSelect }: {
 
       {/* Right arrow */}
       <div className="flex items-center px-3 shrink-0">
-        <ChevronRight size={16} className="text-muted group-hover:text-ink transition-colors" />
+        <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500 transition-colors" />
       </div>
     </button>
   );
@@ -446,24 +439,24 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
   ];
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-paper">
+    <div className="flex flex-col h-screen overflow-hidden bg-white">
 
       {/* ── Header ── */}
-      <div className="px-6 pt-5 pb-4 border-b border-border shrink-0">
+      <div className="px-8 pt-6 pb-4 border-b border-zinc-200 shrink-0">
         <button
           onClick={() => router.push("/inbox")}
-          className="flex items-center gap-1.5 text-caption text-muted hover:text-ink transition-colors mb-3"
+          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-700 transition-colors mb-3"
         >
           <ChevronLeft size={13} /> Inbox
         </button>
 
-        <h1 className="text-title font-semibold text-ink mb-3">{projectName}</h1>
+        <h1 className="text-xl font-semibold text-zinc-900 mb-3">{projectName}</h1>
 
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search comments…"
-          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-body text-ink placeholder:text-muted outline-none focus:border-ink/40 transition-colors mb-3"
+          className="w-full bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors mb-3"
         />
 
         <div className="flex items-center gap-1 overflow-x-auto">
@@ -471,13 +464,13 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
             <button
               key={tab.key}
               onClick={() => setFilter(tab.key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-body font-medium transition-colors shrink-0 ${
-                filter === tab.key ? "bg-ink text-paper" : "bg-surface text-muted hover:text-ink border border-border"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors shrink-0 ${
+                filter === tab.key ? "bg-zinc-900 text-white" : "bg-zinc-50 text-zinc-500 hover:text-zinc-900 border border-zinc-200"
               }`}
             >
               {tab.label}
               {tab.count != null && tab.count > 0 && (
-                <span className={`text-caption ${filter === tab.key ? "text-paper/70" : "text-muted"}`}>
+                <span className={`text-xs ${filter === tab.key ? "text-white/70" : "text-zinc-400"}`}>
                   {tab.count}
                 </span>
               )}
@@ -491,7 +484,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
             {activeTag && (
               <button
                 onClick={() => setActiveTag(null)}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-ink text-paper shrink-0 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-zinc-900 text-white shrink-0 transition-colors"
               >
                 {activeTag} ×
               </button>
@@ -500,7 +493,7 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
               <button
                 key={tag}
                 onClick={() => setActiveTag(tag)}
-                className="px-2 py-1 rounded-md text-[10px] font-medium bg-surface border border-border text-muted hover:text-ink hover:border-ink/30 shrink-0 transition-colors"
+                className="px-2 py-1 rounded-md text-[10px] font-medium bg-zinc-50 border border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:border-zinc-300 shrink-0 transition-colors"
               >
                 {tag}
               </button>
@@ -510,11 +503,11 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
       </div>
 
       {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      <div className="flex-1 overflow-y-auto px-8 py-5">
         {loading ? (
           <div className="space-y-3">
             {[1,2,3].map(n => (
-              <div key={n} className="flex rounded-panel border border-border overflow-hidden h-[148px]">
+              <div key={n} className="flex rounded-xl border border-zinc-200 overflow-hidden h-[148px]">
                 <div className="skeleton w-[148px] shrink-0" />
                 <div className="flex-1 p-4 space-y-2.5">
                   <div className="skeleton h-4 w-24 rounded-full" />
@@ -527,10 +520,10 @@ export default function ProjectInboxPage({ params }: { params: { projectId: stri
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-2 text-center">
-            <p className="text-lead font-medium text-ink">
+            <p className="text-base font-medium text-zinc-900">
               {items.length === 0 ? "No comments in this project" : "Nothing matches"}
             </p>
-            <p className="text-body text-muted">
+            <p className="text-sm text-zinc-500">
               {items.length === 0 ? "Comments will appear here once synced from Figma." : "Try a different filter or status tab."}
             </p>
           </div>

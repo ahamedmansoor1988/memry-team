@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f5f5f7]">
+    <div className="flex h-screen overflow-hidden bg-white">
       <Sidebar
         workspaceName={workspaceName}
         userName={user.user_metadata?.full_name ?? user.email}
