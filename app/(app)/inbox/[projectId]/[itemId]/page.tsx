@@ -133,8 +133,6 @@ function RelatedDecisions({ item }: { item: FeedbackItem }) {
     return () => { cancelled = true; };
   }, [item.id, item.ai_key_question, item.ai_summary]);
 
-  if (!loading && results.length === 0) return null;
-
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-2">
@@ -145,6 +143,8 @@ function RelatedDecisions({ item }: { item: FeedbackItem }) {
           <div className="animate-pulse bg-zinc-100 rounded h-3 w-full" />
           <div className="animate-pulse bg-zinc-100 rounded h-3 w-4/5" />
         </div>
+      ) : results.length === 0 ? (
+        <p className="text-xs text-zinc-400">No related decisions found.</p>
       ) : (
         <div className="space-y-2">
           {results.map(r => {
