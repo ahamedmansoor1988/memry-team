@@ -4,10 +4,13 @@ import { createClient } from "@/lib/supabase/client";
 export default function LoginPage() {
   async function signInWithGoogle() {
     const supabase = createClient();
+    // Preserve ?redirect= param so auth callback can forward it
+    const redirectParam = new URLSearchParams(window.location.search).get("redirect");
+    const next = redirectParam?.startsWith("/invite/") ? redirectParam : "/inbox";
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
   }

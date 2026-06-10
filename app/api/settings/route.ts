@@ -19,7 +19,7 @@ export async function GET() {
   // Get workspace + members
   const { data: membership } = await admin
     .from("workspace_members")
-    .select("workspace_id")
+    .select("workspace_id, role")
     .eq("user_id", user.id)
     .limit(1)
     .single();
@@ -45,11 +45,15 @@ export async function GET() {
     }
   }
 
+  const currentMembership = membership as { workspace_id: string; role?: string } | null;
+
   return NextResponse.json({
-    figma_pat: u?.figma_pat ? "set" : null,
-    figma_handle: u?.figma_handle ?? null,
-    figma_email: u?.figma_email ?? null,
-    workspace_id: membership?.workspace_id ?? null,
+    figma_pat:       u?.figma_pat ? "set" : null,
+    figma_handle:    u?.figma_handle ?? null,
+    figma_email:     u?.figma_email ?? null,
+    workspace_id:    currentMembership?.workspace_id ?? null,
+    current_user_id: user.id,
+    current_role:    currentMembership?.role ?? "member",
     members,
   });
 }

@@ -18,7 +18,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .limit(1)
     .single();
 
-  if (!membership) redirect("/onboarding");
+  if (!membership) {
+    // Check for pending invite matching this user's email
+    const { data: pendingInvite } = await admin
+      .from("workspace_invites")
+      .select("token")
+      .eq("email", user.email ?? "")
+      .is("accepted_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .limit(1)
+      .single();
+    if (pendingInvite) {
+      redirect(`/invite/${(pendingInvite as { token: string }).token}`);
+    }
+    redirect("/onboarding");
+  }
 
   const workspaceId = membership.workspace_id as string;
   const workspaceName = (membership.workspace as { name?: string } | null)?.name;
