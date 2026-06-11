@@ -18,15 +18,17 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type RawDecision = {
-  id:               string;
-  decision_text:    string;
-  reason:           string | null;
-  owner_name:       string | null;
-  source:           string;
-  decided_at:       string;
-  feedback_item_id: string | null;
-  outcome:          string | null;
-  alternatives:     string[] | null;
+  id:                 string;
+  decision_text:      string;
+  reason:             string | null;
+  owner_name:         string | null;
+  source:             string;
+  decided_at:         string;
+  feedback_item_id:   string | null;
+  outcome:            string | null;
+  alternatives:       string[] | null;
+  slack_channel_name: string | null;
+  slack_thread_url:   string | null;
   feedback_item:
     | { id: string; project_id: string | null; ai_key_question: string | null; project: { id: string; name: string } | { id: string; name: string }[] | null }
     | { id: string; project_id: string | null; ai_key_question: string | null; project: { id: string; name: string } | { id: string; name: string }[] | null }[]
@@ -34,18 +36,20 @@ type RawDecision = {
 };
 
 export type DecisionItem = {
-  id:               string;
-  decision_text:    string;
-  reason:           string | null;
-  owner_name:       string | null;
-  source:           string;
-  decided_at:       string;
-  feedback_item_id: string | null;
-  project_id:       string | null;
-  project_name:     string | null;
-  ai_key_question:  string | null;
-  outcome:          string | null;
-  alternatives:     string[] | null;
+  id:                 string;
+  decision_text:      string;
+  reason:             string | null;
+  owner_name:         string | null;
+  source:             string;
+  decided_at:         string;
+  feedback_item_id:   string | null;
+  project_id:         string | null;
+  project_name:       string | null;
+  ai_key_question:    string | null;
+  outcome:            string | null;
+  alternatives:       string[] | null;
+  slack_channel_name: string | null;
+  slack_thread_url:   string | null;
 };
 
 export type TimelineGroup = {
@@ -110,7 +114,7 @@ export async function GET() {
     .from("decisions")
     .select(`
       id, decision_text, reason, owner_name, source, decided_at, feedback_item_id,
-      outcome, alternatives,
+      outcome, alternatives, slack_channel_name, slack_thread_url,
       feedback_item:feedback_items(
         id, project_id, ai_key_question,
         project:projects(id, name)
@@ -141,8 +145,10 @@ export async function GET() {
       project_id:       fi?.project_id ?? null,
       project_name:     project?.name ?? null,
       ai_key_question:  fi?.ai_key_question ?? null,
-      outcome:          row.outcome       ?? null,
-      alternatives:     row.alternatives  ?? null,
+      outcome:            row.outcome            ?? null,
+      alternatives:       row.alternatives       ?? null,
+      slack_channel_name: row.slack_channel_name ?? null,
+      slack_thread_url:   row.slack_thread_url   ?? null,
     };
   });
 

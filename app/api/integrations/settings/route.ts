@@ -82,5 +82,22 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // When a Slack bot token is saved, fetch and store the team ID for event routing
+  const savedToken = body.slack_bot_token?.trim();
+  if (savedToken) {
+    try {
+      const authRes  = await fetch("https://slack.com/api/auth.test", {
+        headers: { Authorization: `Bearer ${savedToken}` },
+      });
+      const authData = await authRes.json() as { ok: boolean; team_id?: string };
+      if (authData.ok && authData.team_id) {
+        await admin
+          .from("workspaces")
+          .update({ slack_team_id: authData.team_id })
+          .eq("id", workspaceId);
+      }
+    } catch { /* non-fatal */ }
+  }
+
   return NextResponse.json({ ok: true });
 }

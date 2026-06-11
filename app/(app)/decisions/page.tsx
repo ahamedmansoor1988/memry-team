@@ -1,23 +1,25 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { CheckCircle2, ExternalLink, Search, ChevronDown, Plus, X } from "lucide-react";
+import { CheckCircle2, ExternalLink, Search, ChevronDown, Plus, X, Hash } from "lucide-react";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DecisionItem {
-  id:               string;
-  decision_text:    string;
-  reason:           string | null;
-  owner_name:       string | null;
-  source:           string;
-  decided_at:       string;
-  feedback_item_id: string | null;
-  project_id:       string | null;
-  project_name:     string | null;
-  ai_key_question:  string | null;
-  outcome:          string | null;
-  alternatives:     string[] | null;
+  id:                 string;
+  decision_text:      string;
+  reason:             string | null;
+  owner_name:         string | null;
+  source:             string;
+  decided_at:         string;
+  feedback_item_id:   string | null;
+  project_id:         string | null;
+  project_name:       string | null;
+  ai_key_question:    string | null;
+  outcome:            string | null;
+  alternatives:       string[] | null;
+  slack_channel_name: string | null;
+  slack_thread_url:   string | null;
 }
 
 interface TimelineGroup {
@@ -192,7 +194,17 @@ function DecisionCard({ decision, onUpdate }: DecisionCardProps) {
       <div className="flex-1 rounded-panel border border-border bg-paper p-4 mb-3 hover:border-ink/15 transition-colors">
         {/* Decision text */}
         <p className="text-body font-semibold text-ink leading-snug mb-1">
-          {decision.decision_text}
+          {decision.source === "slack" && decision.slack_thread_url ? (
+            <a
+              href={decision.slack_thread_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline inline-flex items-center gap-1"
+            >
+              {decision.decision_text}
+              <ExternalLink className="w-3 h-3 text-zinc-400 inline shrink-0" />
+            </a>
+          ) : decision.decision_text}
         </p>
 
         {/* Reason */}
@@ -240,7 +252,14 @@ function DecisionCard({ decision, onUpdate }: DecisionCardProps) {
             {sb.label}
           </span>
 
-          {decision.project_name && (
+          {decision.source === "slack" && decision.slack_channel_name && (
+            <span className="inline-flex items-center gap-1 text-caption text-muted">
+              <Hash className="w-3 h-3" />
+              {decision.slack_channel_name}
+            </span>
+          )}
+
+          {decision.project_name && decision.source !== "slack" && (
             <span className="text-caption text-muted">{decision.project_name}</span>
           )}
 

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle, Copy, Check } from "lucide-react";
 
 function FigmaLogo() {
   return (
@@ -75,6 +75,7 @@ export default function IntegrationsPage() {
   const [slackSaving, setSlackSaving] = useState(false);
   const [slackMsg, setSlackMsg] = useState<string | null>(null);
   const [slackConnected, setSlackConnected] = useState(false);
+  const [eventsUrlCopied, setEventsUrlCopied] = useState(false);
 
   const loadMetrics = useCallback(() => {
     setMetricsLoading(true);
@@ -504,17 +505,60 @@ export default function IntegrationsPage() {
                 )}
               </div>
 
-              {!slackConnected && (
-                <div className="bg-gray-50 rounded-xl p-4 mt-1">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">Setup checklist</p>
-                  <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
-                    <li>Create a Slack app at <span className="text-gray-500 font-medium">api.slack.com/apps</span></li>
-                    <li>Add <span className="font-mono bg-gray-100 px-1 rounded">chat:write</span> bot scope under OAuth & Permissions</li>
-                    <li>Enable Interactivity, set Request URL to <span className="font-mono bg-gray-100 px-1 rounded text-[10px]">https://memry-team-opal.vercel.app/api/slack/interactive</span></li>
-                    <li>Install app to your workspace and invite bot to the channel</li>
-                  </ol>
+              {/* Events URL — always show for setup */}
+              <div className="bg-zinc-50 rounded-xl p-4 mt-1 space-y-3">
+                {slackConnected && (
+                  <p className="text-xs text-zinc-500">
+                    Memry is now listening for decisions in your Slack workspace.
+                    Add the bot to any channel with <span className="font-mono bg-white border border-zinc-200 rounded px-1">/invite @Memry</span>
+                  </p>
+                )}
+
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Event Subscription URL</p>
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1 font-mono text-xs bg-white border border-zinc-200 rounded px-2 py-1 text-zinc-600 truncate">
+                      {process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/slack/events
+                    </span>
+                    <button
+                      onClick={() => {
+                        void navigator.clipboard.writeText(
+                          `${process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/slack/events`
+                        ).then(() => {
+                          setEventsUrlCopied(true);
+                          setTimeout(() => setEventsUrlCopied(false), 2000);
+                        });
+                      }}
+                      className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 bg-white border border-zinc-200 rounded px-2 py-1 flex-shrink-0 transition-colors"
+                    >
+                      {eventsUrlCopied ? <Check size={11} /> : <Copy size={11} />}
+                      {eventsUrlCopied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
                 </div>
-              )}
+
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Setup checklist</p>
+                  <ul className="text-xs text-gray-400 space-y-1">
+                    <li className="flex items-start gap-1.5">
+                      <span>{slackConnected ? "☑" : "☐"}</span>
+                      Bot token saved
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span>☐</span>
+                      Event subscription URL added in Slack app settings
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span>☐</span>
+                      <span><span className="font-mono bg-gray-100 px-1 rounded">message.channels</span> event enabled</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span>☐</span>
+                      Bot invited to at least one channel
+                    </li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
 
