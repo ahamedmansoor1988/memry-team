@@ -116,6 +116,25 @@ Respond with JSON only:
     : null;
 
   // ── Step 5: Save decision ─────────────────────────────────────────────────
+  // Dedupe guard: one Slack message must never produce two decision rows,
+  // regardless of how many times it gets (re)processed.
+  const { data: dupe } = await admin
+    .from("decisions")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("slack_channel_id", channelId)
+    .eq("slack_message_ts", messageTs)
+    .maybeSingle();
+  if (dupe) {
+    await admin
+      .from("slack_processed_messages")
+      .update({ decision_extracted: true })
+      .eq("workspace_id", workspaceId)
+      .eq("slack_channel_id", channelId)
+      .eq("slack_message_ts", messageTs);
+    return;
+  }
+
   const { error: decisionError } = await admin.from("decisions").insert({
     workspace_id:       workspaceId,
     decision_text:      groqResult.decision_text,

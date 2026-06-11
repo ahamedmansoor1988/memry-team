@@ -121,13 +121,20 @@ export async function GET(req: Request) {
           if (!message.text || message.text.length < 20) continue;
           messagesScanned++;
 
-          const { data: existing } = await admin
+          const { data: existing, error: lookupError } = await admin
             .from("slack_processed_messages")
             .select("id, decision_extracted")
             .eq("workspace_id", ws.id)
             .eq("slack_channel_id", channelId)
             .eq("slack_message_ts", message.ts)
             .maybeSingle();
+
+          // A failed lookup must mean "skip", never "treat as new" — otherwise
+          // a transient error reprocesses an already-extracted message.
+          if (lookupError) {
+            console.error(`[slack-scan] idempotency lookup failed for ${channelId}/${message.ts}:`, lookupError.message);
+            continue;
+          }
 
           const row = existing as { id: string; decision_extracted: boolean } | null;
           if (row?.decision_extracted) continue;
