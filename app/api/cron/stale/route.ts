@@ -39,11 +39,12 @@ export async function GET(req: Request) {
         .eq("id", item.id);
 
       await admin.from("feedback_item_status_history").insert({
-        feedback_item_id: item.id,
+        item_id: item.id,
+        workspace_id: item.workspace_id,
         from_status: "open",
         to_status: "stale",
         reason: "Auto-marked stale: no activity for 14 days",
-        changed_by: "system",
+        changed_by: null, // system action — column is uuid FK to auth.users
       });
 
       totalStale++;

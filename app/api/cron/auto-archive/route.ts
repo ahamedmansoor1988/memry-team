@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   // 1. Archive resolved items older than 7 days
   const { data: resolvedItems } = await admin
     .from("feedback_items")
-    .select("id")
+    .select("id, workspace_id")
     .eq("status", "resolved")
     .lt("updated_at", sevenDaysAgo)
     .is("deleted_at", null);
@@ -25,11 +25,12 @@ export async function GET(req: Request) {
   for (const item of resolvedItems ?? []) {
     await admin.from("feedback_items").update({ deleted_at: now }).eq("id", item.id);
     await admin.from("feedback_item_status_history").insert({
-      feedback_item_id: item.id,
+      item_id: item.id,
+      workspace_id: item.workspace_id,
       from_status: "resolved",
       to_status: "archived",
       reason: "Auto-archived: resolved for 7+ days",
-      changed_by: "system",
+      changed_by: null, // system action — column is uuid FK to auth.users
     });
     archivedResolved++;
   }
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
   // 2. Archive stale items older than 30 days
   const { data: staleItems } = await admin
     .from("feedback_items")
-    .select("id")
+    .select("id, workspace_id")
     .eq("status", "stale")
     .lt("updated_at", thirtyDaysAgo)
     .is("deleted_at", null);
@@ -46,11 +47,12 @@ export async function GET(req: Request) {
   for (const item of staleItems ?? []) {
     await admin.from("feedback_items").update({ deleted_at: now }).eq("id", item.id);
     await admin.from("feedback_item_status_history").insert({
-      feedback_item_id: item.id,
+      item_id: item.id,
+      workspace_id: item.workspace_id,
       from_status: "stale",
       to_status: "archived",
       reason: "Auto-archived: stale for 30+ days",
-      changed_by: "system",
+      changed_by: null, // system action — column is uuid FK to auth.users
     });
     archivedStale++;
   }
