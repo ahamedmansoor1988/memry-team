@@ -20,11 +20,25 @@ export default function SearchBar() {
   return (
     <button
       onClick={() => router.push("/search")}
-      className="flex items-center gap-2 bg-zinc-100 border border-zinc-200 rounded-lg px-3 py-1.5 text-sm text-zinc-400 w-64 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        background: "var(--bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "5px 10px",
+        fontSize: 12,
+        color: "var(--text-3)",
+        width: 240,
+        cursor: "pointer",
+        transition: "border-color 0.15s",
+      }}
+      className="hover:border-[var(--accent-border)]"
     >
-      <Search size={13} className="shrink-0" />
-      <span className="flex-1 text-left truncate">Search feedback, decisions…</span>
-      <kbd className="text-[10px] bg-white border border-zinc-200 rounded px-1 py-0.5 text-zinc-400 shrink-0">⌘K</kbd>
+      <Search style={{ width: 12, height: 12, flexShrink: 0 }} />
+      <span style={{ flex: 1, textAlign: "left" }}>Search feedback, decisions…</span>
+      <kbd style={{ fontFamily: "var(--font-mono)", fontSize: 10, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px", color: "var(--text-3)", flexShrink: 0 }}>⌘K</kbd>
     </button>
   );
 }

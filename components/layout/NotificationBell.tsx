@@ -25,17 +25,19 @@ function timeAgo(date: string): string {
   return `${Math.floor(d / 30)}mo ago`;
 }
 
-const TYPE_ICON: Record<string, { bg: string; icon: React.ReactNode }> = {
-  new_blocker:        { bg: "bg-red-50",   icon: <AlertCircle className="w-4 h-4 text-red-500" /> },
-  decision_overdue:   { bg: "bg-zinc-100", icon: <Clock className="w-4 h-4 text-zinc-500" /> },
-  escalated:          { bg: "bg-zinc-900", icon: <TrendingUp className="w-4 h-4 text-white" /> },
-  weekly_brief_ready: { bg: "bg-zinc-100", icon: <FileText className="w-4 h-4 text-zinc-500" /> },
-  auto_archived:      { bg: "bg-zinc-100", icon: <Archive className="w-4 h-4 text-zinc-400" /> },
-  auto_resolved:      { bg: "bg-zinc-900", icon: <CheckCircle2 className="w-4 h-4 text-white" /> },
-  resolution_suggested: { bg: "bg-zinc-100", icon: <HelpCircle className="w-4 h-4 text-zinc-500" /> },
+interface TypeConfig { bg: string; color: string; icon: React.ReactNode }
+
+const TYPE_CONFIG: Record<string, TypeConfig> = {
+  new_blocker:          { bg: "var(--red-soft)",   color: "var(--red)",   icon: <AlertCircle  style={{ width: 14, height: 14 }} /> },
+  decision_overdue:     { bg: "var(--amber-soft)",  color: "var(--amber)", icon: <Clock        style={{ width: 14, height: 14 }} /> },
+  escalated:            { bg: "var(--accent)",      color: "var(--accent-ink)", icon: <TrendingUp  style={{ width: 14, height: 14 }} /> },
+  weekly_brief_ready:   { bg: "var(--blue-soft)",   color: "var(--blue)",  icon: <FileText     style={{ width: 14, height: 14 }} /> },
+  auto_archived:        { bg: "var(--border)",      color: "var(--text-3)",icon: <Archive      style={{ width: 14, height: 14 }} /> },
+  auto_resolved:        { bg: "var(--green-soft)",  color: "var(--green)", icon: <CheckCircle2 style={{ width: 14, height: 14 }} /> },
+  resolution_suggested: { bg: "var(--blue-soft)",   color: "var(--blue)",  icon: <HelpCircle   style={{ width: 14, height: 14 }} /> },
 };
 
-const DEFAULT_ICON = { bg: "bg-zinc-100", icon: <Bell className="w-4 h-4 text-zinc-400" /> };
+const DEFAULT_CONFIG: TypeConfig = { bg: "var(--border-2)", color: "var(--text-3)", icon: <Bell style={{ width: 14, height: 14 }} /> };
 
 export default function NotificationBell() {
   const router = useRouter();
@@ -51,9 +53,7 @@ export default function NotificationBell() {
       const data = await res.json() as { notifications: Notification[]; unread_count: number };
       setNotifications(data.notifications ?? []);
       setUnreadCount(data.unread_count ?? 0);
-    } catch {
-      // silently fail
-    }
+    } catch { /* silent */ }
   }, []);
 
   useEffect(() => {
@@ -62,12 +62,9 @@ export default function NotificationBell() {
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  // Close on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -81,72 +78,69 @@ export default function NotificationBell() {
   async function handleNotificationClick(n: Notification) {
     await fetch(`/api/notifications/${n.id}/read`, { method: "POST" });
     setOpen(false);
-    if (n.feedback_item_id) {
-      // Navigate to inbox item — we don't know projectId here, use activity as fallback
-      router.push(`/activity`);
-    } else {
-      router.push("/activity");
-    }
+    router.push("/activity");
     await fetchNotifications();
   }
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Bell button */}
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-zinc-100 transition-colors"
+        style={{ width: 30, height: 30, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", position: "relative", background: "transparent", border: "none", cursor: "pointer" }}
+        className="hover:bg-[var(--accent-soft)] transition-colors"
         aria-label="Notifications"
       >
-        <Bell className="w-4 h-4 text-zinc-500" />
+        <Bell style={{ width: 15, height: 15, color: "var(--text-2)" }} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-zinc-900 text-white text-[9px] font-bold flex items-center justify-center leading-none">
-            {unreadCount > 99 ? "99+" : unreadCount}
+          <span style={{ position: "absolute", top: 2, right: 2, width: 14, height: 14, borderRadius: 99, background: "var(--red)", color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-mono)" }}>
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-10 w-80 z-50 bg-white border border-zinc-200 rounded-xl shadow-lg overflow-hidden">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-zinc-100 flex justify-between items-center">
-            <span className="text-sm font-semibold text-zinc-900">Notifications</span>
+        <div style={{ position: "absolute", right: 0, top: 38, width: 320, zIndex: 50, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-2)", overflow: "hidden" }}>
+          <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--border-2)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>Notifications</span>
             {notifications.length > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-zinc-400 hover:text-zinc-600 cursor-pointer transition-colors"
-              >
+              <button onClick={markAllRead} style={{ fontSize: 11, color: "var(--text-3)", cursor: "pointer", background: "none", border: "none" }} className="hover:text-[var(--text-2)] transition-colors">
                 Mark all read
               </button>
             )}
           </div>
 
-          {/* List */}
           {notifications.length === 0 ? (
-            <div className="py-12 text-center">
-              <Bell className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
-              <p className="text-sm text-zinc-400">You&apos;re all caught up</p>
+            <div style={{ padding: "40px 0", textAlign: "center" }}>
+              <Bell style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 8px" }} />
+              <p style={{ fontSize: 12, color: "var(--text-3)" }}>You&apos;re all caught up</p>
             </div>
           ) : (
-            <div className="max-h-96 overflow-y-auto">
+            <div style={{ maxHeight: 380, overflowY: "auto" }}>
               {notifications.map(n => {
-                const { bg, icon } = TYPE_ICON[n.type] ?? DEFAULT_ICON;
+                const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
                 return (
                   <div
                     key={n.id}
                     onClick={() => handleNotificationClick(n)}
-                    className={`px-4 py-3 flex gap-3 cursor-pointer hover:bg-zinc-50 transition-colors border-b border-zinc-100 last:border-0 ${n.read_at ? "bg-white" : "bg-zinc-50"}`}
+                    style={{
+                      padding: "10px 14px",
+                      display: "flex",
+                      gap: 10,
+                      cursor: "pointer",
+                      borderBottom: "1px solid var(--border-2)",
+                      background: n.read_at ? "transparent" : "var(--accent-softer)",
+                    }}
+                    className="hover:bg-[var(--accent-soft)] transition-colors last:border-0"
                   >
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${bg}`}>
-                      {icon}
+                    <div style={{ width: 28, height: 28, borderRadius: 99, background: cfg.bg, color: cfg.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {cfg.icon}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-zinc-900 truncate">{n.title}</p>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }} className="truncate">{n.title}</p>
                       {n.body && (
-                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">{n.body}</p>
+                        <p style={{ fontSize: 11, color: "var(--text-2)", marginTop: 2 }} className="line-clamp-2">{n.body}</p>
                       )}
-                      <p className="text-[10px] text-zinc-400 mt-1">{timeAgo(n.created_at)}</p>
+                      <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)", marginTop: 3 }}>{timeAgo(n.created_at)}</p>
                     </div>
                   </div>
                 );

@@ -37,20 +37,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const workspaceId = membership.workspace_id as string;
   const workspaceName = (membership.workspace as { name?: string } | null)?.name;
 
-  const [{ count: openCount }, { data: projects }] = await Promise.all([
-    admin.from("feedback_items")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", workspaceId)
-      .eq("status", "open"),
-    admin.from("projects")
-      .select("id, name")
-      .eq("workspace_id", workspaceId)
-      .order("created_at", { ascending: false })
-      .limit(8),
-  ]);
+  const { count: openCount } = await admin
+    .from("feedback_items")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .eq("status", "open");
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--bg)" }}>
       <Sidebar
         workspaceName={workspaceName}
         userName={user.user_metadata?.full_name ?? user.email}
@@ -59,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <div className="h-12 border-b border-zinc-100 bg-white flex items-center px-6 gap-3 shrink-0">
+        <div className="h-12 shrink-0 flex items-center px-5 gap-3" style={{ background: "var(--surface)", borderBottom: "1px solid var(--border-2)" }}>
           <SearchBar />
           <div className="ml-auto flex items-center gap-1">
             <NotificationBell />
