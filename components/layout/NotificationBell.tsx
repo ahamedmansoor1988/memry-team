@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, AlertCircle, Clock, TrendingUp, FileText, Archive } from "lucide-react";
+import { Bell, AlertCircle, Clock, TrendingUp, FileText, Archive, CheckCircle2, HelpCircle } from "lucide-react";
 
 interface Notification {
   id: string;
@@ -31,6 +31,8 @@ const TYPE_ICON: Record<string, { bg: string; icon: React.ReactNode }> = {
   escalated:          { bg: "bg-zinc-900", icon: <TrendingUp className="w-4 h-4 text-white" /> },
   weekly_brief_ready: { bg: "bg-zinc-100", icon: <FileText className="w-4 h-4 text-zinc-500" /> },
   auto_archived:      { bg: "bg-zinc-100", icon: <Archive className="w-4 h-4 text-zinc-400" /> },
+  auto_resolved:      { bg: "bg-zinc-900", icon: <CheckCircle2 className="w-4 h-4 text-white" /> },
+  resolution_suggested: { bg: "bg-zinc-100", icon: <HelpCircle className="w-4 h-4 text-zinc-500" /> },
 };
 
 const DEFAULT_ICON = { bg: "bg-zinc-100", icon: <Bell className="w-4 h-4 text-zinc-400" /> };

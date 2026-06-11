@@ -21,15 +21,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { verifySlackSignature } from "@/lib/slack/bot";
 import { processSlackMessage } from "@/lib/slack/process-message";
+import { passesLengthFilter, resolveContextText } from "@/lib/slack/context";
 
 interface SlackMessageEvent {
-  type:     string;
-  subtype?: string;
-  bot_id?:  string;
-  text?:    string;
-  user?:    string;
-  channel:  string;
-  ts:       string;
+  type:       string;
+  subtype?:   string;
+  bot_id?:    string;
+  text?:      string;
+  user?:      string;
+  channel:    string;
+  ts:         string;
+  thread_ts?: string;
 }
 
 interface SlackEventPayload {
@@ -67,8 +69,9 @@ export async function POST(req: NextRequest) {
     // Skip bot messages, edited/deleted subtypes
     if (event.subtype || event.bot_id) return NextResponse.json({ ok: true });
 
-    // Skip very short messages — unlikely to be decisions
-    if (!event.text || event.text.length < 20) return NextResponse.json({ ok: true });
+    // Length filter: ≥ 20 chars for channel messages, ≥ 2 for thread replies
+    // (thread replies like "done" get context from the parent message)
+    if (!event.text || !passesLengthFilter(event)) return NextResponse.json({ ok: true });
 
     const teamId = payload.team_id;
     if (!teamId) return NextResponse.json({ ok: true });
@@ -103,14 +106,23 @@ export async function POST(req: NextRequest) {
       decision_extracted: false,
     });
 
-    processSlackMessage({
-      workspaceId: ws.id,
-      botToken:    ws.slack_bot_token,
-      channelId:   event.channel,
-      messageTs:   event.ts,
-      messageText: event.text,
-      userId:      event.user ?? "",
-    }).catch(err => console.error("[slack/events] processSlackMessage error:", err));
+    // Context fetch + processing in background — return 200 to Slack fast
+    const botToken = ws.slack_bot_token;
+    const text     = event.text;
+    (async () => {
+      const contextText = await resolveContextText(botToken, event.channel, {
+        ts: event.ts, text, thread_ts: event.thread_ts,
+      });
+      await processSlackMessage({
+        workspaceId: ws.id,
+        botToken,
+        channelId:   event.channel,
+        messageTs:   event.ts,
+        messageText: text,
+        userId:      event.user ?? "",
+        contextText: contextText ?? undefined,
+      });
+    })().catch(err => console.error("[slack/events] processSlackMessage error:", err));
   }
 
   return NextResponse.json({ ok: true });

@@ -1,12 +1,16 @@
 import Groq from "groq-sdk";
 import { createAdminClient } from "@/lib/supabase/server";
+import { matchResolution } from "@/lib/slack/match-resolution";
 
-interface GroqDecisionResult {
-  is_decision:   boolean;
-  confidence:    number;
-  decision_text: string;
-  rationale:     string | null;
-  category:      string;
+interface GroqTwoTrackResult {
+  is_decision:           boolean;
+  decision_confidence:   number;
+  decision_text:         string;
+  rationale:             string | null;
+  category:              string;
+  is_resolution:         boolean;
+  resolution_confidence: number;
+  resolution_summary:    string;
 }
 
 export async function processSlackMessage({
@@ -16,19 +20,22 @@ export async function processSlackMessage({
   messageTs,
   messageText,
   userId,
+  contextText,
 }: {
-  workspaceId: string;
-  botToken:    string;
-  channelId:   string;
-  messageTs:   string;
-  messageText: string;
-  userId:      string;
+  workspaceId:  string;
+  botToken:     string;
+  channelId:    string;
+  messageTs:    string;
+  messageText:  string;
+  userId:       string;
+  contextText?: string;
 }) {
   const admin = createAdminClient();
 
-  // ── Step 1: AI classification ─────────────────────────────────────────────
-  const prompt = `Analyze this Slack message and determine if it contains a decision.
-A decision is a clear statement of what was chosen, agreed upon, or committed to — not a question, discussion, or idea.
+  // ── Step 1: AI classification — ONE call detects both tracks ─────────────
+  const prompt = `Analyze this Slack message for TWO independent signals.
+
+SIGNAL 1 — DECISION: a clear statement of what was chosen, agreed upon, or committed to — not a question, discussion, or idea.
 A decision requires a CHOICE between alternatives or a commitment to a course of action. Status updates, announcements, and progress reports are NOT decisions.
 
 Examples of DECISIONS:
@@ -46,18 +53,26 @@ Examples of NOT decisions:
 - "figma file updated" (status update)
 - "shipped the new onboarding flow" (progress report)
 
+SIGNAL 2 — RESOLUTION: a statement that work is finished or a fix was made.
+Examples: "fixed the spacing", "updated the file", "done", "shipped it", "pushed the change".
+A message can be a resolution without being a decision and vice versa.
+Note: "design is ready to launch" is NOT a decision but IS a resolution signal.
+${contextText ? `\nContext (earlier conversation): "${contextText.replace(/"/g, '\\"')}"\n` : ""}
 Message: "${messageText.replace(/"/g, '\\"')}"
 
 Respond with JSON only:
 {
   "is_decision": true or false,
-  "confidence": 0.0 to 1.0,
+  "decision_confidence": 0.0 to 1.0,
   "decision_text": "clean one-sentence summary of the decision",
   "rationale": "why this was decided if mentioned, or null",
-  "category": "design or product or technical or process or other"
+  "category": "design or product or technical or process or other",
+  "is_resolution": true or false,
+  "resolution_confidence": 0.0 to 1.0,
+  "resolution_summary": "what work the message says is complete"
 }`;
 
-  let groqResult: GroqDecisionResult | null = null;
+  let groqResult: GroqTwoTrackResult | null = null;
   try {
     const groq       = new Groq({ apiKey: process.env.GROQ_API_KEY! });
     const completion = await groq.chat.completions.create({
@@ -65,25 +80,58 @@ Respond with JSON only:
       messages:        [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       temperature:     0.1,
-      max_tokens:      300,
+      max_tokens:      400,
     });
-    groqResult = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as GroqDecisionResult;
+    groqResult = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as GroqTwoTrackResult;
   } catch (err) {
     console.error("[process-message] Groq error:", err);
     return;
   }
 
-  if (!groqResult.is_decision || groqResult.confidence < 0.7) {
+  // ── Decision track (verified working — unchanged behavior) ───────────────
+  await handleDecisionTrack(admin, groqResult, {
+    workspaceId, botToken, channelId, messageTs, userId,
+  });
+
+  // ── Resolution track ──────────────────────────────────────────────────────
+  if (groqResult.is_resolution && groqResult.resolution_confidence >= 0.7) {
+    await matchResolution({
+      workspaceId,
+      botToken,
+      channelId,
+      messageTs,
+      messageText,
+      contextText:       contextText ?? null,
+      resolutionSummary: groqResult.resolution_summary || messageText,
+      userId,
+    });
+  }
+}
+
+// ─── Decision track ────────────────────────────────────────────────────────
+
+async function handleDecisionTrack(
+  admin: ReturnType<typeof createAdminClient>,
+  groqResult: GroqTwoTrackResult,
+  ctx: { workspaceId: string; botToken: string; channelId: string; messageTs: string; userId: string },
+) {
+  const { workspaceId, botToken, channelId, messageTs, userId } = ctx;
+
+  async function markDecisionExtracted(value: boolean) {
     await admin
       .from("slack_processed_messages")
-      .update({ decision_extracted: false })
+      .update({ decision_extracted: value })
       .eq("workspace_id", workspaceId)
       .eq("slack_channel_id", channelId)
       .eq("slack_message_ts", messageTs);
+  }
+
+  if (!groqResult.is_decision || groqResult.decision_confidence < 0.7) {
+    await markDecisionExtracted(false);
     return;
   }
 
-  // ── Step 2: Fetch channel name ────────────────────────────────────────────
+  // ── Fetch channel name ─────────────────────────────────────────────────
   let channelName = channelId;
   try {
     const chanRes  = await fetch(`https://slack.com/api/conversations.info?channel=${channelId}`, {
@@ -95,7 +143,7 @@ Respond with JSON only:
     }
   } catch { /* non-fatal */ }
 
-  // ── Step 3: Fetch user name ───────────────────────────────────────────────
+  // ── Fetch user name ────────────────────────────────────────────────────
   let userName = "Slack user";
   try {
     const userRes  = await fetch(`https://slack.com/api/users.info?user=${userId}`, {
@@ -107,7 +155,7 @@ Respond with JSON only:
     }
   } catch { /* non-fatal */ }
 
-  // ── Step 4: Build thread URL ──────────────────────────────────────────────
+  // ── Build thread URL ───────────────────────────────────────────────────
   const { data: ws } = await admin
     .from("workspaces")
     .select("slack_team_id")
@@ -119,7 +167,7 @@ Respond with JSON only:
     ? `https://slack.com/archives/${channelId}/p${messageTs.replace(".", "")}`
     : null;
 
-  // ── Step 5: Save decision ─────────────────────────────────────────────────
+  // ── Save decision ──────────────────────────────────────────────────────
   // Dedupe guard: one Slack message must never produce two decision rows,
   // regardless of how many times it gets (re)processed.
   const { data: dupe } = await admin
@@ -130,12 +178,7 @@ Respond with JSON only:
     .eq("slack_message_ts", messageTs)
     .maybeSingle();
   if (dupe) {
-    await admin
-      .from("slack_processed_messages")
-      .update({ decision_extracted: true })
-      .eq("workspace_id", workspaceId)
-      .eq("slack_channel_id", channelId)
-      .eq("slack_message_ts", messageTs);
+    await markDecisionExtracted(true);
     return;
   }
 
@@ -157,11 +200,5 @@ Respond with JSON only:
     return;
   }
 
-  // ── Step 6: Mark extracted ────────────────────────────────────────────────
-  await admin
-    .from("slack_processed_messages")
-    .update({ decision_extracted: true })
-    .eq("workspace_id", workspaceId)
-    .eq("slack_channel_id", channelId)
-    .eq("slack_message_ts", messageTs);
+  await markDecisionExtracted(true);
 }

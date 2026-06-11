@@ -18,12 +18,13 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { processSlackMessage } from "@/lib/slack/process-message";
+import { passesLengthFilter, resolveContextText } from "@/lib/slack/context";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 interface SlackChannel { id: string; name: string; is_member: boolean }
-interface SlackMessage { type: string; subtype?: string; bot_id?: string; text?: string; user?: string; ts: string }
+interface SlackMessage { type: string; subtype?: string; bot_id?: string; text?: string; user?: string; ts: string; thread_ts?: string }
 interface ConversationsListResponse { ok: boolean; error?: string; channels?: SlackChannel[]; response_metadata?: { next_cursor?: string } }
 interface ConversationsHistoryResponse { ok: boolean; error?: string; messages?: SlackMessage[] }
 interface JoinResponse { ok: boolean; error?: string }
@@ -118,7 +119,8 @@ export async function GET(req: Request) {
 
         for (const message of data.messages ?? []) {
           if (message.subtype || message.bot_id) continue;
-          if (!message.text || message.text.length < 20) continue;
+          // Same filter as the events route: ≥ 20 chars, or ≥ 2 for thread replies
+          if (!message.text || !passesLengthFilter(message)) continue;
           messagesScanned++;
 
           const { data: existing, error: lookupError } = await admin
@@ -149,6 +151,10 @@ export async function GET(req: Request) {
           }
           // Row with decision_extracted = false → retry path (Part 0 fix keeps these eligible)
 
+          const contextText = await resolveContextText(botToken, channelId, {
+            ts: message.ts, text: message.text, thread_ts: message.thread_ts,
+          });
+
           await processSlackMessage({
             workspaceId: ws.id,
             botToken,
@@ -156,6 +162,7 @@ export async function GET(req: Request) {
             messageTs:   message.ts,
             messageText: message.text,
             userId:      message.user ?? "",
+            contextText: contextText ?? undefined,
           });
           queuedForExtraction++;
         }
