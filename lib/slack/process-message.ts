@@ -29,6 +29,7 @@ export async function processSlackMessage({
   // ── Step 1: AI classification ─────────────────────────────────────────────
   const prompt = `Analyze this Slack message and determine if it contains a decision.
 A decision is a clear statement of what was chosen, agreed upon, or committed to — not a question, discussion, or idea.
+A decision requires a CHOICE between alternatives or a commitment to a course of action. Status updates, announcements, and progress reports are NOT decisions.
 
 Examples of DECISIONS:
 - "We're going with option B for the nav redesign"
@@ -41,6 +42,9 @@ Examples of NOT decisions:
 - "Has anyone looked at the nav yet?"
 - "I like option B tbh"
 - "lol ok"
+- "design is ready to launch" (status update — no choice was made)
+- "figma file updated" (status update)
+- "shipped the new onboarding flow" (progress report)
 
 Message: "${messageText.replace(/"/g, '\\"')}"
 
