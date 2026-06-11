@@ -32,6 +32,11 @@ const config: Config = {
         "red-soft":       "var(--red-soft)",
         blue:             "var(--blue)",
         "blue-soft":      "var(--blue-soft)",
+        // Legacy aliases (older pages) mapped onto the new tokens
+        paper:            "var(--surface)",
+        ink:              "var(--text)",
+        muted:            "var(--text-2)",
+        wash:             "var(--border-2)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "Helvetica Neue", "sans-serif"],
@@ -46,6 +51,11 @@ const config: Config = {
         lg:    ["15px", { lineHeight: "24px" }],
         xl:    ["17px", { lineHeight: "26px", letterSpacing: "-0.01em" }],
         "2xl": ["20px", { lineHeight: "28px", letterSpacing: "-0.02em" }],
+        // Legacy aliases
+        caption: ["11px", { lineHeight: "16px", letterSpacing: "0.02em" }],
+        body:    ["13px", { lineHeight: "20px" }],
+        lead:    ["15px", { lineHeight: "24px" }],
+        title:   ["18px", { lineHeight: "26px", letterSpacing: "-0.01em" }],
       },
       borderRadius: {
         DEFAULT: "var(--radius)",
@@ -55,6 +65,7 @@ const config: Config = {
         xl:  "12px",
         "2xl": "16px",
         full: "9999px",
+        panel: "12px",
       },
       boxShadow: {
         "1": "var(--shadow-1)",

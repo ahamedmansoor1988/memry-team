@@ -214,10 +214,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 };
 
 const STATUS_META: Record<string, { label: string; pillCls: string; dotCls: string }> = {
-  open:           { label: "Open",           pillCls: "bg-zinc-100 text-zinc-600 border-zinc-200",  dotCls: "bg-zinc-400" },
-  needs_decision: { label: "Needs Decision", pillCls: "bg-zinc-900 text-white border-zinc-900",     dotCls: "bg-zinc-600" },
-  resolved:       { label: "Resolved",       pillCls: "bg-zinc-100 text-zinc-400 border-zinc-200",  dotCls: "bg-zinc-300" },
-  archived:       { label: "Archived",       pillCls: "bg-zinc-100 text-zinc-400 border-zinc-200",  dotCls: "bg-zinc-300" },
+  open:           { label: "Open",           pillCls: "bg-blue-soft text-blue border-transparent",   dotCls: "bg-blue"   },
+  needs_decision: { label: "Needs Decision", pillCls: "bg-amber-soft text-amber border-transparent", dotCls: "bg-amber"  },
+  resolved:       { label: "Resolved",       pillCls: "bg-green-soft text-green border-transparent", dotCls: "bg-green"  },
+  archived:       { label: "Archived",       pillCls: "bg-wash text-muted border-transparent",       dotCls: "bg-muted"  },
 };
 
 function StatusDropdown({ item, onStatusChange }: {
@@ -340,26 +340,26 @@ function previewFailureInfo(
 
 // Classification → colour, mirrored from the decisions page.
 const CLASSIFICATION_CLS: Record<string, string> = {
-  "Needs Decision": "text-red-500 bg-red-50",
-  "Blocked":        "text-red-500 bg-red-50",
-  "Approved":       "text-zinc-700 bg-zinc-100",
-  "Risk":           "text-zinc-600 bg-zinc-100",
-  "Vague":          "text-zinc-600 bg-zinc-100",
-  "Info":           "text-zinc-600 bg-zinc-100",
+  "Needs Decision": "text-amber bg-amber-soft",
+  "Blocked":        "text-red bg-red-soft",
+  "Approved":       "text-green bg-green-soft",
+  "Risk":           "text-red bg-red-soft",
+  "Vague":          "text-muted bg-wash",
+  "Info":           "text-blue bg-blue-soft",
 };
 
 // Priority → colour, mirrored from the risks page severity vocabulary.
 const PRIORITY_META: Record<string, { label: string; cls: string }> = {
-  high:   { label: "High priority",   cls: "text-red-600 bg-red-50"     },
-  medium: { label: "Medium priority", cls: "text-zinc-600 bg-zinc-100" },
-  low:    { label: "Low priority",    cls: "text-muted bg-wash"          },
+  high:   { label: "High priority",   cls: "text-red bg-red-soft"     },
+  medium: { label: "Medium priority", cls: "text-amber bg-amber-soft" },
+  low:    { label: "Low priority",    cls: "text-muted bg-wash"       },
 };
 
 /** Parse a decision reply (same ✅/⚠️/❓ prefixes written by handleMakeDecision). */
 function parseDecision(raw: string): { label: string; cls: string; Icon: LucideIcon } | null {
-  if (raw.startsWith("✅")) return { label: "Accepted",      cls: "text-zinc-700 bg-zinc-100 border-zinc-200", Icon: CheckCircle2 };
-  if (raw.startsWith("⚠️")) return { label: "Needs Work",    cls: "text-zinc-600 bg-zinc-100 border-zinc-200",   Icon: AlertCircle  };
-  if (raw.startsWith("❓")) return { label: "Clarification", cls: "text-zinc-600 bg-zinc-100 border-zinc-200",         Icon: HelpCircle   };
+  if (raw.startsWith("✅")) return { label: "Accepted",      cls: "text-green bg-green-soft border-transparent", Icon: CheckCircle2 };
+  if (raw.startsWith("⚠️")) return { label: "Needs Work",    cls: "text-amber bg-amber-soft border-transparent", Icon: AlertCircle  };
+  if (raw.startsWith("❓")) return { label: "Clarification", cls: "text-blue bg-blue-soft border-transparent",   Icon: HelpCircle   };
   return null;
 }
 
@@ -381,10 +381,10 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
   // Hero panel tones — risk is communicated by the panel itself, not a second section
   const blocked = item.ai_classification === "Blocked";
   const hasRisk = item.ai_risk_flag || item.ai_classification === "Risk";
-  const heroPanel = blocked        ? "border-red-200 bg-red-50"
-                  : hasRisk        ? "border-zinc-200 bg-zinc-100"
-                  : item.ai_vague_flag ? "border-zinc-200 bg-zinc-100"
-                  : "border-border bg-surface";
+  const heroPanel = blocked        ? "bg-red-soft border-transparent"
+                  : hasRisk        ? "bg-amber-soft border-transparent"
+                  : item.ai_vague_flag ? "bg-wash border-transparent"
+                  : "border-border bg-paper";
 
   // Suppress risk/vague chips when the classification badge already says the same thing
   const showRiskChip  = item.ai_risk_flag
@@ -413,12 +413,12 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
           </span>
         )}
         {showRiskChip && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-zinc-600 bg-zinc-100">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-red bg-red-soft">
             <AlertCircle size={10} /> Risk
           </span>
         )}
         {showVagueChip && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-zinc-600 bg-zinc-100">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-muted bg-wash">
             <HelpCircle size={10} /> Vague
           </span>
         )}
@@ -433,11 +433,11 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
 
       {/* Suggested Action callout */}
       {item.ai_suggested_action && (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-zinc-100 border border-zinc-200">
-          <Zap size={13} className="text-zinc-700 shrink-0" />
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-soft">
+          <Zap size={13} className="text-blue shrink-0" />
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 mb-0.5">Suggested Action</p>
-            <p className="text-body font-semibold text-zinc-700 leading-snug">{item.ai_suggested_action}</p>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-blue mb-0.5">Suggested Action</p>
+            <p className="text-body font-semibold text-ink leading-snug">{item.ai_suggested_action}</p>
           </div>
         </div>
       )}
@@ -1157,7 +1157,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                       <button
                         onClick={() => setDecision(d => d === "approve" ? null : "approve")}
                         className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                          decision === "approve" ? "bg-zinc-100 text-zinc-700" : "text-muted hover:text-zinc-700 hover:bg-zinc-50"
+                          decision === "approve" ? "bg-green-soft text-green" : "text-muted hover:text-green hover:bg-green-soft/50"
                         }`}
                       >
                         <CheckCircle2 size={14} /> Approve
@@ -1165,7 +1165,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                       <button
                         onClick={() => setDecision(d => d === "needs_work" ? null : "needs_work")}
                         className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                          decision === "needs_work" ? "bg-zinc-100 text-zinc-600" : "text-muted hover:text-zinc-600 hover:bg-zinc-100/50"
+                          decision === "needs_work" ? "bg-amber-soft text-amber" : "text-muted hover:text-amber hover:bg-amber-soft/50"
                         }`}
                       >
                         <AlertCircle size={14} /> Needs Work
@@ -1173,7 +1173,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                       <button
                         onClick={() => setDecision(d => d === "clarify" ? null : "clarify")}
                         className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                          decision === "clarify" ? "bg-zinc-100 text-zinc-600" : "text-muted hover:text-zinc-600 hover:bg-zinc-100/50"
+                          decision === "clarify" ? "bg-blue-soft text-blue" : "text-muted hover:text-blue hover:bg-blue-soft/50"
                         }`}
                       >
                         <HelpCircle size={14} /> Ask for Clarification
@@ -1194,7 +1194,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                     {/* Make Decision CTA */}
                     <div className="px-4 pb-4">
                       {submitMsg && (
-                        <p className={`text-caption mb-2 ${submitMsg.startsWith("Decision") ? "text-zinc-700" : "text-red-500"}`}>
+                        <p className={`text-caption mb-2 ${submitMsg.startsWith("Decision") ? "text-green" : "text-red"}`}>
                           {submitMsg}
                         </p>
                       )}
@@ -1342,9 +1342,9 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
 
             {/* Resolved / Archived state banner */}
             {item.status === "resolved" && (
-              <div className="flex items-center gap-2 px-4 py-3 rounded-panel border border-zinc-200 bg-zinc-100">
-                <CheckCircle2 size={15} className="text-zinc-700 shrink-0" />
-                <p className="text-body text-zinc-700 font-medium">This comment has been resolved</p>
+              <div className="flex items-center gap-2 px-4 py-3 rounded-panel bg-green-soft" style={{ border: "1px solid color-mix(in oklab, var(--green) 20%, #ffffff)" }}>
+                <CheckCircle2 size={15} className="text-green shrink-0" />
+                <p className="text-body text-green font-medium">This comment has been resolved</p>
               </div>
             )}
             {item.status === "archived" && (
