@@ -122,7 +122,7 @@ function colorFor(name: string): string {
 }
 
 function AvatarStack({ names }: { names: (string | null)[] }) {
-  const valid = [...new Set(names.filter((n): n is string => !!n))].slice(0, 3);
+  const valid = Array.from(new Set(names.filter((n): n is string => !!n))).slice(0, 3);
   if (valid.length === 0) return null;
   return (
     <div style={{ display: "flex", flexShrink: 0 }}>
