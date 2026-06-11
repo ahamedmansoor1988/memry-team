@@ -207,40 +207,40 @@ export default function IntegrationsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#f5f5f7]">
+    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
       <div className="px-8 pt-7 pb-5">
-        <h1 className="text-gray-900 text-2xl font-bold tracking-tight mb-0.5">Integrations</h1>
-        <p className="text-gray-400 text-sm">Connect your tools to keep everything in sync</p>
+        <h1 className="text-[var(--text)] text-xl font-semibold tracking-tight mb-0.5">Integrations</h1>
+        <p className="text-[var(--text-2)] text-sm">Connect your tools — Memry watches them so you don't have to.</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-8 pb-8">
         <div className="grid grid-cols-1 gap-4 max-w-2xl">
 
           {/* ── Figma ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 shadow-1">
             <div className="flex items-start justify-between gap-4 mb-5">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-[var(--bg)] border border-[var(--border-2)] flex items-center justify-center flex-shrink-0">
                   <FigmaLogo />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-gray-900 text-base font-bold">Figma</h3>
+                    <h3 className="text-[var(--text)] text-base font-semibold">Figma</h3>
                     {figmaConnected ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full">
                         <CheckCircle2 size={10} /> Connected
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
                         Not configured
                       </span>
                     )}
                   </div>
-                  <p className="text-gray-500 text-sm leading-relaxed">
+                  <p className="text-[var(--text-2)] text-sm leading-relaxed">
                     Auto-discovers all files in your Figma team and syncs comments continuously.
                   </p>
                   {lastSynced && (
-                    <p className="text-gray-400 text-xs mt-1">Last synced {relativeTime(lastSynced)}</p>
+                    <p className="text-[var(--text-3)] text-xs mt-1">Last synced {relativeTime(lastSynced)}</p>
                   )}
                 </div>
               </div>
@@ -249,7 +249,7 @@ export default function IntegrationsPage() {
                   <button
                     onClick={handleSync}
                     disabled={syncing}
-                    className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors"
+                    className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-2)] bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--accent-border)] disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                   >
                     {syncing ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                     {syncing ? "Syncing…" : "Sync now"}
@@ -258,7 +258,7 @@ export default function IntegrationsPage() {
                     onClick={handleEnrichPreviews}
                     disabled={enriching}
                     title="Fetch frame preview images from Figma (rate-limited: ~1/sec)"
-                    className="flex items-center gap-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 px-3 py-2 rounded-xl transition-colors"
+                    className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-2)] bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--accent-border)] disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
                   >
                     {enriching ? <Loader2 size={13} className="animate-spin" /> : <span className="text-xs">🖼</span>}
                     {enriching ? "Fetching…" : "Get Previews"}
@@ -268,25 +268,25 @@ export default function IntegrationsPage() {
             </div>
 
             {syncMsg && (
-              <p className={`text-xs mb-2 ${syncMsg.startsWith("✓") ? "text-zinc-700" : "text-zinc-600"}`}>
+              <p className={`text-xs mb-2 ${syncMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--amber)]"}`}>
                 {syncMsg}
               </p>
             )}
             {enrichMsg && (
-              <p className={`text-xs mb-3 ${enrichMsg.startsWith("✓") ? "text-zinc-700" : "text-zinc-600"}`}>
+              <p className={`text-xs mb-3 ${enrichMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--amber)]"}`}>
                 {enrichMsg}
               </p>
             )}
 
             {/* ── Preview metrics panel ── */}
             {figmaConnected && (
-              <div className="mb-5 rounded-xl border border-gray-100 bg-gray-50 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-100">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Frame Previews</span>
+              <div className="mb-5 rounded-xl border border-[var(--border-2)] bg-[var(--bg)] overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border-2)]">
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-[var(--text-3)]">Frame Previews</span>
                   <button
                     onClick={loadMetrics}
                     disabled={metricsLoading}
-                    className="text-gray-300 hover:text-gray-500 transition-colors"
+                    className="text-[var(--text-3)] hover:text-[var(--text-2)] transition-colors"
                     title="Refresh metrics"
                   >
                     <RefreshCw size={11} className={metricsLoading ? "animate-spin" : ""} />
@@ -298,23 +298,23 @@ export default function IntegrationsPage() {
                     {/* Stat row */}
                     <div className="grid grid-cols-4 gap-2">
                       {[
-                        { label: "Total",   value: metrics.total,     color: "text-gray-600" },
-                        { label: "Ready",   value: metrics.ready,     color: "text-zinc-700" },
-                        { label: "Pending", value: metrics.pending + metrics.generating, color: "text-zinc-600" },
-                        { label: "Failed",  value: metrics.failed,    color: "text-red-500" },
+                        { label: "Total",   value: metrics.total,     color: "text-[var(--text-2)]" },
+                        { label: "Ready",   value: metrics.ready,     color: "text-[var(--green)]" },
+                        { label: "Pending", value: metrics.pending + metrics.generating, color: "text-[var(--amber)]" },
+                        { label: "Failed",  value: metrics.failed,    color: "text-[var(--red)]" },
                       ].map(stat => (
-                        <div key={stat.label} className="bg-white rounded-lg border border-gray-100 px-3 py-2 text-center">
+                        <div key={stat.label} className="bg-[var(--surface)] rounded-lg border border-[var(--border-2)] px-3 py-2 text-center">
                           <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
-                          <p className="text-[9px] font-semibold uppercase tracking-wider text-gray-400 mt-0.5">{stat.label}</p>
+                          <p className="font-mono text-[9px] font-semibold uppercase tracking-wider text-[var(--text-3)] mt-0.5">{stat.label}</p>
                         </div>
                       ))}
                     </div>
 
                     {/* Progress bar */}
                     {metrics.total > 0 && (
-                      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-[var(--border)] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-zinc-900 rounded-full transition-all duration-500"
+                          className="h-full bg-[var(--green)] rounded-full transition-all duration-500"
                           style={{ width: `${Math.round((metrics.ready / metrics.total) * 100)}%` }}
                         />
                       </div>
@@ -323,13 +323,13 @@ export default function IntegrationsPage() {
                     {/* Error breakdown — only show if there are failures */}
                     {metrics.failed > 0 && Object.keys(metrics.errorBreakdown).length > 0 && (
                       <div className="space-y-1">
-                        <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1">
+                        <p className="font-mono text-[9px] font-semibold uppercase tracking-widest text-[var(--red)] flex items-center gap-1">
                           <AlertTriangle size={9} /> Failure reasons
                         </p>
                         {Object.entries(metrics.errorBreakdown).map(([reason, count]) => (
                           <div key={reason} className="flex items-center justify-between">
-                            <span className="text-xs text-gray-500">{ERROR_LABELS[reason] ?? reason}</span>
-                            <span className="text-xs font-semibold text-red-400">{count}</span>
+                            <span className="text-xs text-[var(--text-2)]">{ERROR_LABELS[reason] ?? reason}</span>
+                            <span className="text-xs font-semibold text-[var(--red)]">{count}</span>
                           </div>
                         ))}
                       </div>
@@ -337,7 +337,7 @@ export default function IntegrationsPage() {
 
                     {/* Next retry time */}
                     {metrics.nextRetryAt && (
-                      <p className="text-[10px] text-gray-400">
+                      <p className="text-[10px] text-[var(--text-3)]">
                         Next auto-retry: {new Date(metrics.nextRetryAt) > new Date()
                           ? relativeTime(metrics.nextRetryAt) + " from now"
                           : "due now"}
@@ -346,15 +346,15 @@ export default function IntegrationsPage() {
                   </div>
                 ) : (
                   <div className="px-4 py-4 flex items-center justify-center">
-                    <span className="text-xs text-gray-400">{metricsLoading ? "Loading…" : "No data"}</span>
+                    <span className="text-xs text-[var(--text-3)]">{metricsLoading ? "Loading…" : "No data"}</span>
                   </div>
                 )}
               </div>
             )}
 
-            <div className="space-y-3 border-t border-gray-100 pt-5">
+            <div className="space-y-3 border-t border-[var(--border-2)] pt-5">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
                   Personal Access Token (PAT)
                 </label>
                 <input
@@ -362,14 +362,14 @@ export default function IntegrationsPage() {
                   value={figma.figma_pat}
                   onChange={e => setFigma(f => ({ ...f, figma_pat: e.target.value }))}
                   placeholder="figd_…"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm placeholder:text-gray-300 outline-none focus:border-gray-400 transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-[var(--text-3)] text-xs mt-1">
                   Figma → Settings → Security → Personal access tokens. Scopes: files:read, file_comments:read
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
                   Team ID
                 </label>
                 <input
@@ -377,24 +377,24 @@ export default function IntegrationsPage() {
                   value={figma.figma_team_id}
                   onChange={e => setFigma(f => ({ ...f, figma_team_id: e.target.value }))}
                   placeholder="1234567890"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm placeholder:text-gray-300 outline-none focus:border-gray-400 transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
-                <p className="text-gray-300 text-xs mt-1">
-                  From your Figma team URL: figma.com/files/team/<span className="text-gray-400">TEAM_ID</span>/…
+                <p className="text-[var(--text-3)] text-xs mt-1">
+                  From your Figma team URL: figma.com/files/team/<span className="text-[var(--text-2)]">TEAM_ID</span>/…
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                  Your Figma User ID <span className="text-gray-300 font-normal">(optional — for @mention detection)</span>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
+                  Your Figma User ID <span className="text-[var(--text-3)] font-normal">(optional — for @mention detection)</span>
                 </label>
                 <input
                   type="text"
                   value={figma.figma_user_id}
                   onChange={e => setFigma(f => ({ ...f, figma_user_id: e.target.value }))}
                   placeholder="976750381837408411"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm placeholder:text-gray-300 outline-none focus:border-gray-400 transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-[var(--text-3)] text-xs mt-1">
                   Found at figma.com/api/v1/me → id field
                 </p>
               </div>
@@ -403,13 +403,13 @@ export default function IntegrationsPage() {
                 <button
                   onClick={saveFigmaSettings}
                   disabled={figmaSaving || !figma.figma_team_id.trim() || !figma.figma_pat.trim()}
-                  className="flex items-center gap-1.5 bg-gray-900 hover:bg-black disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+                  className="flex items-center gap-1.5 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 text-[var(--accent-ink)] text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
                 >
                   {figmaSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                   Save settings
                 </button>
                 {figmaMsg && (
-                  <p className={`text-xs ${figmaMsg.startsWith("✓") ? "text-zinc-700" : "text-red-400"}`}>
+                  <p className={`text-xs ${figmaMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                     {figmaMsg}
                   </p>
                 )}
@@ -418,33 +418,33 @@ export default function IntegrationsPage() {
           </div>
 
           {/* ── Slack ── */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 shadow-1">
             <div className="flex items-start gap-4 mb-5">
-              <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0">
+              <div className="w-12 h-12 rounded-xl bg-[var(--bg)] border border-[var(--border-2)] flex items-center justify-center flex-shrink-0">
                 <SlackLogo />
               </div>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-gray-900 text-base font-bold">Slack</h3>
+                  <h3 className="text-[var(--text)] text-base font-semibold">Slack</h3>
                   {slackConnected ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-700 bg-zinc-100 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full">
                       <CheckCircle2 size={10} /> Connected
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
                       <Clock size={10} /> Not connected
                     </span>
                   )}
                 </div>
-                <p className="text-gray-500 text-sm leading-relaxed">
+                <p className="text-[var(--text-2)] text-sm leading-relaxed">
                   Post design decisions to a dedicated Slack channel. Approve, request changes, or ask for clarification — directly from Slack.
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 border-t border-gray-100 pt-5">
+            <div className="space-y-3 border-t border-[var(--border-2)] pt-5">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
                   Bot Token
                 </label>
                 <input
@@ -452,14 +452,14 @@ export default function IntegrationsPage() {
                   value={slackBotToken}
                   onChange={e => { setSlackBotToken(e.target.value); setSlackMsg(null); }}
                   placeholder={slackConnected ? "••••••••••••••• (already saved)" : "xoxb-…"}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm placeholder:text-gray-300 outline-none focus:border-gray-400 transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-[var(--text-3)] text-xs mt-1">
                   Slack app → OAuth & Permissions → Bot User OAuth Token
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
                   Channel ID
                 </label>
                 <input
@@ -467,24 +467,24 @@ export default function IntegrationsPage() {
                   value={slackChannelId}
                   onChange={e => { setSlackChannelId(e.target.value); setSlackMsg(null); }}
                   placeholder="C0123ABCDEF"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm placeholder:text-gray-300 outline-none focus:border-gray-400 transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-[var(--text-3)] text-xs mt-1">
                   Right-click your channel in Slack → Copy link → last segment is the ID
                 </p>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                  Signing Secret <span className="text-gray-300 font-normal">(for verifying button clicks)</span>
+                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
+                  Signing Secret <span className="text-[var(--text-3)] font-normal">(for verifying button clicks)</span>
                 </label>
                 <input
                   type="password"
                   value={slackSigningSecret}
                   onChange={e => { setSlackSigningSecret(e.target.value); setSlackMsg(null); }}
                   placeholder={slackConnected ? "••••••••••••••• (already saved)" : "abc123…"}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-gray-700 text-sm placeholder:text-gray-300 outline-none focus:border-gray-400 transition-colors"
+                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-[var(--text-3)] text-xs mt-1">
                   Slack app → Basic Information → App Credentials → Signing Secret
                 </p>
               </div>
@@ -493,31 +493,31 @@ export default function IntegrationsPage() {
                 <button
                   onClick={saveSlackBot}
                   disabled={slackSaving || (!slackBotToken.trim() && !slackConnected) || !slackChannelId.trim()}
-                  className="flex items-center gap-1.5 bg-gray-900 hover:bg-black disabled:opacity-40 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+                  className="flex items-center gap-1.5 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 text-[var(--accent-ink)] text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
                 >
                   {slackSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
                   {slackConnected ? "Update" : "Connect Slack"}
                 </button>
                 {slackMsg && (
-                  <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-zinc-700" : "text-red-400"}`}>
+                  <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
                     {slackMsg}
                   </p>
                 )}
               </div>
 
               {/* Events URL — always show for setup */}
-              <div className="bg-zinc-50 rounded-xl p-4 mt-1 space-y-3">
+              <div className="bg-[var(--bg)] border border-[var(--border-2)] rounded-xl p-4 mt-1 space-y-3">
                 {slackConnected && (
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-[var(--text-2)]">
                     Memry is now listening for decisions in your Slack workspace.
-                    Add the bot to any channel with <span className="font-mono bg-white border border-zinc-200 rounded px-1">/invite @Memry</span>
+                    Add the bot to any channel with <span className="font-mono bg-[var(--surface)] border border-[var(--border)] rounded px-1">/invite @Memry</span>
                   </p>
                 )}
 
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Event Subscription URL</p>
+                  <p className="text-xs font-medium text-[var(--text-2)] mb-1.5">Event Subscription URL</p>
                   <div className="flex items-center gap-2">
-                    <span className="flex-1 font-mono text-xs bg-white border border-zinc-200 rounded px-2 py-1 text-zinc-600 truncate">
+                    <span className="flex-1 font-mono text-xs bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-1 text-[var(--text-2)] truncate">
                       {process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/slack/events
                     </span>
                     <button
@@ -529,7 +529,7 @@ export default function IntegrationsPage() {
                           setTimeout(() => setEventsUrlCopied(false), 2000);
                         });
                       }}
-                      className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 bg-white border border-zinc-200 rounded px-2 py-1 flex-shrink-0 transition-colors"
+                      className="flex items-center gap-1 text-xs text-[var(--text-2)] hover:text-[var(--text)] bg-[var(--surface)] border border-[var(--border)] rounded px-2 py-1 flex-shrink-0 transition-colors"
                     >
                       {eventsUrlCopied ? <Check size={11} /> : <Copy size={11} />}
                       {eventsUrlCopied ? "Copied" : "Copy"}
@@ -538,8 +538,8 @@ export default function IntegrationsPage() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-semibold text-gray-500 mb-1.5">Setup checklist</p>
-                  <ul className="text-xs text-gray-400 space-y-1">
+                  <p className="text-xs font-medium text-[var(--text-2)] mb-1.5">Setup checklist</p>
+                  <ul className="text-xs text-[var(--text-3)] space-y-1">
                     <li className="flex items-start gap-1.5">
                       <span>{slackConnected ? "☑" : "☐"}</span>
                       Bot token saved
@@ -550,7 +550,7 @@ export default function IntegrationsPage() {
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span>☐</span>
-                      <span><span className="font-mono bg-gray-100 px-1 rounded">message.channels</span> event enabled</span>
+                      <span><span className="font-mono bg-[var(--border-2)] px-1 rounded">message.channels</span> event enabled</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span>☐</span>
@@ -567,12 +567,12 @@ export default function IntegrationsPage() {
             { name: "Jira", desc: "Automatically create Jira tickets from flagged feedback items." },
             { name: "Notion", desc: "Export decisions and summaries to a Notion database." },
           ].map(item => (
-            <div key={item.name} className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm opacity-60">
+            <div key={item.name} className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 shadow-1 opacity-60">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-gray-900 text-base font-bold">{item.name}</h3>
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                    <h3 className="text-[var(--text)] text-base font-semibold">{item.name}</h3>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
                       <Clock size={10} /> Coming soon
                     </span>
                   </div>
