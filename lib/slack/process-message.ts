@@ -121,7 +121,6 @@ Respond with JSON only:
     decision_text:      groqResult.decision_text,
     reason:             groqResult.rationale ?? null,
     source:             "slack",
-    status:             "open",
     slack_channel_id:   channelId,
     slack_channel_name: channelName,
     slack_message_ts:   messageTs,
