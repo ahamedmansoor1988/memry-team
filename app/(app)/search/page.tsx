@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,30 +20,25 @@ interface SearchResult {
   author_name:       string | null;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+interface DecisionResult {
+  id:                 string;
+  decision_text:      string;
+  reason:             string | null;
+  owner_name:         string | null;
+  source:             string;
+  decided_at:         string;
+  feedback_item_id:   string | null;
+  project_id:         string | null;
+  slack_channel_name: string | null;
+  slack_thread_url:   string | null;
+}
 
-const STATUS_CLS: Record<string, string> = {
-  open:           "bg-zinc-100 text-zinc-600 border border-zinc-200",
-  needs_decision: "bg-zinc-100 text-zinc-600 border border-zinc-200",
-  resolved:       "bg-zinc-100 text-zinc-700 border border-zinc-200",
-  archived:       "bg-gray-100 text-gray-500 border border-gray-200",
-};
+interface Answer {
+  answer:     string | null;
+  key_points: string[];
+}
 
-const STATUS_LABEL: Record<string, string> = {
-  open:           "Open",
-  needs_decision: "Needs Decision",
-  resolved:       "Resolved",
-  archived:       "Archived",
-};
-
-const CLASS_CLS: Record<string, string> = {
-  "Needs Decision": "bg-zinc-100 text-zinc-600 border border-zinc-200",
-  "Blocked":        "bg-red-50 text-red-600 border border-red-200",
-  "Approved":       "bg-zinc-100 text-zinc-700 border border-zinc-200",
-  "Risk":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
-  "Vague":          "bg-zinc-100 text-zinc-600 border border-zinc-200",
-  "Info":           "bg-zinc-100 text-zinc-600 border border-zinc-200",
-};
+type Tab = "all" | "items" | "decisions";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,177 +54,302 @@ function timeAgo(date: string): string {
   return `${Math.floor(d / 30)}mo ago`;
 }
 
-function resultTitle(r: SearchResult): string {
-  if (r.ai_key_question && r.ai_key_question !== "None") return r.ai_key_question;
-  if (r.ai_summary) return r.ai_summary;
-  if (r.raw_content) return r.raw_content;
-  return "—";
+function itemStatusBadge(r: SearchResult): { label: string; bg: string; color: string } {
+  if (r.status === "blocked" || r.ai_classification === "Blocked")
+    return { label: "Blocked", bg: "var(--red-soft)", color: "var(--red)" };
+  if (r.ai_risk_flag)
+    return { label: "High risk", bg: "var(--red-soft)", color: "var(--red)" };
+  if (r.status === "resolved")
+    return { label: "Resolved", bg: "var(--green-soft)", color: "var(--green)" };
+  if (r.status === "archived")
+    return { label: "Archived", bg: "var(--border-2)", color: "var(--text-3)" };
+  if (r.status === "needs_decision" || r.ai_classification === "Needs Decision")
+    return { label: "Needs decision", bg: "var(--amber-soft)", color: "var(--amber)" };
+  return { label: "Open", bg: "var(--blue-soft)", color: "var(--blue)" };
 }
 
-// ─── Result card ─────────────────────────────────────────────────────────────
-
-function ResultCard({ result, onClick }: { result: SearchResult; onClick: () => void }) {
-  const title    = resultTitle(result);
-  const statusCls = STATUS_CLS[result.status] ?? STATUS_CLS.open;
-  const classCls  = result.ai_classification ? (CLASS_CLS[result.ai_classification] ?? null) : null;
-
-  return (
-    <div
-      onClick={onClick}
-      className="rounded-panel border border-border bg-paper p-4 cursor-pointer hover:border-ink/20 transition-colors"
-    >
-      {/* Title */}
-      <p className="text-body font-medium text-ink line-clamp-2 leading-snug mb-2">{title}</p>
-
-      {/* Badges */}
-      <div className="flex items-center gap-1.5 flex-wrap mb-2">
-        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded text-nowrap ${statusCls}`}>
-          {STATUS_LABEL[result.status] ?? result.status}
-        </span>
-        {classCls && (
-          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${classCls}`}>
-            {result.ai_classification}
-          </span>
-        )}
-        {result.ai_risk_flag && (
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
-            RISK
-          </span>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center gap-2 text-caption text-muted flex-wrap">
-        {result.project_name && <span>{result.project_name}</span>}
-        {result.author_name && (
-          <>
-            <span className="opacity-40">·</span>
-            <span>{result.author_name}</span>
-          </>
-        )}
-        <span className="ml-auto">{timeAgo(result.updated_at)}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Skeleton ────────────────────────────────────────────────────────────────
-
-function SearchSkeleton() {
-  return (
-    <div className="space-y-2">
-      {[1, 2, 3].map(n => (
-        <div key={n} className="rounded-panel border border-border bg-paper p-4 space-y-2">
-          <div className="skeleton h-4 w-2/3 rounded mb-2" />
-          <div className="flex gap-1.5">
-            <div className="skeleton h-4 w-16 rounded" />
-            <div className="skeleton h-4 w-20 rounded" />
-          </div>
-          <div className="skeleton h-3 w-1/3 rounded" />
-        </div>
-      ))}
-    </div>
-  );
-}
+const EXAMPLE_QUERIES = [
+  "What did we decide about fonts?",
+  "Why was the launch moved?",
+  "What is still blocked?",
+];
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function SearchPage() {
-  const router    = useRouter();
-  const inputRef  = useRef<HTMLInputElement>(null);
-  const [query,   setQuery]   = useState("");
-  const [draft,   setDraft]   = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Autofocus on mount
+  const [query, setQuery]         = useState("");
+  const [results, setResults]     = useState<SearchResult[]>([]);
+  const [decisions, setDecisions] = useState<DecisionResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched]   = useState(false);
+  const [tab, setTab]             = useState<Tab>("all");
+
+  const [answer, setAnswer]             = useState<Answer | null>(null);
+  const [answerLoading, setAnswerLoading] = useState(false);
+
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  function runSearch(q: string) {
+  const runSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
-    if (!trimmed) return;
-    setQuery(trimmed);
-    setLoading(true);
-    setSearched(true);
-    fetch(`/api/search?q=${encodeURIComponent(trimmed)}`)
-      .then(r => r.json())
-      .then((d: { results?: SearchResult[] }) => {
-        setResults(d.results ?? []);
-        setLoading(false);
+    if (!trimmed) { setResults([]); setDecisions([]); setSearched(false); setAnswer(null); return; }
+
+    setSearching(true);
+    setAnswer(null);
+
+    // Fire the AI answer in parallel for question-like queries
+    const wantAnswer = trimmed.split(/\s+/).length >= 3;
+    if (wantAnswer) {
+      setAnswerLoading(true);
+      fetch("/api/search/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: trimmed }),
       })
-      .catch(() => { setResults([]); setLoading(false); });
-  }
+        .then(r => r.json())
+        .then((d: Answer) => setAnswer(d.answer ? d : null))
+        .catch(() => setAnswer(null))
+        .finally(() => setAnswerLoading(false));
+    }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") runSearch(draft);
-  }
+    try {
+      const res  = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
+      const data = await res.json() as { results?: SearchResult[]; decisions?: DecisionResult[] };
+      setResults(data.results ?? []);
+      setDecisions(data.decisions ?? []);
+      setSearched(true);
+    } catch {
+      setResults([]); setDecisions([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
 
-  function handleClick(result: SearchResult) {
-    if (result.project_id) router.push(`/inbox/${result.project_id}/${result.id}`);
-  }
+  // Debounced search-as-you-type
+  useEffect(() => {
+    const t = setTimeout(() => { void runSearch(query); }, 350);
+    return () => clearTimeout(t);
+  }, [query, runSearch]);
+
+  const totalCount = results.length + decisions.length;
+
+  const showItems     = tab === "all" || tab === "items";
+  const showDecisions = tab === "all" || tab === "decisions";
+
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: "all",       label: "All",       count: totalCount },
+    { key: "decisions", label: "Decisions", count: decisions.length },
+    { key: "items",     label: "Signals",   count: results.length },
+  ];
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-paper">
+    <div className="min-h-full" style={{ background: "var(--bg)" }}>
+      <div className="px-7 pt-6 pb-10 max-w-3xl mx-auto">
 
-      {/* Header + search bar */}
-      <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
-        <div className="flex items-center gap-2.5 mb-4">
-          <Search size={18} className="text-muted shrink-0" />
-          <h1 className="text-title font-semibold text-ink">Search</h1>
+        {/* ── Search input ── */}
+        <div style={{ position: "relative", marginBottom: 16 }}>
+          <Search style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, color: "var(--text-3)", pointerEvents: "none" }} />
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Ask Memry anything about your work…"
+            style={{
+              width: "100%", padding: "13px 90px 13px 40px", fontSize: 14,
+              borderRadius: 12, border: "1px solid var(--border)",
+              background: "var(--surface)", color: "var(--text)",
+              outline: "none", boxShadow: "var(--shadow-1)",
+            }}
+          />
+          {searching && (
+            <Loader2 style={{ position: "absolute", right: 56, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "var(--text-3)" }} className="animate-spin" />
+          )}
+          <kbd style={{
+            position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+            fontFamily: "var(--font-mono)", fontSize: 10, background: "var(--bg)",
+            border: "1px solid var(--border)", borderRadius: 4, padding: "2px 6px", color: "var(--text-3)",
+          }}>⌘K</kbd>
         </div>
 
-        {/* Search input */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={draft}
-              onChange={e => setDraft(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Search feedback, questions, summaries…"
-              className="w-full pl-8 pr-3 py-2.5 text-body rounded-lg border border-border bg-paper text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-ink/10 focus:border-ink/30 transition-colors"
-            />
-          </div>
-          <button
-            onClick={() => runSearch(draft)}
-            disabled={!draft.trim() || loading}
-            className="px-4 py-2.5 rounded-lg bg-ink text-paper text-body font-medium hover:bg-ink/80 transition-colors disabled:opacity-40"
-          >
-            Search
-          </button>
-        </div>
-      </div>
-
-      {/* Results */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {!searched ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
-            <Search size={32} className="text-wash" />
-            <p className="text-lead font-medium text-ink">Search across all feedback</p>
-            <p className="text-body text-muted max-w-xs">
-              Find feedback items by question, summary, or classification
+        {/* ── Empty state with example queries ── */}
+        {!searched && !searching && (
+          <div style={{ textAlign: "center", paddingTop: 48 }}>
+            <Search style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 12px" }} />
+            <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>Search your organizational memory</p>
+            <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+              Decisions, signals, and discussions — across Figma and Slack.
             </p>
-          </div>
-        ) : loading ? (
-          <SearchSkeleton />
-        ) : results.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-2 text-center">
-            <Search size={24} className="text-wash" />
-            <p className="text-body text-muted">No results for &ldquo;{query}&rdquo;</p>
-          </div>
-        ) : (
-          <div className="space-y-2 fade-in">
-            <p className="text-caption text-muted mb-3">
-              {results.length} result{results.length !== 1 ? "s" : ""}
-            </p>
-            {results.map(r => (
-              <ResultCard key={r.id} result={r} onClick={() => handleClick(r)} />
-            ))}
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 18, flexWrap: "wrap" }}>
+              {EXAMPLE_QUERIES.map(ex => (
+                <button
+                  key={ex}
+                  onClick={() => setQuery(ex)}
+                  style={{
+                    fontSize: 12, color: "var(--text-2)", background: "var(--surface)",
+                    border: "1px solid var(--border)", borderRadius: 99, padding: "6px 14px",
+                    cursor: "pointer", boxShadow: "var(--shadow-1)",
+                  }}
+                  className="hover:border-[var(--accent-border)] transition-colors"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
           </div>
         )}
+
+        {/* ── AI answer card (blue = information) ── */}
+        {(answerLoading || answer) && searched && (
+          <div style={{
+            background: "var(--blue-soft)",
+            border: "1px solid color-mix(in oklab, var(--blue) 20%, #ffffff)",
+            borderRadius: 12, padding: "14px 16px", marginBottom: 16,
+          }} className="fade-in">
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <Sparkles style={{ width: 12, height: 12, color: "var(--blue)" }} />
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--blue)" }}>
+                Answer
+              </span>
+            </div>
+            {answerLoading ? (
+              <div className="space-y-2">
+                <div className="skeleton" style={{ height: 13, width: "85%", borderRadius: 4 }} />
+                <div className="skeleton" style={{ height: 13, width: "60%", borderRadius: 4 }} />
+              </div>
+            ) : answer && (
+              <>
+                <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>{answer.answer}</p>
+                {answer.key_points.length > 0 && (
+                  <ul style={{ marginTop: 8 }}>
+                    {answer.key_points.map((p, i) => (
+                      <li key={i} style={{ fontSize: 12, color: "var(--text-2)", display: "flex", gap: 6, lineHeight: 1.7 }}>
+                        <span style={{ color: "var(--blue)", flexShrink: 0 }}>·</span>{p}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Result tabs ── */}
+        {searched && totalCount > 0 && (
+          <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+            {tabs.map(t => {
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "5px 12px", borderRadius: 99,
+                    fontSize: 12, fontWeight: active ? 600 : 400,
+                    background: active ? "var(--accent)" : "transparent",
+                    color: active ? "var(--accent-ink)" : "var(--text-2)",
+                    border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
+                    cursor: "pointer", transition: "all 0.1s",
+                  }}
+                >
+                  {t.label}
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: active ? "var(--accent-ink)" : "var(--text-3)", opacity: active ? 0.8 : 1 }}>
+                    {t.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── No results ── */}
+        {searched && totalCount === 0 && !searching && (
+          <div style={{ textAlign: "center", paddingTop: 40 }}>
+            <p style={{ fontSize: 13, color: "var(--text-2)" }}>No results for &ldquo;{query}&rdquo;</p>
+            <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>Try different keywords or a broader question.</p>
+          </div>
+        )}
+
+        {/* ── Decision results ── */}
+        {showDecisions && decisions.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 6, paddingLeft: 2 }}>
+              Decisions
+            </p>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-1)" }}>
+              {decisions.map(d => (
+                <div
+                  key={d.id}
+                  onClick={() => router.push("/decisions")}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "11px 16px", borderBottom: "1px solid var(--border-2)",
+                    cursor: "pointer", transition: "background 0.1s",
+                  }}
+                  className="hover:bg-[var(--accent-softer)] last:border-0"
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: 7, flexShrink: 0, background: "var(--green-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <CheckCircle2 style={{ width: 13, height: 13, color: "var(--green)" }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">{d.decision_text}</p>
+                    <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 1 }} className="truncate">
+                      {d.owner_name && <>{d.owner_name} · </>}
+                      {timeAgo(d.decided_at)}
+                    </p>
+                  </div>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-2)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 99, padding: "2px 8px", flexShrink: 0 }}>
+                    {d.source === "slack" ? "Slack" : d.source === "ai" ? "Feedback" : "Manual"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Signal results ── */}
+        {showItems && results.length > 0 && (
+          <div>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 6, paddingLeft: 2 }}>
+              Signals
+            </p>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-1)" }}>
+              {results.map(r => {
+                const badge = itemStatusBadge(r);
+                const title = r.ai_key_question && r.ai_key_question !== "None" ? r.ai_key_question : (r.ai_summary ?? r.raw_content ?? "Untitled");
+                const href  = r.project_id ? `/inbox/${r.project_id}/${r.id}` : "#";
+                return (
+                  <div
+                    key={r.id}
+                    onClick={() => router.push(href)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "11px 16px", borderBottom: "1px solid var(--border-2)",
+                      cursor: "pointer", transition: "background 0.1s",
+                    }}
+                    className="hover:bg-[var(--accent-softer)] last:border-0"
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">{title}</p>
+                      <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 1 }} className="truncate">
+                        {r.project_name ?? "No project"}
+                        {r.author_name && <> · {r.author_name}</>}
+                        <> · {timeAgo(r.updated_at)}</>
+                      </p>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 500, background: badge.bg, color: badge.color, borderRadius: 99, padding: "3px 10px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                      {badge.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
