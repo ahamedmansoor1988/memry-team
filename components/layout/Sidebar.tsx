@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Inbox, ListChecks, Search, Archive, Plug, Settings, LogOut,
+  Home, Inbox, FolderKanban, ListChecks, ShieldAlert, Search, Users, Plug,
+  Settings, LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useAmbientSync } from "@/lib/hooks/useAmbientSync";
@@ -27,11 +28,14 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
   }
 
   const nav = [
-    { href: "/inbox",        label: "Inbox",        icon: Inbox,       badge: openCount > 0 ? openCount : null },
-    { href: "/decisions",    label: "Decisions",    icon: ListChecks,  badge: null },
-    { href: "/search",       label: "Search",       icon: Search,      badge: null },
-    { href: "/archive",      label: "Archive",      icon: Archive,     badge: null },
-    { href: "/integrations", label: "Integrations", icon: Plug,        badge: null },
+    { href: "/home",         label: "Home",         icon: Home,         badge: null },
+    { href: "/inbox",        label: "Inbox",        icon: Inbox,        badge: openCount > 0 ? openCount : null },
+    { href: "/projects",     label: "Projects",     icon: FolderKanban, badge: null },
+    { href: "/decisions",    label: "Decisions",    icon: ListChecks,   badge: null },
+    { href: "/risks",        label: "Risks",        icon: ShieldAlert,  badge: null },
+    { href: "/search",       label: "Search",       icon: Search,       badge: null },
+    { href: "/people",       label: "People",       icon: Users,        badge: null },
+    { href: "/integrations", label: "Integrations", icon: Plug,         badge: null },
   ];
 
   function isActive(href: string) {
