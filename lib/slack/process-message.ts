@@ -129,7 +129,11 @@ Respond with JSON only:
     owner_name:         userName,
     decided_at:         new Date(parseFloat(messageTs) * 1000).toISOString(),
   });
-  if (decisionError) console.error("[process-message] decision insert error:", decisionError.message);
+  if (decisionError) {
+    // Leave decision_extracted = false so the daily catch-up scan retries this message
+    console.error("[process-message] decision insert error:", decisionError.message);
+    return;
+  }
 
   // ── Step 6: Mark extracted ────────────────────────────────────────────────
   await admin
