@@ -57,6 +57,9 @@ SIGNAL 2 — RESOLUTION: a statement that work is finished or a fix was made.
 Examples: "fixed the spacing", "updated the file", "done", "shipped it", "pushed the change".
 A message can be a resolution without being a decision and vice versa.
 Note: "design is ready to launch" is NOT a decision but IS a resolution signal.
+
+IMPORTANT: Classify ONLY the Message. The Context is background to help you understand what the Message refers to (e.g. what "this" or "it" means) — it is NOT a source of signals. If a decision appears in the Context but the Message itself states no decision, is_decision MUST be false.
+Example: Context contains "We decided to use Inter font" and Message is "updated the figma file, fonts are done" → is_decision: false (the decision is in the context, not the message), is_resolution: true.
 ${contextText ? `\nContext (earlier conversation): "${contextText.replace(/"/g, '\\"')}"\n` : ""}
 Message: "${messageText.replace(/"/g, '\\"')}"
 
@@ -178,6 +181,20 @@ async function handleDecisionTrack(
     .eq("slack_message_ts", messageTs)
     .maybeSingle();
   if (dupe) {
+    await markDecisionExtracted(true);
+    return;
+  }
+
+  // Text-level dedupe: reposts, quotes, and context bleed all produce the
+  // same normalized decision text — one decision per workspace is enough.
+  const { data: textDupe } = await admin
+    .from("decisions")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("decision_text", groqResult.decision_text)
+    .limit(1)
+    .maybeSingle();
+  if (textDupe) {
     await markDecisionExtracted(true);
     return;
   }
