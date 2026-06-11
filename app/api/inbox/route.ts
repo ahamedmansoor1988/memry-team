@@ -11,10 +11,12 @@ type RawItem = {
   ai_risk_flag:        boolean | null;
   ai_suggested_action: string | null;
   owner_name:          string | null;
+  owner_profile_id:    string | null;
   project_id:          string | null;
   created_at:          string;
   updated_at:          string;
   project:             { name: string } | { name: string }[] | null;
+  comment:             { author_name: string | null } | { author_name: string | null }[] | null;
 };
 
 export async function GET() {
@@ -30,25 +32,38 @@ export async function GET() {
     .limit(1).single();
 
   const workspaceId = (membership as { workspace_id: string } | null)?.workspace_id;
-  if (!workspaceId) return NextResponse.json({ items: [] });
+  if (!workspaceId) return NextResponse.json({ items: [], me: null });
 
-  const { data: rows } = await admin
-    .from("feedback_items")
-    .select(`
-      id, status, priority, ai_classification, ai_key_question, ai_summary,
-      ai_risk_flag, ai_suggested_action, owner_name, project_id,
-      created_at, updated_at,
-      project:projects!project_id(name)
-    `)
-    .eq("workspace_id", workspaceId)
-    .in("status", ["open", "needs_decision", "blocked"])
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
-    .limit(200);
+  const [{ data: rows }, { data: myProfile }] = await Promise.all([
+    admin
+      .from("feedback_items")
+      .select(`
+        id, status, priority, ai_classification, ai_key_question, ai_summary,
+        ai_risk_flag, ai_suggested_action, owner_name, owner_profile_id, project_id,
+        created_at, updated_at,
+        project:projects!project_id(name),
+        comment:figma_comments!figma_comment_id(author_name)
+      `)
+      .eq("workspace_id", workspaceId)
+      .in("status", ["open", "needs_decision", "blocked"])
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(200),
+    admin
+      .from("profiles")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   const items = (rows ?? []).map((item: RawItem) => {
     const project = item.project
       ? (Array.isArray(item.project) ? item.project[0] : item.project)
+      : null;
+    const comment = item.comment
+      ? (Array.isArray(item.comment) ? item.comment[0] : item.comment)
       : null;
     return {
       id:                  item.id,
@@ -60,6 +75,8 @@ export async function GET() {
       ai_risk_flag:        item.ai_risk_flag,
       ai_suggested_action: item.ai_suggested_action,
       owner_name:          item.owner_name,
+      owner_profile_id:    item.owner_profile_id,
+      author_name:         (comment as { author_name?: string | null } | null)?.author_name ?? null,
       project_id:          item.project_id,
       project_name:        (project as { name?: string } | null)?.name ?? null,
       created_at:          item.created_at,
@@ -67,5 +84,8 @@ export async function GET() {
     };
   });
 
-  return NextResponse.json({ items });
+  return NextResponse.json({
+    items,
+    me: (myProfile as { id: string } | null)?.id ?? null,
+  });
 }
