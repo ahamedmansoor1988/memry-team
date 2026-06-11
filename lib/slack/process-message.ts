@@ -53,8 +53,6 @@ Respond with JSON only:
   "category": "design or product or technical or process or other"
 }`;
 
-  console.log("[process-message] ── STAGE A: classifying message", { workspaceId, channelId, messageTs, textLength: messageText.length });
-
   let groqResult: GroqDecisionResult | null = null;
   try {
     const groq       = new Groq({ apiKey: process.env.GROQ_API_KEY! });
@@ -66,14 +64,12 @@ Respond with JSON only:
       max_tokens:      300,
     });
     groqResult = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as GroqDecisionResult;
-    console.log("[process-message] ── STAGE A: Groq result", groqResult);
   } catch (err) {
-    console.error("[process-message] ── STAGE A: Groq error:", err);
+    console.error("[process-message] Groq error:", err);
     return;
   }
 
   if (!groqResult.is_decision || groqResult.confidence < 0.7) {
-    console.log("[process-message] ── STAGE A: NOT a decision, is_decision=", groqResult.is_decision, "confidence=", groqResult.confidence);
     await admin
       .from("slack_processed_messages")
       .update({ decision_extracted: false })
@@ -82,8 +78,6 @@ Respond with JSON only:
       .eq("slack_message_ts", messageTs);
     return;
   }
-
-  console.log("[process-message] ── STAGE A: IS a decision, proceeding to save");
 
   // ── Step 2: Fetch channel name ────────────────────────────────────────────
   let channelName = channelId;
@@ -122,7 +116,6 @@ Respond with JSON only:
     : null;
 
   // ── Step 5: Save decision ─────────────────────────────────────────────────
-  console.log("[process-message] ── STAGE E: inserting decision to DB");
   const { error: decisionError } = await admin.from("decisions").insert({
     workspace_id:       workspaceId,
     decision_text:      groqResult.decision_text,
@@ -136,7 +129,7 @@ Respond with JSON only:
     owner_name:         userName,
     decided_at:         new Date(parseFloat(messageTs) * 1000).toISOString(),
   });
-  console.log("[process-message] ── STAGE E: decision insert error=", decisionError?.message ?? "none");
+  if (decisionError) console.error("[process-message] decision insert error:", decisionError.message);
 
   // ── Step 6: Mark extracted ────────────────────────────────────────────────
   await admin
