@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Loader2, AlertTriangle, AlertCircle, Info, Sparkles, GitFork } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, AlertCircle, Info, Sparkles, GitFork, ShieldAlert } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +31,9 @@ interface InsightsData {
   risk_count: number;
 }
 
+type Severity = "high" | "medium" | "low";
+type FilterKey = "all" | Severity;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(date: string): string {
@@ -47,71 +51,144 @@ function isStalled(item: FeedbackItem): boolean {
   return Date.now() - new Date(item.created_at).getTime() > 48 * 60 * 60 * 1000;
 }
 
-const priorityConfig = {
-  high:   { label: "High",   cls: "text-red-500 bg-red-50",       icon: <AlertTriangle size={12} /> },
-  medium: { label: "Medium", cls: "text-zinc-600 bg-zinc-100", icon: <AlertCircle size={12} /> },
-  low:    { label: "Low",    cls: "text-zinc-600 bg-zinc-100",     icon: <Info size={12} /> },
+function severityOf(item: FeedbackItem): Severity {
+  if (item.priority === "high" || item.ai_classification === "Blocked") return "high";
+  if (item.priority === "medium") return "medium";
+  return "low";
+}
+
+const SEVERITY_META: Record<Severity, {
+  label: string; color: string; soft: string;
+  Icon: typeof AlertTriangle;
+}> = {
+  high:   { label: "High",   color: "var(--red)",   soft: "var(--red-soft)",   Icon: AlertTriangle },
+  medium: { label: "Medium", color: "var(--amber)", soft: "var(--amber-soft)", Icon: AlertCircle },
+  low:    { label: "Low",    color: "var(--green)", soft: "var(--green-soft)", Icon: Info },
 };
 
 // ─── AI Insights panel ────────────────────────────────────────────────────────
-
-function InsightsSkeleton() {
-  return (
-    <div className="rounded-panel border border-border bg-paper p-4 space-y-3">
-      <div className="flex items-center gap-2 mb-2">
-        <div className="skeleton h-4 w-4 rounded" />
-        <div className="skeleton h-4 w-32 rounded" />
-      </div>
-      <div className="skeleton h-3 w-full rounded" />
-      <div className="skeleton h-3 w-5/6 rounded" />
-      <div className="skeleton h-3 w-2/3 rounded" />
-    </div>
-  );
-}
 
 function InsightsPanel({ data }: { data: InsightsData }) {
   if (!data.summary && !data.insights.length) return null;
 
   return (
-    <div className="rounded-panel border border-border bg-paper p-4 space-y-4 mb-5">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Sparkles size={15} className="text-zinc-700 shrink-0" />
-        <span className="text-body font-semibold text-ink">AI Risk Analysis</span>
+    <div style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: 12, boxShadow: "var(--shadow-1)", padding: 16, marginBottom: 16,
+    }} className="space-y-3">
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Sparkles style={{ width: 14, height: 14, color: "var(--blue)", flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>AI Risk Analysis</span>
         {data.risk_count > 0 && (
-          <span className="ml-auto text-caption text-muted">{data.risk_count} active risk{data.risk_count !== 1 ? "s" : ""}</span>
+          <span style={{ marginLeft: "auto", fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)" }}>
+            {data.risk_count} active
+          </span>
         )}
       </div>
 
-      {/* Summary */}
       {data.summary && (
-        <p className="text-body text-ink leading-relaxed">{data.summary}</p>
+        <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>{data.summary}</p>
       )}
 
-      {/* Pattern */}
       {data.pattern && (
-        <div className="flex items-start gap-2 text-body text-muted italic">
-          <GitFork size={13} className="shrink-0 mt-0.5 not-italic text-muted/60" />
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text-2)", fontStyle: "italic" }}>
+          <GitFork style={{ width: 12, height: 12, flexShrink: 0, marginTop: 3 }} />
           <span>{data.pattern}</span>
         </div>
       )}
 
-      {/* Top risks */}
       {data.insights.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {data.insights.map((insight, i) => (
-            <div key={i} className="rounded-lg border border-border bg-surface p-3 space-y-1">
-              <p className="text-body font-semibold text-ink">{insight.title}</p>
-              <p className="text-caption text-muted leading-snug">{insight.description}</p>
-              <div className="flex items-center gap-1.5 pt-0.5">
-                <span className="text-[10px] text-zinc-600 bg-zinc-100 border border-zinc-200 font-semibold px-2 py-0.5 rounded-full">
-                  → {insight.action}
-                </span>
-              </div>
+            <div key={i} style={{ background: "var(--bg)", border: "1px solid var(--border-2)", borderRadius: 8, padding: "10px 12px" }}>
+              <p style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{insight.title}</p>
+              <p style={{ fontSize: 11.5, color: "var(--text-2)", marginTop: 2, lineHeight: 1.5 }}>{insight.description}</p>
+              <span style={{
+                display: "inline-block", marginTop: 6,
+                fontSize: 10.5, fontWeight: 500, color: "var(--blue)",
+                background: "var(--blue-soft)", borderRadius: 99, padding: "2px 9px",
+              }}>
+                → {insight.action}
+              </span>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Risk row ─────────────────────────────────────────────────────────────────
+
+function RiskRow({ item }: { item: FeedbackItem }) {
+  const router = useRouter();
+  const sev  = severityOf(item);
+  const meta = SEVERITY_META[sev];
+  const { Icon } = meta;
+  const stalled = isStalled(item);
+  const href = item.project ? `/inbox/${item.project.id}/${item.id}` : "#";
+
+  return (
+    <div
+      onClick={() => item.project && router.push(href)}
+      style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "12px 16px",
+        borderBottom: "1px solid var(--border-2)",
+        background: "var(--surface)",
+        cursor: item.project ? "pointer" : "default",
+        transition: "background 0.1s",
+      }}
+      className="hover:!bg-[var(--accent-softer)] last:border-0"
+    >
+      {/* Severity icon tile */}
+      <div style={{
+        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+        background: meta.soft, color: meta.color,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <Icon style={{ width: 15, height: 15 }} />
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">
+          {item.ai_key_question && item.ai_key_question !== "None"
+            ? item.ai_key_question
+            : item.ai_summary ?? item.figma_comment?.raw_content ?? "—"}
+        </p>
+        <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }} className="truncate">
+          {item.project?.name ?? "No project"}
+          {item.figma_comment?.author_name && <> · {item.figma_comment.author_name}</>}
+          {item.ai_classification === "Blocked" && <> · Blocked</>}
+          {stalled && <> · Stalled</>}
+          <> · Detected {timeAgo(item.created_at)}</>
+        </p>
+      </div>
+
+      {/* Severity pill */}
+      <span style={{
+        fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0,
+        background: meta.soft, color: meta.color,
+        borderRadius: 99, padding: "3px 10px",
+      }}>
+        {meta.label}
+      </span>
+    </div>
+  );
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function RowSkeleton() {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--border-2)" }}>
+      <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div className="skeleton" style={{ height: 13, width: "45%", borderRadius: 4, marginBottom: 6 }} />
+        <div className="skeleton" style={{ height: 11, width: "30%", borderRadius: 4 }} />
+      </div>
+      <div className="skeleton" style={{ height: 22, width: 56, borderRadius: 99 }} />
     </div>
   );
 }
@@ -122,7 +199,7 @@ export default function RisksPage() {
   const [items,    setItems]    = useState<FeedbackItem[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [insights, setInsights] = useState<InsightsData | null>(null);
-  const [insightsLoading, setInsightsLoading] = useState(true);
+  const [filter,   setFilter]   = useState<FilterKey>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -135,140 +212,113 @@ export default function RisksPage() {
       setItems(feedbackData.items ?? []);
       setInsights(insightsData);
       setLoading(false);
-      setInsightsLoading(false);
     }).catch(() => {
-      if (!cancelled) {
-        setLoading(false);
-        setInsightsLoading(false);
-      }
+      if (!cancelled) setLoading(false);
     });
 
     return () => { cancelled = true; };
   }, []);
 
-  const risks = items.filter(i =>
+  const risks = useMemo(() => items.filter(i =>
     i.ai_risk_flag ||
     i.ai_classification === "Risk" ||
     i.ai_classification === "Blocked" ||
     isStalled(i)
+  ), [items]);
+
+  const counts = useMemo(() => ({
+    all:    risks.length,
+    high:   risks.filter(r => severityOf(r) === "high").length,
+    medium: risks.filter(r => severityOf(r) === "medium").length,
+    low:    risks.filter(r => severityOf(r) === "low").length,
+  }), [risks]);
+
+  const filtered = useMemo(
+    () => filter === "all" ? risks : risks.filter(r => severityOf(r) === filter),
+    [risks, filter],
   );
 
-  const high   = risks.filter(i => i.priority === "high" || i.ai_classification === "Blocked");
-  const medium = risks.filter(i => i.priority === "medium" && i.ai_classification !== "Blocked");
-  const low    = risks.filter(i => !["high", "medium"].includes(i.priority) && i.ai_classification !== "Blocked");
+  // Sort: high → medium → low, newest first within group
+  const sorted = useMemo(() => {
+    const rank: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
+    return [...filtered].sort((a, b) =>
+      rank[severityOf(a)] - rank[severityOf(b)]
+      || new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [filtered]);
 
-  const groups = [
-    { label: "High",   color: "text-red-500",    bg: "bg-red-50 border-red-100",       items: high   },
-    { label: "Medium", color: "text-zinc-600", bg: "bg-zinc-100 border-zinc-200", items: medium },
-    { label: "Low",    color: "text-zinc-600",   bg: "bg-zinc-100 border-zinc-200",     items: low    },
+  const tabs: { key: FilterKey; label: string; count: number }[] = [
+    { key: "all",    label: "All",    count: counts.all },
+    { key: "high",   label: "High",   count: counts.high },
+    { key: "medium", label: "Medium", count: counts.medium },
+    { key: "low",    label: "Low",    count: counts.low },
   ];
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-paper">
-      <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
-        <div className="flex items-center gap-2 mb-1">
-          <AlertTriangle size={18} className="text-muted shrink-0" />
-          <h1 className="text-title font-semibold text-ink">Risks</h1>
+    <div className="min-h-full" style={{ background: "var(--bg)" }}>
+      <div className="px-7 pt-6 pb-10 max-w-4xl">
+
+        {/* ── Header ── */}
+        <div className="mb-5">
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Risks</h1>
+          <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
+            Potential issues and blockers detected across your tools.
+          </p>
         </div>
-        <p className="text-body text-muted">Flagged, blocked, and stalled items that need attention</p>
-      </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        {loading ? (
-          <div className="space-y-5">
-            <InsightsSkeleton />
-            <div className="flex items-center justify-center p-8 text-muted">
-              <Loader2 size={18} className="animate-spin mr-2" /> Loading…
+        {/* ── Severity tabs ── */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {tabs.map(t => {
+            const active = filter === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setFilter(t.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px", borderRadius: 99,
+                  fontSize: 12, fontWeight: active ? 600 : 400,
+                  background: active ? "var(--accent)" : "transparent",
+                  color: active ? "var(--accent-ink)" : "var(--text-2)",
+                  border: active ? "1px solid var(--accent)" : "1px solid var(--border)",
+                  cursor: "pointer", transition: "all 0.1s",
+                }}
+              >
+                {t.label}
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: active ? "var(--accent-ink)" : "var(--text-3)", opacity: active ? 0.8 : 1 }}>
+                  {t.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── AI Insights ── */}
+        {!loading && risks.length > 0 && insights && <InsightsPanel data={insights} />}
+
+        {/* ── List ── */}
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-1)" }}>
+          {loading ? (
+            <>
+              <RowSkeleton /><RowSkeleton /><RowSkeleton />
+            </>
+          ) : sorted.length === 0 ? (
+            <div style={{ padding: "56px 0", textAlign: "center" }}>
+              <ShieldAlert style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 10px" }} />
+              <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>
+                {risks.length === 0 ? "No risks detected" : "Nothing here"}
+              </p>
+              <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+                {risks.length === 0
+                  ? "Blocked, flagged, and stalled items will appear here."
+                  : "No risks match this filter."}
+              </p>
             </div>
-          </div>
-        ) : (
-          <>
-            {/* AI Insights panel — only if risks exist */}
-            {risks.length > 0 && (
-              insightsLoading
-                ? <InsightsSkeleton />
-                : insights && <InsightsPanel data={insights} />
-            )}
+          ) : (
+            sorted.map(item => <RiskRow key={item.id} item={item} />)
+          )}
+        </div>
 
-            {/* Risk items */}
-            {risks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-3 text-center rounded-panel border border-border bg-surface">
-                <AlertTriangle size={32} className="text-wash" />
-                <p className="text-lead font-medium text-ink">No risks detected</p>
-                <p className="text-body text-muted">Risk-flagged items will appear here</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {groups.filter(g => g.items.length > 0).map(group => (
-                  <div key={group.label}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider ${group.color}`}>{group.label}</span>
-                      <span className="text-caption text-muted">{group.items.length} item{group.items.length !== 1 ? "s" : ""}</span>
-                    </div>
-                    <div className="space-y-2">
-                      {group.items.map(item => {
-                        const stalled = isStalled(item);
-                        const authorInitial = (item.figma_comment?.author_name ?? "?")[0]?.toUpperCase();
-                        return (
-                          <div key={item.id} className="rounded-panel border border-border bg-paper p-4">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 min-w-0">
-                                {/* Badges */}
-                                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                                  {item.ai_classification === "Blocked" && (
-                                    <span className="text-[10px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">BLOCKED</span>
-                                  )}
-                                  {item.ai_risk_flag && item.ai_classification !== "Blocked" && (
-                                    <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">RISK</span>
-                                  )}
-                                  {stalled && (
-                                    <span className="text-[10px] font-bold text-zinc-600 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">STALLED</span>
-                                  )}
-                                  {item.status === "resolved" && (
-                                    <span className="text-[10px] font-bold text-zinc-700 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">RESOLVED</span>
-                                  )}
-                                </div>
-
-                                <p className="text-body font-semibold text-ink leading-snug mb-1.5">
-                                  {item.ai_key_question ?? item.figma_comment?.raw_content ?? "—"}
-                                </p>
-
-                                {item.ai_summary && (
-                                  <p className="text-caption text-muted leading-relaxed mb-3 line-clamp-2">{item.ai_summary}</p>
-                                )}
-
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <div className="w-5 h-5 rounded-full bg-surface border border-border flex items-center justify-center shrink-0">
-                                    <span className="text-muted font-bold" style={{ fontSize: 9 }}>{authorInitial}</span>
-                                  </div>
-                                  <span className="text-caption text-muted">{item.figma_comment?.author_name}</span>
-                                  <span className="text-wash">·</span>
-                                  <span className="text-caption text-muted">{timeAgo(item.created_at)}</span>
-                                  <span className="text-wash">·</span>
-                                  <span className="text-caption text-muted">{item.project?.name ?? ""}</span>
-                                </div>
-                              </div>
-
-                              {/* Priority badge */}
-                              {(() => {
-                                const p = priorityConfig[item.priority as keyof typeof priorityConfig] ?? priorityConfig.low;
-                                return (
-                                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded shrink-0 ${p.cls}`}>
-                                    {p.icon} {p.label}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
       </div>
     </div>
   );

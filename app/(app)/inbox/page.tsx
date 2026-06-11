@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Inbox as InboxIcon, AlertTriangle } from "lucide-react";
+import { Loader2, RefreshCw, Inbox as InboxIcon, SlidersHorizontal } from "lucide-react";
 import { useAmbientSync } from "@/lib/hooks/useAmbientSync";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,13 +16,15 @@ interface InboxItem {
   ai_risk_flag:        boolean | null;
   ai_suggested_action: string | null;
   owner_name:          string | null;
+  owner_profile_id:    string | null;
+  author_name:         string | null;
   project_id:          string | null;
   project_name:        string | null;
   created_at:          string;
   source:              string;
 }
 
-type FilterKey = "all" | "needs_decision" | "risks" | "open";
+type FilterKey = "all" | "needs_review" | "suggested" | "mine";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -44,8 +46,19 @@ function itemTitle(item: InboxItem): string {
   return item.ai_summary ?? "Untitled signal";
 }
 
-// Status badge: blue = needs review (info), amber = needs decision (warning),
-// red = blocked/high risk (error)
+function initials(name?: string | null): string {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function isSuggested(item: InboxItem): boolean {
+  return !!item.ai_suggested_action;
+}
+
+// Badge per kit: blue = needs review, amber = needs decision, red = high risk,
+// green = suggested decision
 function statusBadge(item: InboxItem): { label: string; bg: string; color: string } {
   if (item.status === "blocked" || item.ai_classification === "Blocked")
     return { label: "Blocked", bg: "var(--red-soft)", color: "var(--red)" };
@@ -53,36 +66,93 @@ function statusBadge(item: InboxItem): { label: string; bg: string; color: strin
     return { label: "High risk", bg: "var(--red-soft)", color: "var(--red)" };
   if (item.status === "needs_decision" || item.ai_classification === "Needs Decision")
     return { label: "Needs decision", bg: "var(--amber-soft)", color: "var(--amber)" };
+  if (isSuggested(item))
+    return { label: "Suggested decision", bg: "var(--green-soft)", color: "var(--green)" };
   return { label: "Needs review", bg: "var(--blue-soft)", color: "var(--blue)" };
 }
 
-// ─── Source badge ─────────────────────────────────────────────────────────────
+// ─── Source badge (brand colors, per kit) ─────────────────────────────────────
+
+function FigmaMark() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 38 57" fill="none">
+      <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
+      <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
+      <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
+      <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
+      <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#A259FF"/>
+    </svg>
+  );
+}
+
+function SlackMark() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 122.8 122.8">
+      <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#e01e5a"/>
+      <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36c5f0"/>
+      <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2eb67d"/>
+      <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ecb22e"/>
+    </svg>
+  );
+}
 
 function SourceBadge({ source }: { source: string }) {
-  // Figma is the only signal source today; Slack/Meet/Notion will slot in here.
   return (
     <div
-      title={source === "figma" ? "Figma comment" : source}
+      title={source === "figma" ? "Figma comment" : source === "slack" ? "Slack message" : source}
       style={{
         width: 32, height: 32, borderRadius: 8, flexShrink: 0,
         background: "var(--surface)", border: "1px solid var(--border)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z" />
-        <path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z" />
-        <path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z" />
-        <path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z" />
-        <path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z" />
-      </svg>
+      {source === "slack" ? <SlackMark /> : <FigmaMark />}
+    </div>
+  );
+}
+
+// ─── Avatar stack ─────────────────────────────────────────────────────────────
+
+const AVATAR_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+
+function colorFor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
+function AvatarStack({ names }: { names: (string | null)[] }) {
+  const valid = [...new Set(names.filter((n): n is string => !!n))].slice(0, 3);
+  if (valid.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexShrink: 0 }}>
+      {valid.map((n, i) => (
+        <div
+          key={n}
+          title={n}
+          style={{
+            width: 22, height: 22, borderRadius: 99,
+            background: colorFor(n), color: "#fff",
+            fontSize: 8, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: "2px solid var(--surface)",
+            marginLeft: i === 0 ? 0 : -6,
+          }}
+        >
+          {initials(n)}
+        </div>
+      ))}
     </div>
   );
 }
 
 // ─── Row ──────────────────────────────────────────────────────────────────────
 
-function ItemRow({ item }: { item: InboxItem }) {
+function ItemRow({ item, checked, onCheck }: {
+  item: InboxItem;
+  checked: boolean;
+  onCheck: (id: string, on: boolean) => void;
+}) {
   const router = useRouter();
   const badge  = statusBadge(item);
   const href   = item.project_id ? `/inbox/${item.project_id}/${item.id}` : "#";
@@ -100,6 +170,14 @@ function ItemRow({ item }: { item: InboxItem }) {
       }}
       className="hover:!bg-[var(--accent-softer)] last:border-0 group"
     >
+      <input
+        type="checkbox"
+        checked={checked}
+        onClick={e => e.stopPropagation()}
+        onChange={e => onCheck(item.id, e.target.checked)}
+        style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer", flexShrink: 0 }}
+      />
+
       <SourceBadge source={item.source} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -108,10 +186,12 @@ function ItemRow({ item }: { item: InboxItem }) {
         </p>
         <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }} className="truncate">
           {item.project_name ?? "No project"}
-          {item.owner_name && <> · {item.owner_name}</>}
+          <> · {item.source === "slack" ? "Slack" : "Figma"}</>
           <> · {timeAgo(item.created_at)}</>
         </p>
       </div>
+
+      <AvatarStack names={[item.author_name, item.owner_name]} />
 
       <span style={{
         fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0,
@@ -129,6 +209,7 @@ function ItemRow({ item }: { item: InboxItem }) {
 function RowSkeleton() {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--border-2)" }}>
+      <div className="skeleton" style={{ width: 14, height: 14, borderRadius: 4, flexShrink: 0 }} />
       <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0 }} />
       <div style={{ flex: 1 }}>
         <div className="skeleton" style={{ height: 13, width: "40%", borderRadius: 4, marginBottom: 6 }} />
@@ -143,18 +224,21 @@ function RowSkeleton() {
 
 export default function InboxPage() {
   const [items, setItems]     = useState<InboxItem[]>([]);
+  const [me, setMe]           = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [filter, setFilter]   = useState<FilterKey>("all");
+  const [checked, setChecked] = useState<Set<string>>(new Set());
 
   useAmbientSync(() => { void loadItems(); });
 
   async function loadItems() {
     try {
       const res  = await fetch("/api/inbox");
-      const data = await res.json() as { items?: InboxItem[] };
+      const data = await res.json() as { items?: InboxItem[]; me?: string | null };
       setItems(data.items ?? []);
+      setMe(data.me ?? null);
     } catch { /* keep current */ }
     finally { setLoading(false); }
   }
@@ -177,31 +261,35 @@ export default function InboxPage() {
     finally  { setSyncing(false); }
   }
 
+  function handleCheck(id: string, on: boolean) {
+    setChecked(prev => {
+      const next = new Set(prev);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
   const counts = useMemo(() => ({
-    all:            items.length,
-    needs_decision: items.filter(i => i.status === "needs_decision" || i.ai_classification === "Needs Decision").length,
-    risks:          items.filter(i => i.ai_risk_flag || i.status === "blocked" || i.ai_classification === "Blocked").length,
-    open:           items.filter(i => i.status === "open" && !i.ai_risk_flag && i.ai_classification !== "Needs Decision" && i.ai_classification !== "Blocked").length,
-  }), [items]);
+    all:          items.length,
+    needs_review: items.filter(i => i.status === "open" && !isSuggested(i)).length,
+    suggested:    items.filter(isSuggested).length,
+    mine:         me ? items.filter(i => i.owner_profile_id === me).length : 0,
+  }), [items, me]);
 
   const filtered = useMemo(() => {
     switch (filter) {
-      case "needs_decision":
-        return items.filter(i => i.status === "needs_decision" || i.ai_classification === "Needs Decision");
-      case "risks":
-        return items.filter(i => i.ai_risk_flag || i.status === "blocked" || i.ai_classification === "Blocked");
-      case "open":
-        return items.filter(i => i.status === "open" && !i.ai_risk_flag && i.ai_classification !== "Needs Decision" && i.ai_classification !== "Blocked");
-      default:
-        return items;
+      case "needs_review": return items.filter(i => i.status === "open" && !isSuggested(i));
+      case "suggested":    return items.filter(isSuggested);
+      case "mine":         return me ? items.filter(i => i.owner_profile_id === me) : [];
+      default:             return items;
     }
-  }, [items, filter]);
+  }, [items, filter, me]);
 
   const tabs: { key: FilterKey; label: string; count: number }[] = [
-    { key: "all",            label: "All",            count: counts.all },
-    { key: "open",           label: "Needs review",   count: counts.open },
-    { key: "needs_decision", label: "Needs decision", count: counts.needs_decision },
-    { key: "risks",          label: "Risks",          count: counts.risks },
+    { key: "all",          label: "All",                 count: counts.all },
+    { key: "needs_review", label: "Needs review",        count: counts.needs_review },
+    { key: "suggested",    label: "Suggested decisions", count: counts.suggested },
+    { key: "mine",         label: "Assigned to me",      count: counts.mine },
   ];
 
   return (
@@ -217,26 +305,41 @@ export default function InboxPage() {
               {syncMsg && <span style={{ color: "var(--text-3)" }}> · {syncMsg}</span>}
             </p>
           </div>
-          <button
-            onClick={syncNow}
-            disabled={syncing}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "var(--surface)", border: "1px solid var(--border)",
-              borderRadius: 8, padding: "7px 14px",
-              fontSize: 12, fontWeight: 500, color: "var(--text-2)",
-              cursor: "pointer", boxShadow: "var(--shadow-1)",
-              opacity: syncing ? 0.6 : 1,
-            }}
-            className="hover:border-[var(--accent-border)] transition-colors"
-          >
-            <RefreshCw style={{ width: 13, height: 13 }} className={syncing ? "animate-spin" : ""} />
-            {syncing ? "Syncing…" : "Sync now"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={syncNow}
+              disabled={syncing}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: "var(--surface)", border: "1px solid var(--border)",
+                borderRadius: 8, padding: "7px 14px",
+                fontSize: 12, fontWeight: 500, color: "var(--text-2)",
+                cursor: "pointer", boxShadow: "var(--shadow-1)",
+                opacity: syncing ? 0.6 : 1,
+              }}
+              className="hover:border-[var(--accent-border)] transition-colors"
+            >
+              <RefreshCw style={{ width: 13, height: 13 }} className={syncing ? "animate-spin" : ""} />
+              {syncing ? "Syncing…" : "Sync now"}
+            </button>
+            <button
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                background: "var(--surface)", border: "1px solid var(--border)",
+                borderRadius: 8, padding: "7px 14px",
+                fontSize: 12, fontWeight: 500, color: "var(--text-2)",
+                cursor: "pointer", boxShadow: "var(--shadow-1)",
+              }}
+              className="hover:border-[var(--accent-border)] transition-colors"
+            >
+              <SlidersHorizontal style={{ width: 12, height: 12 }} />
+              Filters
+            </button>
+          </div>
         </div>
 
         {/* ── Filter tabs ── */}
-        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 12, flexWrap: "wrap" }}>
           {tabs.map(t => {
             const active = filter === t.key;
             return (
@@ -266,6 +369,22 @@ export default function InboxPage() {
           })}
         </div>
 
+        {/* ── Selection bar ── */}
+        {checked.size > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10, marginBottom: 8,
+            fontSize: 12, color: "var(--text-2)",
+          }} className="fade-in">
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{checked.size} selected</span>
+            <button
+              onClick={() => setChecked(new Set())}
+              style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
         {/* ── List ── */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-1)" }}>
           {loading ? (
@@ -274,11 +393,7 @@ export default function InboxPage() {
             </>
           ) : filtered.length === 0 ? (
             <div style={{ padding: "56px 0", textAlign: "center" }}>
-              {filter === "risks" ? (
-                <AlertTriangle style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 10px" }} />
-              ) : (
-                <InboxIcon style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 10px" }} />
-              )}
+              <InboxIcon style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 10px" }} />
               <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>
                 {items.length === 0 ? "Inbox zero" : "Nothing here"}
               </p>
@@ -305,7 +420,9 @@ export default function InboxPage() {
               )}
             </div>
           ) : (
-            filtered.map(item => <ItemRow key={item.id} item={item} />)
+            filtered.map(item => (
+              <ItemRow key={item.id} item={item} checked={checked.has(item.id)} onCheck={handleCheck} />
+            ))
           )}
         </div>
 
