@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import {
-  CheckCircle, AlertCircle, Loader2, Copy, Check,
+  Copy, Check, Loader2,
   Link2, Bell, UserPlus, X,
 } from "lucide-react";
 
@@ -71,39 +71,16 @@ function TabBar({ active, onChange }: { active: TabId; onChange: (t: TabId) => v
 // ── Workspace tab ─────────────────────────────────────────────────────────────
 
 function WorkspaceTab() {
-  const [pat,         setPat]         = useState("");
-  const [patStatus,   setPatStatus]   = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [patError,    setPatError]    = useState("");
-  const [figmaHandle, setFigmaHandle] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [copied,      setCopied]      = useState(false);
 
   useEffect(() => {
     fetch("/api/settings").then(r => r.json()).then((d: {
-      figma_pat?: string | null;
-      figma_handle?: string | null;
       workspace_id?: string | null;
     }) => {
-      if (d.figma_pat)    setPat("set");
-      if (d.figma_handle) setFigmaHandle(d.figma_handle);
       if (d.workspace_id) setWorkspaceId(d.workspace_id);
     });
   }, []);
-
-  async function savePat() {
-    if (pat === "set" || !pat.trim()) return;
-    setPatStatus("saving"); setPatError("");
-    const res  = await fetch("/api/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ figma_pat: pat.trim() }),
-    });
-    const data = await res.json() as { error?: string; figma_handle?: string };
-    if (!res.ok) { setPatStatus("error"); setPatError(data.error ?? "Failed to save"); return; }
-    setPatStatus("saved"); setPat("set");
-    if (data.figma_handle) setFigmaHandle(data.figma_handle);
-    setTimeout(() => setPatStatus("idle"), 3000);
-  }
 
   const shareUrl = workspaceId
     ? `${typeof window !== "undefined" ? window.location.origin : "https://memry-team-opal.vercel.app"}/share/${workspaceId}`
@@ -118,56 +95,6 @@ function WorkspaceTab() {
 
   return (
     <div className="space-y-5">
-      {/* Figma PAT */}
-      <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
-        <h2 className="text-[var(--text)] font-semibold text-base mb-1">Figma Integration</h2>
-        <p className="text-[var(--text-2)] text-sm mb-5">
-          Connect your Figma account to sync comments automatically.
-          Go to Figma → Settings → Security → Personal access tokens.
-          Enable <strong className="text-[var(--text-2)]">current_user: Read</strong>,{" "}
-          <strong className="text-[var(--text-2)]">File content: Read</strong> and{" "}
-          <strong className="text-[var(--text-2)]">Comments: Read + Write</strong>.
-        </p>
-        {figmaHandle && pat === "set" && (
-          <div className="flex items-center gap-2 mb-4 text-[var(--text-2)]">
-            <CheckCircle size={14} />
-            <span className="text-sm font-medium">Connected as @{figmaHandle}</span>
-          </div>
-        )}
-        <input
-          value={pat === "set" ? "••••••••••••••••••••" : pat}
-          onFocus={() => pat === "set" && setPat("")}
-          onChange={e => { setPat(e.target.value); setPatStatus("idle"); }}
-          placeholder="figd_…"
-          type={pat === "set" ? "password" : "text"}
-          className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-[var(--text-2)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-zinc-400 transition-colors mb-3"
-        />
-        {patError && (
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle size={13} className="text-red-400 flex-shrink-0" />
-            <p className="text-red-400 text-xs">{patError}</p>
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={savePat}
-            disabled={patStatus === "saving" || pat === "set" || !pat.trim()}
-            className="flex items-center gap-2 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
-          >
-            {patStatus === "saving" && <Loader2 size={13} className="animate-spin" />}
-            {patStatus === "saved" ? "✓ Saved" : patStatus === "saving" ? "Validating…" : "Save token"}
-          </button>
-          {pat === "set" && (
-            <button
-              onClick={() => { setPat(""); setPatStatus("idle"); setFigmaHandle(null); }}
-              className="text-[var(--text-3)] hover:text-[var(--text-2)] text-xs transition-colors"
-            >
-              Replace
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Share link */}
       <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
         <div className="flex items-center gap-2 mb-1">

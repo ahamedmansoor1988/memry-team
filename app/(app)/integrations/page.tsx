@@ -31,6 +31,15 @@ interface FigmaSettings {
   figma_user_id: string;
 }
 
+function extractTeamIdFromUrl(input: string): string {
+  const trimmed = input.trim();
+  // Raw numeric ID — pass through
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  // figma.com/files/team/123456789/...
+  const m = trimmed.match(/figma\.com\/(?:files\/)?team\/(\d+)/);
+  return m ? m[1] : trimmed;
+}
+
 interface PreviewMetrics {
   total: number;
   ready: number;
@@ -53,6 +62,7 @@ const ERROR_LABELS: Record<string, string> = {
 export default function IntegrationsPage() {
   // Figma team settings
   const [figma, setFigma] = useState<FigmaSettings>({ figma_team_id: "", figma_pat: "", figma_user_id: "" });
+  const [figmaTeamUrl, setFigmaTeamUrl] = useState("");
   const [figmaSaving, setFigmaSaving] = useState(false);
   const [figmaMsg, setFigmaMsg] = useState<string | null>(null);
   const [figmaConnected, setFigmaConnected] = useState(false);
@@ -124,13 +134,14 @@ export default function IntegrationsPage() {
   }, [loadMetrics]);
 
   async function saveFigmaSettings() {
-    if (!figma.figma_team_id.trim() || !figma.figma_pat.trim()) return;
+    const resolvedTeamId = extractTeamIdFromUrl(figmaTeamUrl || figma.figma_team_id);
+    if (!resolvedTeamId || !figma.figma_pat.trim()) return;
     setFigmaSaving(true);
     setFigmaMsg(null);
     const res = await fetch("/api/integrations/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(figma),
+      body: JSON.stringify({ ...figma, figma_team_id: resolvedTeamId }),
     });
     const data = await res.json() as { ok?: boolean; error?: string };
     if (data.ok) {
@@ -461,17 +472,22 @@ export default function IntegrationsPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
-                  Team ID
+                  Figma Team URL
                 </label>
                 <input
                   type="text"
-                  value={figma.figma_team_id}
-                  onChange={e => setFigma(f => ({ ...f, figma_team_id: e.target.value }))}
-                  placeholder="1234567890"
+                  value={figmaTeamUrl || (figma.figma_team_id ? `https://www.figma.com/files/team/${figma.figma_team_id}/` : "")}
+                  onChange={e => {
+                    setFigmaTeamUrl(e.target.value);
+                    const extracted = extractTeamIdFromUrl(e.target.value);
+                    if (extracted) setFigma(f => ({ ...f, figma_team_id: extracted }));
+                  }}
+                  placeholder="https://www.figma.com/files/team/123456789/…"
                   className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
                 />
                 <p className="text-[var(--text-3)] text-xs mt-1">
-                  From your Figma team URL: figma.com/files/team/<span className="text-[var(--text-2)]">TEAM_ID</span>/…
+                  Open your team in Figma and paste the URL — Memry extracts the Team ID automatically.
+                  {figma.figma_team_id && <span className="text-[var(--green)] ml-1">Team ID: {figma.figma_team_id}</span>}
                 </p>
               </div>
               <div>
@@ -493,7 +509,7 @@ export default function IntegrationsPage() {
               <div className="flex items-center gap-3 pt-1">
                 <button
                   onClick={saveFigmaSettings}
-                  disabled={figmaSaving || !figma.figma_team_id.trim() || !figma.figma_pat.trim()}
+                  disabled={figmaSaving || !extractTeamIdFromUrl(figmaTeamUrl || figma.figma_team_id) || !figma.figma_pat.trim()}
                   className="flex items-center gap-1.5 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 text-[var(--accent-ink)] text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
                 >
                   {figmaSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}

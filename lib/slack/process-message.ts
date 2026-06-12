@@ -130,8 +130,14 @@ async function handleDecisionTrack(
       .eq("slack_message_ts", messageTs);
   }
 
-  if (!groqResult.is_decision || groqResult.decision_confidence < 0.7) {
+  // Confidently classified as a non-decision → mark done, don't retry.
+  if (!groqResult.is_decision) {
     await markDecisionExtracted(false);
+    return;
+  }
+  // AI thinks it's a decision but confidence is too low → leave null so the
+  // daily retry cron re-processes it when more context may be available.
+  if (groqResult.decision_confidence < 0.7) {
     return;
   }
 
@@ -222,7 +228,7 @@ async function handleDecisionTrack(
 
   // Linker Agent: connect this decision to related discussions (best-effort)
   const newDecisionId = (insertedDecision as { id: string } | null)?.id;
-  if (newDecisionId && process.env.OPENAI_API_KEY) {
+  if (newDecisionId && process.env.JINA_API_KEY) {
     try {
       const linked = await linkItem(workspaceId, "decision", newDecisionId);
       if (linked.action === "auto_linked") {

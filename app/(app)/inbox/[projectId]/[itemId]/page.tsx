@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, CheckCircle2, AlertCircle,
-  HelpCircle, ExternalLink, Send, MoreHorizontal, Bookmark,
-  Activity, ZoomIn, MessageSquare, Clock, ChevronDown, Zap,
+  HelpCircle, ExternalLink, Send, MoreHorizontal,
+  MessageSquare, ChevronDown, Zap, Clock,
   type LucideIcon,
 } from "lucide-react";
 import ConnectedContext from "@/components/linker/ConnectedContext";
@@ -333,29 +333,6 @@ function previewFailureInfo(
   }
 }
 
-// ── Decision-intelligence presentation (Stage 2A) ─────────────────────────────
-// Pure, presentation-only helpers. They read existing AI fields already returned
-// by GET /api/feedback and map them to the app's existing colour vocabulary
-// (mirrors app/(app)/decisions/page.tsx and app/(app)/risks/page.tsx). No backend
-// or business logic is involved.
-
-// Classification → colour, mirrored from the decisions page.
-const CLASSIFICATION_CLS: Record<string, string> = {
-  "Needs Decision": "text-amber bg-amber-soft",
-  "Blocked":        "text-red bg-red-soft",
-  "Approved":       "text-green bg-green-soft",
-  "Risk":           "text-red bg-red-soft",
-  "Vague":          "text-muted bg-wash",
-  "Info":           "text-blue bg-blue-soft",
-};
-
-// Priority → colour, mirrored from the risks page severity vocabulary.
-const PRIORITY_META: Record<string, { label: string; cls: string }> = {
-  high:   { label: "High priority",   cls: "text-red bg-red-soft"     },
-  medium: { label: "Medium priority", cls: "text-amber bg-amber-soft" },
-  low:    { label: "Low priority",    cls: "text-muted bg-wash"       },
-};
-
 /** Parse a decision reply (same ✅/⚠️/❓ prefixes written by handleMakeDecision). */
 function parseDecision(raw: string): { label: string; cls: string; Icon: LucideIcon } | null {
   if (raw.startsWith("✅")) return { label: "Accepted",      cls: "text-green bg-green-soft border-transparent", Icon: CheckCircle2 };
@@ -364,126 +341,168 @@ function parseDecision(raw: string): { label: string; cls: string; Icon: LucideI
   return null;
 }
 
-// ── SECTION 1 · Decision Summary Hero ─────────────────────────────────────────
-// The 5-second answer: status + classification + priority + risk/vague + summary
-// + key question, all surfaced at the very top.
-// Stage 2A.1: severity tones the hero panel bg/border; redundant chips and
-// low-priority are suppressed; empty summary is demoted to body-level text.
-function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
-  const status   = STATUS_META[item.status] ?? STATUS_META.open;
-  const classCls = item.ai_classification
-    ? CLASSIFICATION_CLS[item.ai_classification] ?? "text-muted bg-wash"
-    : null;
+// ── Memry Status Card ─────────────────────────────────────────────────────────
+// The primary card. Must answer in under 5 seconds: what state is this in,
+// why is it here, and what should happen next.
 
-  // Show priority only when it adds urgency signal (low is absence of urgency)
-  const priority = (item.priority === "high" || item.priority === "medium")
-    ? PRIORITY_META[item.priority] : null;
+interface StatusConfig {
+  icon: string;
+  label: string;
+  bg: string;
+  border: string;
+  labelCls: string;
+  reasonFn: (item: FeedbackItem) => string;
+}
 
-  // Hero panel tones — risk is communicated by the panel itself, not a second section
-  const blocked = item.ai_classification === "Blocked";
-  const hasRisk = item.ai_risk_flag || item.ai_classification === "Risk";
-  const heroPanel = blocked        ? "bg-red-soft border-transparent"
-                  : hasRisk        ? "bg-amber-soft border-transparent"
-                  : item.ai_vague_flag ? "bg-wash border-transparent"
-                  : "border-border bg-paper";
+const STATUS_CONFIGS: StatusConfig[] = [
+  {
+    icon: "🚧",
+    label: "Blocked",
+    bg: "bg-red-soft",
+    border: "border-red/20",
+    labelCls: "text-red",
+    reasonFn: () => "Work is stalled. Someone is waiting on a decision before they can proceed.",
+  },
+  {
+    icon: "🟠",
+    label: "Decision Required",
+    bg: "bg-amber-soft",
+    border: "border-amber/20",
+    labelCls: "text-amber",
+    reasonFn: (item) => item.ai_vague_reason
+      ? `A decision is needed. ${item.ai_vague_reason}`
+      : "A decision must be made before work can continue.",
+  },
+  {
+    icon: "⚠️",
+    label: "Risk Flagged",
+    bg: "bg-amber-soft",
+    border: "border-amber/20",
+    labelCls: "text-amber",
+    reasonFn: () => "Memry detected a risk that could affect the project or timeline.",
+  },
+  {
+    icon: "❓",
+    label: "Needs Clarification",
+    bg: "bg-wash",
+    border: "border-border",
+    labelCls: "text-muted",
+    reasonFn: (item) => item.ai_vague_reason ?? "The discussion is unclear and needs clarification before a decision can be made.",
+  },
+  {
+    icon: "✅",
+    label: "Resolved",
+    bg: "bg-green-soft",
+    border: "border-green/20",
+    labelCls: "text-green",
+    reasonFn: () => "This discussion has been resolved.",
+  },
+  {
+    icon: "📋",
+    label: "Needs Review",
+    bg: "bg-paper",
+    border: "border-border",
+    labelCls: "text-muted",
+    reasonFn: () => "Memry captured this discussion and is waiting for a review.",
+  },
+];
 
-  // Suppress risk/vague chips when the classification badge already says the same thing
-  const showRiskChip  = item.ai_risk_flag
-    && item.ai_classification !== "Blocked"
-    && item.ai_classification !== "Risk";
-  const showVagueChip = item.ai_vague_flag
-    && item.ai_classification !== "Vague";
+function resolveStatusConfig(item: FeedbackItem): StatusConfig {
+  if (item.status === "resolved" || item.status === "archived") return STATUS_CONFIGS[4];
+  if (item.ai_classification === "Blocked" || item.status === "blocked") return STATUS_CONFIGS[0];
+  if (item.ai_classification === "Needs Decision" || item.status === "needs_decision") return STATUS_CONFIGS[1];
+  if (item.ai_risk_flag || item.ai_classification === "Risk") return STATUS_CONFIGS[2];
+  if (item.ai_vague_flag || item.ai_classification === "Vague") return STATUS_CONFIGS[3];
+  return STATUS_CONFIGS[5];
+}
+
+function MemryStatusCard({ item }: { item: FeedbackItem }) {
+  const cfg = resolveStatusConfig(item);
+
+  // Last activity = most recent timestamp across original comment + all replies
+  const allTimes = [
+    item.figma_comment?.figma_created_at,
+    item.created_at,
+    ...(item.replies ?? []).map(r => r.figma_created_at),
+  ].filter(Boolean) as string[];
+  const lastActivity = allTimes.length
+    ? allTimes.reduce((a, b) => (a > b ? a : b))
+    : item.created_at;
 
   return (
-    <section className={`rounded-panel border ${heroPanel} px-5 py-4 space-y-3`}>
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Decision Summary</p>
-
-      {/* Signal row — each chip only appears when it adds new information */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${status.pillCls}`}>
-          {status.label}
-        </span>
-        {classCls && item.ai_classification && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${classCls}`}>
-            {item.ai_classification}
-          </span>
-        )}
-        {priority && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${priority.cls}`}>
-            {priority.label}
-          </span>
-        )}
-        {showRiskChip && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-red bg-red-soft">
-            <AlertCircle size={10} /> Risk
-          </span>
-        )}
-        {showVagueChip && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-muted bg-wash">
-            <HelpCircle size={10} /> Vague
-          </span>
-        )}
+    <section className={`rounded-panel border ${cfg.bg} ${cfg.border} px-5 py-4 space-y-3`}>
+      {/* State label */}
+      <div className="flex items-center gap-2">
+        <span className="text-base">{cfg.icon}</span>
+        <span className={`text-sm font-bold ${cfg.labelCls}`}>{cfg.label}</span>
+        <span className="ml-auto text-caption text-muted">{timeAgo(lastActivity)}</span>
       </div>
 
-      {/* Summary — empty state demoted to body text so it doesn't compete with real content */}
-      {item.ai_summary ? (
-        <p className="text-lead text-ink leading-relaxed">{item.ai_summary}</p>
-      ) : (
-        <p className="text-body text-muted">No AI summary yet — generate one from the discussion below.</p>
-      )}
+      {/* Reason — why this is in the inbox */}
+      <p className="text-lead text-ink leading-relaxed">{cfg.reasonFn(item)}</p>
 
-      {/* Suggested Action callout */}
+      {/* Recommended next step */}
       {item.ai_suggested_action && (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-blue-soft">
-          <Zap size={13} className="text-blue shrink-0" />
+        <div className="flex items-start gap-2 pt-1">
+          <Zap size={12} className="text-muted shrink-0 mt-0.5" />
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-blue mb-0.5">Suggested Action</p>
-            <p className="text-body font-semibold text-ink leading-snug">{item.ai_suggested_action}</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted block mb-0.5">Recommended next step</span>
+            <p className="text-body font-medium text-ink leading-snug">{item.ai_suggested_action}</p>
           </div>
         </div>
       )}
-
-      {/* Key question — suppress null, empty string, and the literal "None" returned by older AI runs */}
-      {item.ai_key_question && item.ai_key_question !== "None" && item.ai_key_question.trim() !== "" && (
-        <div className="flex items-start gap-2 rounded-lg bg-paper border border-border px-3 py-2">
-          <HelpCircle size={13} className="text-muted shrink-0 mt-0.5" />
-          <p className="text-body text-ink leading-snug">
-            <span className="text-muted font-medium">Key question: </span>{item.ai_key_question}
-          </p>
-        </div>
-      )}
-
-      {/* Vague reason — only when the AI flagged vagueness AND gave a reason */}
-      {item.ai_vague_flag && item.ai_vague_reason && (
-        <div className="flex items-start gap-2 rounded-lg bg-zinc-100 border border-zinc-200 px-3 py-2">
-          <HelpCircle size={13} className="text-zinc-600 shrink-0 mt-0.5" />
-          <p className="text-body text-zinc-600 leading-snug">
-            <span className="font-medium">Why this is vague: </span>{item.ai_vague_reason}
-          </p>
-        </div>
-      )}
-
-      {/* AI tags */}
-      {item.ai_tags && item.ai_tags.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {item.ai_tags.map(tag => (
-            <span
-              key={tag}
-              className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-paper border border-border text-muted"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* AI Uncertain — shown only when confidence < 0.70 */}
-      {item.ai_confidence !== null && item.ai_confidence < 0.70 && (
-        <p className="text-caption text-muted italic">
-          AI Uncertain — classification may not be accurate
-        </p>
-      )}
     </section>
+  );
+}
+
+// ── Lightweight sidebar thumbnail ─────────────────────────────────────────────
+
+function DesignThumbnail({ item }: { item: FeedbackItem }) {
+  const [imgError, setImgError] = useState(false);
+  const dr = item.design_reference;
+  const fc = item.figma_comment;
+  const fileKey = dr?.file_key ?? fc?.figma_file?.figma_file_key ?? null;
+  const nodeId  = dr?.node_id ?? item.figma_node_id ?? null;
+  const frameName = dr?.frame_name ?? fc?.frame_name ?? null;
+  const pageName  = dr?.page_name  ?? fc?.page_name  ?? null;
+  const thumbUrl  = (dr?.preview_status === "ready" ? dr.thumbnail_url : null) ?? item.figma_preview_url ?? null;
+  const figmaUrl  = fileKey
+    ? `https://www.figma.com/design/${fileKey}${nodeId ? `?node-id=${encodeURIComponent(nodeId)}` : ""}`
+    : null;
+
+  const { primary: displayName } = resolveDisplayName(frameName, pageName);
+
+  if (!figmaUrl && !thumbUrl) return null;
+
+  return (
+    <a
+      href={figmaUrl ?? "#"}
+      target={figmaUrl ? "_blank" : undefined}
+      rel="noreferrer"
+      className="block border border-border rounded-panel overflow-hidden bg-paper hover:border-ink/20 transition-all group"
+      onClick={!figmaUrl ? e => e.preventDefault() : undefined}
+    >
+      {thumbUrl && !imgError ? (
+        <div className="h-24 bg-[#F0F0F0] overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={thumbUrl}
+            alt={displayName}
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        </div>
+      ) : (
+        <div className="h-16 bg-[#F7F7F8] flex items-center justify-center">
+          <FigmaLogoMini />
+        </div>
+      )}
+      <div className="px-3 py-2 flex items-center justify-between gap-2">
+        <p className="text-caption text-ink font-medium truncate">{displayName}</p>
+        {figmaUrl && <ExternalLink size={10} className="text-muted shrink-0 group-hover:text-ink transition-colors" />}
+      </div>
+    </a>
   );
 }
 
@@ -552,259 +571,6 @@ function LinkedToPanel({ item, commentCount }: { item: FeedbackItem; commentCoun
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Design context card ───────────────────────────────────────────────────────
-
-function DesignContextPreview({ item, frameCommentCount }: {
-  item: FeedbackItem;
-  frameCommentCount: number;
-}) {
-  const [imgLoaded, setImgLoaded] = useState(false);
-  const [imgError, setImgError] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [genMsg, setGenMsg] = useState<string | null>(null);
-
-  async function handleGeneratePreview(e: React.MouseEvent) {
-    e.preventDefault(); // card is a link — stop navigation
-    setGenerating(true);
-    setGenMsg(null);
-    try {
-      const res = await fetch("/api/figma/enrich-previews", { method: "POST" });
-      const data = await res.json() as {
-        ok: boolean; enriched?: number; processed?: number;
-        retryAfterHours?: number; message?: string;
-      };
-      if (!data.ok && data.retryAfterHours) {
-        setGenMsg(`Rate limited — retry in ~${data.retryAfterHours}h`);
-      } else if (data.enriched && data.enriched > 0) {
-        setGenMsg("Preview ready — reload to see it");
-      } else {
-        setGenMsg(data.message ?? "Nothing to generate");
-      }
-    } catch {
-      setGenMsg("Request failed");
-    }
-    setGenerating(false);
-  }
-
-  const dr = item.design_reference;
-  const fc = item.figma_comment;
-  const fileKey   = dr?.file_key ?? fc?.figma_file?.figma_file_key ?? null;
-  const nodeId    = dr?.node_id ?? item.figma_node_id ?? null;
-  const frameName = dr?.frame_name ?? fc?.frame_name ?? null;
-  const pageName  = dr?.page_name  ?? fc?.page_name  ?? null;
-  const fileName  = fc?.figma_file?.name ?? null;
-  const previewStatus = dr?.preview_status ?? "pending";
-  const failureInfo = previewFailureInfo(dr?.preview_error_reason);
-  const thumbUrl  = (previewStatus === "ready" ? dr?.thumbnail_url : null) ?? item.figma_preview_url ?? null;
-  const showImage = !!thumbUrl && !imgError;
-
-  // DEBUG — remove once gray-placeholder bug is identified
-  console.log("[preview:detail]", {
-    itemId: item.id,
-    nodeId,
-    previewStatus,
-    drThumbnailUrl: dr?.thumbnail_url ?? null,
-    figmaPreviewUrl: item.figma_preview_url ?? null,
-    thumbUrl,
-    showImage,
-    imgLoaded,
-    imgError,
-  });
-
-  // Figma deep link: goes directly to the node, not just the file
-  const figmaUrl = fileKey
-    ? `https://www.figma.com/design/${fileKey}${nodeId ? `?node-id=${encodeURIComponent(nodeId)}` : ""}`
-    : null;
-
-  const { primary: displayName, isGeneric } = resolveDisplayName(frameName, pageName);
-
-  // Last activity = most recent of: comment created, last reply
-  const allTimes = [
-    fc?.figma_created_at,
-    ...((item.replies ?? []).map(r => r.figma_created_at)),
-  ].filter(Boolean) as string[];
-  const lastActivityAt = allTimes.length
-    ? allTimes.reduce((latest, t) => (t > latest ? t : latest))
-    : item.created_at;
-
-  return (
-    <a
-      href={figmaUrl ?? "#"}
-      target={figmaUrl ? "_blank" : undefined}
-      rel="noreferrer"
-      className="block border border-border rounded-panel overflow-hidden bg-paper hover:border-ink/20 hover:shadow-sm transition-all group"
-      onClick={figmaUrl ? undefined : e => e.preventDefault()}
-    >
-      {/* ── Preview image ── */}
-      {showImage ? (
-        <div
-          className={`relative bg-[#F0F0F0] overflow-hidden transition-all duration-200 ${expanded ? "h-64" : "h-44"}`}
-          onClick={e => { e.preventDefault(); setExpanded(v => !v); }}
-        >
-          {!imgLoaded && <div className="absolute inset-0 skeleton" />}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={thumbUrl!}
-            alt={displayName}
-            className={`w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
-            onLoad={() => { console.log("[preview:detail] onLoad fired", thumbUrl); setImgLoaded(true); }}
-            onError={() => { console.log("[preview:detail] onError fired", thumbUrl); setImgError(true); }}
-            loading="lazy"
-          />
-          {/* Expand hint */}
-          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="bg-black/40 text-white rounded p-1 flex items-center">
-              <ZoomIn size={11} />
-            </span>
-          </div>
-        </div>
-      ) : (
-        /* No-image placeholder — still shows all context */
-        <div className="bg-[#F7F7F8] px-4 pt-4 pb-3 border-b border-border">
-          <span className={`text-[9px] font-bold uppercase tracking-[0.15em] block mb-1 ${
-            imgError
-              ? "text-red-400"
-              : (previewStatus === "failed" && failureInfo.tone !== "warning")
-                ? "text-red-400"
-                : "text-gray-400"
-          }`}>
-            {imgError
-              ? "Preview failed to load"
-              : (previewStatus === "failed" && failureInfo.tone !== "warning")
-                ? failureInfo.label
-                : "Frame"}
-          </span>
-          <p className="text-[20px] font-bold text-gray-700 leading-tight mb-0.5 break-words">
-            {displayName}
-          </p>
-          {isGeneric && frameName && pageName && (
-            <p className="text-[10px] text-gray-400">Frame {frameName}</p>
-          )}
-        </div>
-      )}
-
-      {/* ── Context rows ── */}
-      <div className="px-4 py-3 space-y-2.5">
-
-        {/* Primary label (below image) + breadcrumb */}
-        <div>
-          {/* Display name */}
-          <p className="text-body font-semibold text-ink leading-snug break-words">
-            {displayName}
-          </p>
-          {/* Breadcrumb: page / file */}
-          <div className="flex items-center gap-1 mt-0.5 text-caption text-muted overflow-hidden">
-            <FigmaLogoMini />
-            {pageName && (
-              <><span className="truncate">{pageName}</span><span className="opacity-40 shrink-0">/</span></>
-            )}
-            {fileName && <span className="truncate">{fileName}</span>}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-border" />
-
-        {/* Activity */}
-        <div className="flex items-center justify-between text-caption text-muted">
-          <span className="flex items-center gap-1.5">
-            <MessageSquare size={11} className="shrink-0" />
-            <span>
-              {frameCommentCount === 1
-                ? "1 comment on this frame"
-                : `${frameCommentCount} comments on this frame`}
-            </span>
-          </span>
-          <span className="flex items-center gap-1 shrink-0 ml-2">
-            <Clock size={10} className="shrink-0" />
-            <span>{timeAgo(lastActivityAt)}</span>
-          </span>
-        </div>
-
-        {/* Retry loading — image URL exists but browser failed to load it */}
-        {imgError && thumbUrl && (
-          <button
-            onClick={() => setImgError(false)}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
-          >
-            Retry loading preview
-          </button>
-        )}
-
-        {/* Preview fetched automatically during sync — no manual generation needed */}
-        {!showImage && !imgError && (
-          <p className="text-caption text-muted text-center py-1">
-            Preview loads automatically on next sync
-          </p>
-        )}
-
-        {/* Open in Figma row — only when figmaUrl known */}
-        {figmaUrl && (
-          <div className="flex items-center gap-1 text-caption text-muted group-hover:text-ink transition-colors">
-            <ExternalLink size={10} className="shrink-0" />
-            <span>Open in Figma</span>
-          </div>
-        )}
-      </div>
-    </a>
-  );
-}
-
-// ─── Activity log ─────────────────────────────────────────────────────────────
-
-function ActivityLog({ item }: { item: FeedbackItem }) {
-  const events = [
-    { time: item.figma_comment?.figma_created_at ?? item.created_at, label: "Comment created in Figma", sub: `By ${item.figma_comment?.author_name ?? "Unknown"}`, icon: "figma" },
-    { time: item.created_at, label: "Synced to memry", sub: "Auto detection completed", icon: "sync" },
-    ...(item.ai_classification ? [{ time: item.created_at, label: "AI analysis completed", sub: item.ai_classification, icon: "ai" }] : []),
-    ...(item.replies ?? []).map(r => ({
-      time: r.figma_created_at,
-      label: `${r.author_name ?? "Someone"} replied: ${r.raw_content?.slice(0, 60) ?? ""}${(r.raw_content?.length ?? 0) > 60 ? "…" : ""}`,
-      sub: `By ${r.author_name}`,
-      icon: "reply",
-    })),
-  ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-
-  const iconMap: Record<string, React.ReactNode> = {
-    figma: (
-      <svg width="10" height="14" viewBox="0 0 38 57" fill="none">
-        <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
-        <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
-        <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
-        <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
-        <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
-      </svg>
-    ),
-    sync: <span className="text-[11px]">↻</span>,
-    ai: <Sparkles size={10} />,
-    reply: <span className="text-[11px]">↩</span>,
-  };
-
-  return (
-    <div className="border border-border rounded-panel overflow-hidden bg-paper">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Activity Log</span>
-        <button className="text-caption text-muted hover:text-ink transition-colors">Show all</button>
-      </div>
-      <div className="divide-y divide-border">
-        {events.slice(0, 5).map((e, i) => (
-          <div key={i} className="flex items-start gap-3 px-4 py-3">
-            <div className="w-5 h-5 rounded-full bg-surface border border-border flex items-center justify-center shrink-0 mt-0.5 text-muted">
-              {iconMap[e.icon] ?? <Activity size={10} />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-body font-medium text-ink leading-snug">{e.label}</p>
-              <p className="text-caption text-muted mt-0.5">{e.sub}</p>
-            </div>
-            <span className="text-caption text-muted shrink-0">{timeAgo(e.time)}</span>
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -953,7 +719,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   const router = useRouter();
 
   const [item, setItem] = useState<FeedbackItem | null>(null);
-  const [frameCommentCount, setFrameCommentCount] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"thread" | "resolved">("thread");
 
@@ -971,8 +736,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   // Summary
   const [summarising, setSummarising] = useState(false);
 
-  const [detailPreviewUrl, setDetailPreviewUrl] = useState<string | null>(null);
-  const [detailPreviewFetching, setDetailPreviewFetching] = useState(false);
   const [profiles, setProfiles] = useState<OwnerProfile[]>([]);
   const [rawCollapsed, setRawCollapsed] = useState(true);
 
@@ -991,9 +754,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                 ? `Resolve: ${found.ai_key_question}`
                 : "Mark this discussion as resolved.")
           ));
-          // Count all top-level comments on the same frame (same node_id)
-          const sameFrame = all.filter(i => i.figma_node_id && i.figma_node_id === found.figma_node_id);
-          setFrameCommentCount(sameFrame.length);
         }
         if (!silent) setLoading(false);
       });
@@ -1006,25 +766,6 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, itemId]);
-
-  useEffect(() => {
-    if (!item) return;
-    const existing = item.figma_preview_url
-      ?? (item.design_reference?.preview_status === "ready"
-          ? item.design_reference.thumbnail_url
-          : null);
-    if (existing) { setDetailPreviewUrl(existing); return; }
-    let cancelled = false;
-    setDetailPreviewFetching(true);
-    fetch(`/api/feedback/${item.id}/preview`)
-      .then(r => r.json())
-      .then((d: { preview_url?: string | null }) => {
-        if (!cancelled) { setDetailPreviewUrl(d.preview_url ?? null); setDetailPreviewFetching(false); }
-      })
-      .catch(() => { if (!cancelled) setDetailPreviewFetching(false); });
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item?.id]);
 
   // Fetch workspace profiles once for the owner dropdown
   useEffect(() => {
@@ -1167,149 +908,62 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
               item={item}
               onStatusChange={newStatus => setItem(prev => prev ? { ...prev, status: newStatus } : prev)}
             />
-            {item.slack_message_ts && item.slack_channel_id && (
-              <a
-                href={`https://slack.com/app_redirect?channel=${item.slack_channel_id}&message_ts=${item.slack_message_ts}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
-              >
-                <MessageSquare size={13} />
-                Open Slack Thread
-              </a>
-            )}
-            <button className="text-muted hover:text-ink transition-colors"><Bookmark size={15} /></button>
             <button className="text-muted hover:text-ink transition-colors"><MoreHorizontal size={15} /></button>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-6 py-5 space-y-4">
 
-            {/* ══ SECTION 1 · What Memry understood ══
-                Lead with the AI's conclusion, not the raw comment.
-                Key question becomes the H1. Summary is the lede.
-                Risk/urgency surfaces in an amber callout below. */}
-            <section className="rounded-panel border border-border bg-paper px-5 py-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Sparkles size={12} className="text-accent shrink-0" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted">What Memry understood</span>
-              </div>
+            {/* ══ SECTION 1 · Memry Status ══
+                First thing the user sees. State + reason + next step. No reading required. */}
+            <MemryStatusCard item={item} />
 
-              {item.ai_key_question && item.ai_key_question !== "None" && item.ai_key_question.trim() !== "" ? (
-                <>
-                  <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1.35, margin: 0 }}>
-                    {item.ai_key_question}
-                  </h2>
-                  {item.ai_summary && (
-                    <p className="text-lead text-ink leading-relaxed">{item.ai_summary}</p>
+            {/* ══ SECTION 2 · Memry Conclusion ══
+                One sentence. What Memry believes this discussion is about. */}
+            {(item.ai_key_question && item.ai_key_question !== "None" && item.ai_key_question.trim() !== "") || item.ai_summary ? (
+              <section className="px-4 py-3 rounded-panel border border-border bg-paper">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles size={11} className="text-muted shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Memry's read</span>
+                  {item.ai_confidence !== null && item.ai_confidence < 0.70 && (
+                    <span className="ml-auto text-[10px] text-amber italic">Low confidence</span>
                   )}
-                </>
-              ) : item.ai_summary ? (
-                <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em", lineHeight: 1.35, margin: 0 }}>
-                  {item.ai_summary}
-                </h2>
-              ) : (
-                <p className="text-body text-muted">
-                  No AI analysis yet —{" "}
-                  <button
-                    onClick={handleSummarise}
-                    disabled={summarising}
-                    className="text-blue hover:underline disabled:opacity-40 bg-transparent border-none p-0 cursor-pointer"
-                  >
-                    {summarising ? "summarising…" : "summarise the thread to generate it"}
-                  </button>
+                </div>
+                <p className="text-body text-ink leading-relaxed">
+                  {item.ai_key_question && item.ai_key_question !== "None" && item.ai_key_question.trim() !== ""
+                    ? item.ai_key_question
+                    : item.ai_summary}
                 </p>
-              )}
+              </section>
+            ) : null}
 
-              {/* Why it matters — risk / urgency callout */}
-              {(item.ai_risk_flag || item.ai_classification === "Blocked" || item.ai_classification === "Risk" || item.ai_classification === "Needs Decision") && (
-                <div
-                  className="flex items-start gap-2.5 rounded-lg px-3 py-2.5"
-                  style={{
-                    background: (item.ai_classification === "Blocked" || item.ai_classification === "Risk") ? "var(--red-soft)" : "var(--amber-soft)",
-                  }}
-                >
-                  <AlertCircle
-                    size={13}
-                    className="shrink-0 mt-0.5"
-                    style={{ color: (item.ai_classification === "Blocked" || item.ai_classification === "Risk") ? "var(--red)" : "var(--amber)" }}
-                  />
-                  <div>
-                    <p
-                      className="text-[9px] font-bold uppercase tracking-widest mb-0.5"
-                      style={{ color: (item.ai_classification === "Blocked" || item.ai_classification === "Risk") ? "var(--red)" : "var(--amber)" }}
-                    >
-                      Why it matters
-                    </p>
-                    <p className="text-body text-ink leading-snug">
-                      {item.ai_classification === "Blocked"
-                        ? "This discussion is blocked — someone is waiting on a decision before they can proceed."
-                        : item.ai_classification === "Risk"
-                        ? "Memry flagged this as a risk that could affect the project or timeline."
-                        : item.ai_classification === "Needs Decision"
-                        ? "A decision needs to be made before work can continue."
-                        : "Memry detected a potential risk in this discussion."}
-                      {item.ai_vague_reason && ` ${item.ai_vague_reason}`}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Tags */}
-              {item.ai_tags && item.ai_tags.length > 0 && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {item.ai_tags.map(tag => (
-                    <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-paper border border-border text-muted">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {/* Confidence warning */}
-              {item.ai_confidence !== null && item.ai_confidence < 0.70 && (
-                <p className="text-caption text-muted italic">AI uncertain — analysis may not be accurate</p>
-              )}
-            </section>
-
-            {/* ══ SECTION 2 · Connected context (memory moments) ══
-                Promoted from sidebar to main column.
-                Cross-tool links are the product's strongest differentiator — show them early. */}
-            <ConnectedContext itemType="feedback_item" itemId={item.id} />
-
-            {/* ══ SECTION 3 · Decision ══
-                Evidence has been shown. Now present the action. */}
+            {/* ══ SECTION 3 · Actions ══
+                Immediately after the conclusion. The product is a decision system. */}
             {(isActionable || madeDecisions.length > 0) && (
-              <section className="space-y-3">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Decision</p>
+              <section className="space-y-2">
 
-                {madeDecisions.length > 0 && (
-                  <div className="space-y-2">
-                    {madeDecisions.map(({ reply, meta }) => {
-                      const Icon = meta.Icon;
-                      return (
-                        <div key={reply.id} className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 ${meta.cls}`}>
-                          <Icon size={14} className="shrink-0 mt-0.5" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-body font-semibold">{meta.label}</span>
-                              <span className="text-caption opacity-70">{reply.author_name} · {timeAgo(reply.figma_created_at)}</span>
-                            </div>
-                            <p className="text-body leading-snug mt-0.5 break-words">{reply.raw_content}</p>
-                          </div>
+                {/* Previously made decisions */}
+                {madeDecisions.map(({ reply, meta }) => {
+                  const Icon = meta.Icon;
+                  return (
+                    <div key={reply.id} className={`flex items-start gap-2.5 rounded-panel border px-4 py-3 ${meta.cls}`}>
+                      <Icon size={14} className="shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-body font-semibold">{meta.label}</span>
+                          <span className="text-caption opacity-70">{reply.author_name} · {timeAgo(reply.figma_created_at)}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <p className="text-body leading-snug mt-0.5 break-words">{reply.raw_content}</p>
+                      </div>
+                    </div>
+                  );
+                })}
 
+                {/* Action panel */}
                 {isActionable && (
-                  <div
-                    className="rounded-panel p-4 space-y-3"
-                    style={{ background: "var(--green-soft)", border: "1px solid color-mix(in oklab, var(--green) 18%, #ffffff)" }}
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-green">Recommended action</p>
+                  <div className="rounded-panel border border-border bg-paper p-4 space-y-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Take action</p>
 
                     {editingSuggestion ? (
                       <textarea
@@ -1317,10 +971,10 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                         onChange={e => setSuggestionText(e.target.value)}
                         rows={2}
                         autoFocus
-                        className="w-full bg-paper border border-border rounded-lg px-3 py-2 text-body text-ink outline-none resize-none focus:border-[var(--accent-border)]"
+                        className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-body text-ink outline-none resize-none focus:border-[var(--accent-border)]"
                       />
                     ) : (
-                      <p className="text-body font-medium text-ink leading-relaxed">{suggestionText}</p>
+                      <p className="text-body text-muted leading-relaxed">{suggestionText}</p>
                     )}
 
                     {submitMsg && (
@@ -1333,16 +987,25 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                       <button
                         onClick={() => void submitDecision("approve")}
                         disabled={submitting}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-body font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
-                        style={{ background: "var(--green)", color: "#ffffff", border: "none", cursor: "pointer" }}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-body font-semibold disabled:opacity-40"
+                        style={{ background: "var(--green)", color: "#fff", cursor: "pointer" }}
                       >
                         <CheckCircle2 size={13} />
-                        {submitting ? "Posting…" : "Approve"}
+                        {submitting ? "Posting…" : "Capture decision"}
+                      </button>
+                      <button
+                        onClick={() => void submitDecision("clarify")}
+                        disabled={submitting}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-body font-medium bg-paper text-ink border border-border hover:border-ink/30 disabled:opacity-40"
+                        style={{ cursor: "pointer" }}
+                      >
+                        <HelpCircle size={13} />
+                        Ask for clarification
                       </button>
                       <button
                         onClick={() => setEditingSuggestion(e => !e)}
                         disabled={submitting}
-                        className="px-4 py-2 rounded-lg text-body font-medium bg-paper text-ink border border-border hover:border-[var(--accent-border)] transition-colors disabled:opacity-40"
+                        className="px-3 py-2 rounded-lg text-body text-muted hover:text-ink border border-border hover:border-ink/20 disabled:opacity-40"
                         style={{ cursor: "pointer" }}
                       >
                         {editingSuggestion ? "Done" : "Edit"}
@@ -1350,190 +1013,192 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                       <button
                         onClick={() => void submitDecision("reject")}
                         disabled={submitting}
-                        className="px-4 py-2 rounded-lg text-body font-medium bg-paper text-red border border-border hover:border-red/40 transition-colors disabled:opacity-40"
-                        style={{ cursor: "pointer" }}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        onClick={() => void submitDecision("clarify")}
-                        disabled={submitting}
-                        className="ml-auto flex items-center gap-1 text-caption text-blue hover:underline disabled:opacity-40"
+                        className="ml-auto px-3 py-2 text-body text-muted hover:text-red disabled:opacity-40"
                         style={{ background: "none", border: "none", cursor: "pointer" }}
                       >
-                        <HelpCircle size={11} />
-                        Ask for clarification
+                        Ignore
                       </button>
                     </div>
-
-                    <p className="text-caption text-muted">
-                      Approving resolves this item and posts the decision back to Figma.
-                    </p>
                   </div>
                 )}
               </section>
             )}
 
-            {/* ══ SECTION 4 · Original source (collapsed by default) ══
-                Raw comment is supporting evidence, not the lead. */}
+            {/* ══ SECTION 4 · Cross-tool findings ══
+                The strategic differentiator. Memry connects conversations across tools.
+                Renders nothing when no links exist. */}
+            <ConnectedContext itemType="feedback_item" itemId={item.id} />
+
+            {/* ══ SECTION 5 · Evidence summary ══
+                Counts + key points. Collapsed thread inside. */}
             <section>
               <button
                 onClick={() => setRawCollapsed(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-2.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
-                style={{ background: "none", cursor: "pointer" }}
+                className="w-full flex items-center justify-between px-4 py-3 rounded-panel border border-border bg-paper hover:border-ink/20 transition-colors"
+                style={{ cursor: "pointer" }}
               >
-                <span className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Original source</span>
-                  {fc?.author_name && (
-                    <span className="text-caption text-muted">· {fc.author_name} in Figma{fc.figma_created_at ? ` · ${timeAgo(fc.figma_created_at)}` : ""}</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted">Evidence</span>
+                  <span className="text-caption text-muted">
+                    {localReplies.length + 1} message{localReplies.length + 1 !== 1 ? "s" : ""}
+                  </span>
+                  {localReplies.length > 0 && (
+                    <span className="text-caption text-muted">
+                      · {Array.from(new Set([fc?.author_name, ...localReplies.map(r => r.author_name)].filter(Boolean))).length} participant{Array.from(new Set([fc?.author_name, ...localReplies.map(r => r.author_name)].filter(Boolean))).length !== 1 ? "s" : ""}
+                    </span>
                   )}
-                </span>
+                  {item.slack_message_ts && <span className="text-caption text-muted">· Slack thread linked</span>}
+                </div>
                 <ChevronDown
                   size={13}
-                  style={{ transform: rawCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s", flexShrink: 0 }}
+                  className="text-muted shrink-0"
+                  style={{ transform: rawCollapsed ? "rotate(0deg)" : "rotate(180deg)", transition: "transform 0.15s" }}
                 />
               </button>
 
-              {!rawCollapsed && (
-                <div className="mt-2 rounded-panel border border-border overflow-hidden">
-                  {/* Original comment */}
-                  <div className="px-5 py-4">
-                    <div className="flex items-start gap-3">
-                      <Avatar name={fc?.author_name} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-body font-semibold text-ink">{fc?.author_name ?? "Unknown"}</span>
-                          <span className="text-caption text-muted">{fc?.figma_created_at ? timeAgo(fc.figma_created_at) : ""}</span>
-                        </div>
-                        {item.author_profile && (item.author_profile.figma_handle || item.author_profile.slack_handle) && (
-                          <div className="flex items-center gap-3 mb-1.5 text-caption text-muted">
-                            {item.author_profile.figma_handle && <span>Figma @{item.author_profile.figma_handle}</span>}
-                            {item.author_profile.slack_handle && <span>Slack @{item.author_profile.slack_handle}</span>}
-                          </div>
-                        )}
-                        <p className="text-lead text-ink leading-relaxed">{fc?.raw_content}</p>
-                        <div className="flex items-center gap-1 mt-1.5 text-caption text-muted">
-                          <svg width="8" height="11" viewBox="0 0 38 57" fill="none" className="shrink-0 opacity-40">
-                            <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
-                            <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
-                            <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
-                            <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
-                            <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#FF7262"/>
-                          </svg>
-                          <span>{item.project?.name}</span>
-                          {fc?.figma_file?.name && <><span className="opacity-40">/</span><span>{fc.figma_file.name}</span></>}
-                          {fc?.page_name && <><span className="opacity-40">/</span><span>{fc.page_name}</span></>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Thread replies */}
-                  <div className="border-t border-border">
-                    <div className="border-b border-border">
-                      <div className="flex items-center gap-1 px-4 pt-3">
-                        <button
-                          onClick={() => setActiveTab("thread")}
-                          className={`px-3 py-1.5 text-body font-medium border-b-2 transition-colors ${activeTab === "thread" ? "border-ink text-ink" : "border-transparent text-muted"}`}
-                        >
-                          Thread
-                        </button>
-                        {resolvedReplies.length > 0 && (
-                          <button
-                            onClick={() => setActiveTab("resolved")}
-                            className={`px-3 py-1.5 text-body font-medium border-b-2 transition-colors ${activeTab === "resolved" ? "border-ink text-ink" : "border-transparent text-muted"}`}
-                          >
-                            Resolved <span className="text-caption">{resolvedReplies.length}</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="divide-y divide-border">
-                      {displayReplies.length === 0 ? (
-                        <p className="px-4 py-6 text-body text-muted text-center">No replies yet</p>
-                      ) : (
-                        displayReplies.map(r => (
-                          <div key={r.id} className="flex items-start gap-3 px-4 py-3.5">
-                            <Avatar name={r.author_name} size="sm" />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-body font-semibold text-ink">{r.author_name}</span>
-                                <span className="text-caption text-muted">{timeAgo(r.figma_created_at)}</span>
-                              </div>
-                              <p className="text-body text-ink leading-relaxed">{r.raw_content}</p>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 px-4 py-3 border-t border-border bg-surface/50">
-                      {(item.status === "open" || item.status === "needs_decision") && (
-                        <button
-                          onClick={handleResolve}
-                          className="px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
-                        >
-                          Resolve
-                        </button>
-                      )}
-                      <button
-                        onClick={handleSummarise}
-                        disabled={summarising || !!item.ai_summary}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors disabled:opacity-40"
-                      >
-                        <Sparkles size={11} />
-                        {summarising ? "Summarising…" : item.ai_summary ? "Summarised" : "Summarise"}
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-3 px-4 py-3 border-t border-border">
-                      <input
-                        value={replyText}
-                        onChange={e => setReplyText(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleReply(); }}
-                        placeholder="Reply to thread…"
-                        className="flex-1 bg-transparent text-body text-ink placeholder:text-muted outline-none"
-                      />
-                      {replyText.trim() && (
-                        <button
-                          onClick={handleReply}
-                          disabled={replying}
-                          className="text-ink hover:opacity-60 transition-opacity disabled:opacity-40"
-                        >
-                          <Send size={15} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              {/* Key points from AI tags */}
+              {item.ai_tags && item.ai_tags.length > 0 && (
+                <div className="px-4 pt-2 pb-1 flex items-center gap-1.5 flex-wrap">
+                  {item.ai_tags.map(tag => (
+                    <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-paper border border-border text-muted">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
               )}
             </section>
 
-            {/* Resolved / Archived state banners */}
-            {item.status === "resolved" && (
-              <div className="flex items-center gap-2 px-4 py-3 rounded-panel bg-green-soft" style={{ border: "1px solid color-mix(in oklab, var(--green) 20%, #ffffff)" }}>
-                <CheckCircle2 size={15} className="text-green shrink-0" />
-                <p className="text-body text-green font-medium">This discussion has been resolved</p>
-              </div>
-            )}
-            {item.status === "archived" && (
-              <div className="flex items-center gap-2 px-4 py-3 rounded-panel border border-gray-200 bg-gray-50">
-                <CheckCircle2 size={15} className="text-gray-400 shrink-0" />
-                <p className="text-body text-gray-500 font-medium">This item is archived</p>
-              </div>
+            {/* ══ SECTION 6 · Original discussion (collapsed) ══
+                The thread is evidence. It is not the product. */}
+            {!rawCollapsed && (
+              <section className="rounded-panel border border-border overflow-hidden">
+                {/* Original comment */}
+                <div className="px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar name={fc?.author_name} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-body font-semibold text-ink">{fc?.author_name ?? "Unknown"}</span>
+                        <span className="text-caption text-muted">{fc?.figma_created_at ? timeAgo(fc.figma_created_at) : ""}</span>
+                      </div>
+                      {item.author_profile && (item.author_profile.figma_handle || item.author_profile.slack_handle) && (
+                        <div className="flex items-center gap-3 mb-1.5 text-caption text-muted">
+                          {item.author_profile.figma_handle && <span>Figma @{item.author_profile.figma_handle}</span>}
+                          {item.author_profile.slack_handle && <span>Slack @{item.author_profile.slack_handle}</span>}
+                        </div>
+                      )}
+                      <p className="text-lead text-ink leading-relaxed">{fc?.raw_content}</p>
+                      <div className="flex items-center gap-1 mt-1.5 text-caption text-muted">
+                        <FigmaLogoMini />
+                        <span>{item.project?.name}</span>
+                        {fc?.figma_file?.name && <><span className="opacity-40 mx-1">/</span><span>{fc.figma_file.name}</span></>}
+                        {fc?.page_name && <><span className="opacity-40 mx-1">/</span><span>{fc.page_name}</span></>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Thread replies */}
+                <div className="border-t border-border">
+                  <div className="border-b border-border">
+                    <div className="flex items-center gap-1 px-4 pt-3">
+                      <button
+                        onClick={() => setActiveTab("thread")}
+                        className={`px-3 py-1.5 text-body font-medium border-b-2 transition-colors ${activeTab === "thread" ? "border-ink text-ink" : "border-transparent text-muted"}`}
+                      >
+                        Thread
+                      </button>
+                      {resolvedReplies.length > 0 && (
+                        <button
+                          onClick={() => setActiveTab("resolved")}
+                          className={`px-3 py-1.5 text-body font-medium border-b-2 transition-colors ${activeTab === "resolved" ? "border-ink text-ink" : "border-transparent text-muted"}`}
+                        >
+                          Resolved <span className="text-caption">{resolvedReplies.length}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-border">
+                    {displayReplies.length === 0 ? (
+                      <p className="px-4 py-6 text-body text-muted text-center">No replies yet</p>
+                    ) : (
+                      displayReplies.map(r => (
+                        <div key={r.id} className="flex items-start gap-3 px-4 py-3.5">
+                          <Avatar name={r.author_name} size="sm" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-body font-semibold text-ink">{r.author_name}</span>
+                              <span className="text-caption text-muted">{timeAgo(r.figma_created_at)}</span>
+                            </div>
+                            <p className="text-body text-ink leading-relaxed">{r.raw_content}</p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 px-4 py-3 border-t border-border bg-surface/50">
+                    {(item.status === "open" || item.status === "needs_decision") && (
+                      <button
+                        onClick={handleResolve}
+                        className="px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors"
+                      >
+                        Resolve
+                      </button>
+                    )}
+                    <button
+                      onClick={handleSummarise}
+                      disabled={summarising || !!item.ai_summary}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink hover:border-ink/30 transition-colors disabled:opacity-40"
+                    >
+                      <Sparkles size={11} />
+                      {summarising ? "Summarising…" : item.ai_summary ? "Summarised" : "Summarise"}
+                    </button>
+                    {item.slack_message_ts && item.slack_channel_id && (
+                      <a
+                        href={`https://slack.com/app_redirect?channel=${item.slack_channel_id}&message_ts=${item.slack_message_ts}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border text-body text-muted hover:text-ink transition-colors"
+                      >
+                        <MessageSquare size={11} />
+                        Slack
+                      </a>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 px-4 py-3 border-t border-border">
+                    <input
+                      value={replyText}
+                      onChange={e => setReplyText(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleReply(); }}
+                      placeholder="Reply to thread…"
+                      className="flex-1 bg-transparent text-body text-ink placeholder:text-muted outline-none"
+                    />
+                    {replyText.trim() && (
+                      <button
+                        onClick={handleReply}
+                        disabled={replying}
+                        className="text-ink hover:opacity-60 transition-opacity disabled:opacity-40"
+                      >
+                        <Send size={15} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </section>
             )}
 
           </div>
         </div>
       </div>
 
-      {/* ── Right: simplified sidebar — owner, design context, activity ── */}
-      <div className="w-72 shrink-0 overflow-y-auto bg-paper border-l border-border hidden lg:block">
+      {/* ── Right: sidebar — owner + lightweight design thumbnail ── */}
+      <div className="w-64 shrink-0 overflow-y-auto bg-paper border-l border-border hidden lg:block">
         <div className="p-4 space-y-4">
           <OwnerPanel item={item} profiles={profiles} onOwnerChange={handleOwnerChange} />
-          <DesignContextPreview item={item} frameCommentCount={frameCommentCount} />
-          <ActivityLog item={item} />
+          <DesignThumbnail item={item} />
         </div>
       </div>
 
