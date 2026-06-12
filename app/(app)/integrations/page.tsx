@@ -68,6 +68,12 @@ export default function IntegrationsPage() {
   const [metrics, setMetrics] = useState<PreviewMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
 
+  // Source card stats
+  const [stats, setStats] = useState<{
+    figma: { comments: number; last_synced: string | null };
+    slack: { messages: number; decisions: number; last_activity: string | null };
+  } | null>(null);
+
   // Slack Bot
   const [slackBotToken, setSlackBotToken] = useState("");
   const [slackChannelId, setSlackChannelId] = useState("");
@@ -84,6 +90,15 @@ export default function IntegrationsPage() {
       .then((d: PreviewMetrics) => { setMetrics(d); })
       .catch(() => null)
       .finally(() => setMetricsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/integrations/stats")
+      .then(r => r.json())
+      .then((d: { figma?: { comments: number; last_synced: string | null }; slack?: { messages: number; decisions: number; last_activity: string | null } }) => {
+        if (d.figma && d.slack) setStats({ figma: d.figma, slack: d.slack });
+      })
+      .catch(() => null);
   }, []);
 
   useEffect(() => {
@@ -214,6 +229,76 @@ export default function IntegrationsPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-8 pb-8">
+
+        {/* ── Source cards (kit screen 10) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 max-w-2xl mb-6">
+          {/* Figma card */}
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4 shadow-1">
+            <div className="flex items-center gap-2 mb-2">
+              <FigmaLogo />
+              <span className="text-[13px] font-semibold text-[var(--text)]">Figma</span>
+            </div>
+            {figmaConnected ? (
+              <>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full mb-2">
+                  <CheckCircle2 size={9} /> Connected
+                </span>
+                <p className="text-[11px] text-[var(--text-3)]">
+                  {stats?.figma.last_synced ? `Last synced ${relativeTime(stats.figma.last_synced)}` : "Not synced yet"}
+                </p>
+                <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
+                  {stats?.figma.comments ?? 0} comments
+                </p>
+              </>
+            ) : (
+              <span className="inline-flex text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
+                Not connected
+              </span>
+            )}
+          </div>
+
+          {/* Slack card */}
+          <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4 shadow-1">
+            <div className="flex items-center gap-2 mb-2">
+              <SlackLogo />
+              <span className="text-[13px] font-semibold text-[var(--text)]">Slack</span>
+            </div>
+            {slackConnected ? (
+              <>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full mb-2">
+                  <CheckCircle2 size={9} /> Connected
+                </span>
+                <p className="text-[11px] text-[var(--text-3)]">
+                  {stats?.slack.last_activity ? `Last decision ${relativeTime(stats.slack.last_activity)}` : "Listening for decisions"}
+                </p>
+                <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
+                  {stats?.slack.messages ?? 0} messages · {stats?.slack.decisions ?? 0} decisions
+                </p>
+              </>
+            ) : (
+              <span className="inline-flex text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
+                Not connected
+              </span>
+            )}
+          </div>
+
+          {/* Google Meet / Notion — coming soon */}
+          {[
+            { name: "Google Meet", emoji: "🎥" },
+            { name: "Notion",      emoji: "📝" },
+          ].map(s => (
+            <div key={s.name} className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-4 shadow-1 opacity-60">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[15px]">{s.emoji}</span>
+                <span className="text-[13px] font-semibold text-[var(--text)]">{s.name}</span>
+              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
+                <Clock size={9} /> Coming soon
+              </span>
+            </div>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 gap-4 max-w-2xl">
 
           {/* ── Figma ── */}
