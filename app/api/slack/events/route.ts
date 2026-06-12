@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { verifySlackSignature } from "@/lib/slack/bot";
 import { processSlackMessage } from "@/lib/slack/process-message";
+import { answerQuestion } from "@/lib/slack/answer-question";
 import { passesLengthFilter, resolveContextText } from "@/lib/slack/context";
 
 interface SlackMessageEvent {
@@ -113,16 +114,25 @@ export async function POST(req: NextRequest) {
       const contextText = await resolveContextText(botToken, event.channel, {
         ts: event.ts, text, thread_ts: event.thread_ts,
       });
-      await processSlackMessage({
-        workspaceId: ws.id,
-        botToken,
-        channelId:   event.channel,
-        messageTs:   event.ts,
-        messageText: text,
-        userId:      event.user ?? "",
-        contextText: contextText ?? undefined,
-      });
-    })().catch(err => console.error("[slack/events] processSlackMessage error:", err));
+      await Promise.all([
+        processSlackMessage({
+          workspaceId: ws.id,
+          botToken,
+          channelId:   event.channel,
+          messageTs:   event.ts,
+          messageText: text,
+          userId:      event.user ?? "",
+          contextText: contextText ?? undefined,
+        }),
+        answerQuestion({
+          workspaceId: ws.id,
+          botToken,
+          channelId:   event.channel,
+          messageTs:   event.ts,
+          messageText: text,
+        }),
+      ]);
+    })().catch(err => console.error("[slack/events] processing error:", err));
   }
 
   return NextResponse.json({ ok: true });

@@ -394,7 +394,7 @@ export async function POST(
 
     // Linker Agent: connect newly captured items to related discussions.
     // Small batch, best-effort — the backfill endpoint covers anything missed.
-    if (added > 0 && process.env.OPENAI_API_KEY) {
+    if (added > 0 && process.env.JINA_API_KEY) {
       try {
         const linked = await linkUnprocessed(workspaceId, 10);
         if (linked.auto_linked > 0 || linked.suggested > 0) {
