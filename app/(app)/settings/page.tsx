@@ -50,15 +50,15 @@ function TabBar({ active, onChange }: { active: TabId; onChange: (t: TabId) => v
     { id: "notifications", label: "Notifications" },
   ];
   return (
-    <div className="flex gap-1 border-b border-zinc-200 mb-6">
+    <div className="flex gap-1 border-b border-[var(--border)] mb-6">
       {tabs.map(t => (
         <button
           key={t.id}
           onClick={() => onChange(t.id)}
           className={`px-4 py-2.5 text-sm font-medium transition-colors -mb-px border-b-2 ${
             active === t.id
-              ? "border-zinc-900 text-zinc-900"
-              : "border-transparent text-zinc-400 hover:text-zinc-600"
+              ? "border-zinc-900 text-[var(--text)]"
+              : "border-transparent text-[var(--text-3)] hover:text-[var(--text-2)]"
           }`}
         >
           {t.label}
@@ -119,17 +119,17 @@ function WorkspaceTab() {
   return (
     <div className="space-y-5">
       {/* Figma PAT */}
-      <div className="bg-white rounded-2xl border border-zinc-200 p-6">
-        <h2 className="text-zinc-900 font-semibold text-base mb-1">Figma Integration</h2>
-        <p className="text-zinc-500 text-sm mb-5">
+      <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
+        <h2 className="text-[var(--text)] font-semibold text-base mb-1">Figma Integration</h2>
+        <p className="text-[var(--text-2)] text-sm mb-5">
           Connect your Figma account to sync comments automatically.
           Go to Figma → Settings → Security → Personal access tokens.
-          Enable <strong className="text-zinc-700">current_user: Read</strong>,{" "}
-          <strong className="text-zinc-700">File content: Read</strong> and{" "}
-          <strong className="text-zinc-700">Comments: Read + Write</strong>.
+          Enable <strong className="text-[var(--text-2)]">current_user: Read</strong>,{" "}
+          <strong className="text-[var(--text-2)]">File content: Read</strong> and{" "}
+          <strong className="text-[var(--text-2)]">Comments: Read + Write</strong>.
         </p>
         {figmaHandle && pat === "set" && (
-          <div className="flex items-center gap-2 mb-4 text-zinc-700">
+          <div className="flex items-center gap-2 mb-4 text-[var(--text-2)]">
             <CheckCircle size={14} />
             <span className="text-sm font-medium">Connected as @{figmaHandle}</span>
           </div>
@@ -140,7 +140,7 @@ function WorkspaceTab() {
           onChange={e => { setPat(e.target.value); setPatStatus("idle"); }}
           placeholder="figd_…"
           type={pat === "set" ? "password" : "text"}
-          className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-zinc-700 text-sm placeholder:text-zinc-400 outline-none focus:border-zinc-400 transition-colors mb-3"
+          className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-[var(--text-2)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-zinc-400 transition-colors mb-3"
         />
         {patError && (
           <div className="flex items-center gap-2 mb-3">
@@ -152,7 +152,7 @@ function WorkspaceTab() {
           <button
             onClick={savePat}
             disabled={patStatus === "saving" || pat === "set" || !pat.trim()}
-            className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+            className="flex items-center gap-2 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
           >
             {patStatus === "saving" && <Loader2 size={13} className="animate-spin" />}
             {patStatus === "saved" ? "✓ Saved" : patStatus === "saving" ? "Validating…" : "Save token"}
@@ -160,7 +160,7 @@ function WorkspaceTab() {
           {pat === "set" && (
             <button
               onClick={() => { setPat(""); setPatStatus("idle"); setFigmaHandle(null); }}
-              className="text-zinc-400 hover:text-zinc-600 text-xs transition-colors"
+              className="text-[var(--text-3)] hover:text-[var(--text-2)] text-xs transition-colors"
             >
               Replace
             </button>
@@ -169,30 +169,30 @@ function WorkspaceTab() {
       </div>
 
       {/* Share link */}
-      <div className="bg-white rounded-2xl border border-zinc-200 p-6">
+      <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
         <div className="flex items-center gap-2 mb-1">
-          <Link2 size={16} className="text-zinc-400" />
-          <h2 className="text-zinc-900 font-semibold text-base">Stakeholder Share Link</h2>
+          <Link2 size={16} className="text-[var(--text-3)]" />
+          <h2 className="text-[var(--text)] font-semibold text-base">Stakeholder Share Link</h2>
         </div>
-        <p className="text-zinc-500 text-sm mb-4">
+        <p className="text-[var(--text-2)] text-sm mb-4">
           Share a public read-only view of your project status with stakeholders — no login required.
         </p>
         {shareUrl ? (
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-zinc-500 text-sm truncate">
+            <div className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-xl px-4 py-2.5 text-[var(--text-2)] text-sm truncate">
               {shareUrl}
             </div>
             <button
               onClick={copyShareLink}
-              className="flex items-center gap-1.5 bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors flex-shrink-0"
+              className="flex items-center gap-1.5 bg-[var(--accent)] hover:opacity-90 text-white text-sm font-medium px-4 py-2.5 rounded-xl transition-colors flex-shrink-0"
             >
               {copied ? <Check size={13} /> : <Copy size={13} />}
               {copied ? "Copied!" : "Copy"}
             </button>
           </div>
         ) : (
-          <div className="bg-zinc-50 rounded-xl px-4 py-3">
-            <p className="text-zinc-400 text-sm">Loading…</p>
+          <div className="bg-[var(--bg)] rounded-xl px-4 py-3">
+            <p className="text-[var(--text-3)] text-sm">Loading…</p>
           </div>
         )}
       </div>
@@ -262,12 +262,12 @@ function TeamTab() {
   return (
     <div className="space-y-6">
       {/* Invite form */}
-      <div className="bg-white rounded-2xl border border-zinc-200 p-6">
+      <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
         <div className="flex items-center gap-2 mb-1">
-          <UserPlus size={16} className="text-zinc-400" />
-          <h2 className="text-zinc-900 font-semibold text-base">Invite team members</h2>
+          <UserPlus size={16} className="text-[var(--text-3)]" />
+          <h2 className="text-[var(--text)] font-semibold text-base">Invite team members</h2>
         </div>
-        <p className="text-zinc-500 text-sm mb-5">
+        <p className="text-[var(--text-2)] text-sm mb-5">
           Team members get access to all projects and feedback in this workspace.
         </p>
 
@@ -278,12 +278,12 @@ function TeamTab() {
             value={inviteEmail}
             onChange={e => { setInviteEmail(e.target.value); setInviteResult(null); }}
             onKeyDown={e => e.key === "Enter" && void handleInvite()}
-            className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            className="flex-1 border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-2)] placeholder:text-[var(--text-3)] focus:outline-none focus:ring-2 focus:ring-zinc-900"
           />
           <select
             value={inviteRole}
             onChange={e => setInviteRole(e.target.value as "member" | "admin")}
-            className="border border-zinc-200 rounded-lg px-3 py-2 text-sm text-zinc-700 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-2)] bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900"
           >
             <option value="member">Member</option>
             <option value="admin">Admin</option>
@@ -291,7 +291,7 @@ function TeamTab() {
           <button
             onClick={() => void handleInvite()}
             disabled={inviting || !inviteEmail.trim()}
-            className="bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0 flex items-center gap-1.5"
+            className="bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors flex-shrink-0 flex items-center gap-1.5"
           >
             {inviting && <Loader2 size={13} className="animate-spin" />}
             Send invite
@@ -299,38 +299,38 @@ function TeamTab() {
         </div>
 
         {inviteResult && (
-          <p className={`text-xs ${inviteResult.ok ? "text-zinc-600" : "text-red-500"}`}>
+          <p className={`text-xs ${inviteResult.ok ? "text-[var(--text-2)]" : "text-red-500"}`}>
             {inviteResult.msg}
           </p>
         )}
       </div>
 
       {/* Current members */}
-      <div className="bg-white rounded-2xl border border-zinc-200 p-6">
-        <h2 className="text-zinc-900 font-semibold text-base mb-4">
+      <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
+        <h2 className="text-[var(--text)] font-semibold text-base mb-4">
           Members ({members.length})
         </h2>
         {members.length === 0 ? (
-          <p className="text-sm text-zinc-400">No members yet</p>
+          <p className="text-sm text-[var(--text-3)]">No members yet</p>
         ) : (
           <div>
             {members.map(m => {
               const initial = (m.full_name ?? m.email ?? "?")[0]?.toUpperCase();
               const isSelf  = m.user_id === currentUserId;
               return (
-                <div key={m.id} className="flex items-center gap-3 py-3 border-b border-zinc-100 last:border-0">
-                  <div className="w-8 h-8 rounded-full bg-zinc-900 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                <div key={m.id} className="flex items-center gap-3 py-3 border-b border-[var(--border-2)] last:border-0">
+                  <div className="w-8 h-8 rounded-full bg-[var(--accent)] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                     {initial}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-zinc-900">{m.full_name ?? m.email ?? "Unknown"}</p>
-                    {m.email && m.full_name && <p className="text-xs text-zinc-400">{m.email}</p>}
+                    <p className="text-sm font-medium text-[var(--text)]">{m.full_name ?? m.email ?? "Unknown"}</p>
+                    {m.email && m.full_name && <p className="text-xs text-[var(--text-3)]">{m.email}</p>}
                   </div>
-                  <span className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full capitalize ml-auto">
+                  <span className="text-xs bg-[var(--border-2)] text-[var(--text-2)] px-2 py-0.5 rounded-full capitalize ml-auto">
                     {m.role === "admin" ? "Admin" : "Member"}
                   </span>
                   {isAdmin && !isSelf && (
-                    <button className="text-xs text-zinc-400 hover:text-red-500 transition-colors ml-2">
+                    <button className="text-xs text-[var(--text-3)] hover:text-red-500 transition-colors ml-2">
                       Remove
                     </button>
                   )}
@@ -343,23 +343,23 @@ function TeamTab() {
 
       {/* Pending invites */}
       {pendingInvites.length > 0 && (
-        <div className="bg-white rounded-2xl border border-zinc-200 p-6">
-          <h2 className="text-zinc-900 font-semibold text-base mb-4">
+        <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
+          <h2 className="text-[var(--text)] font-semibold text-base mb-4">
             Pending invites ({pendingInvites.length})
           </h2>
           <div>
             {pendingInvites.map(inv => (
-              <div key={inv.id} className="flex items-center gap-3 py-3 border-b border-zinc-100 last:border-0">
-                <div className="w-8 h-8 rounded-full bg-zinc-100 text-zinc-500 text-xs font-bold flex items-center justify-center flex-shrink-0">
+              <div key={inv.id} className="flex items-center gap-3 py-3 border-b border-[var(--border-2)] last:border-0">
+                <div className="w-8 h-8 rounded-full bg-[var(--border-2)] text-[var(--text-2)] text-xs font-bold flex items-center justify-center flex-shrink-0">
                   {inv.email[0]?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-zinc-700">{inv.email}</p>
-                  <p className="text-xs text-zinc-400">
+                  <p className="text-sm text-[var(--text-2)]">{inv.email}</p>
+                  <p className="text-xs text-[var(--text-3)]">
                     Expires in {daysUntil(inv.expires_at)}d · {inv.role === "admin" ? "Admin" : "Member"}
                   </p>
                 </div>
-                <span className="text-xs bg-zinc-100 text-zinc-400 px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-[var(--border-2)] text-[var(--text-3)] px-2 py-0.5 rounded-full">
                   Pending
                 </span>
                 {isAdmin && (
@@ -426,26 +426,26 @@ function NotificationsTab() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-zinc-200 p-6">
+    <div className="bg-white rounded-2xl border border-[var(--border)] p-6">
       <div className="flex items-center gap-2 mb-1">
-        <Bell size={16} className="text-zinc-400" />
-        <h2 className="text-zinc-900 font-semibold text-base">Notifications</h2>
+        <Bell size={16} className="text-[var(--text-3)]" />
+        <h2 className="text-[var(--text)] font-semibold text-base">Notifications</h2>
       </div>
-      <p className="text-zinc-500 text-sm mb-5">
+      <p className="text-[var(--text-2)] text-sm mb-5">
         Proactive Slack DMs to authors when their feedback needs attention.
       </p>
 
       <div className="flex items-center justify-between mb-5">
         <div>
-          <p className="text-zinc-700 text-sm font-medium">Stale comment alerts (48h)</p>
-          <p className="text-zinc-400 text-xs mt-0.5">
+          <p className="text-[var(--text-2)] text-sm font-medium">Stale comment alerts (48h)</p>
+          <p className="text-[var(--text-3)] text-xs mt-0.5">
             DM authors when comments haven&apos;t been updated in 48 hours
           </p>
         </div>
         <button
           onClick={() => void toggleNotifications(!notificationsEnabled)}
           className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
-            notificationsEnabled ? "bg-zinc-900" : "bg-zinc-200"
+            notificationsEnabled ? "bg-[var(--accent)]" : "bg-zinc-200"
           }`}
         >
           <span
@@ -457,20 +457,20 @@ function NotificationsTab() {
       </div>
 
       {lastScan && (
-        <p className="text-zinc-400 text-xs mb-4">Last scan: {scanTimeAgo(lastScan)}</p>
+        <p className="text-[var(--text-3)] text-xs mb-4">Last scan: {scanTimeAgo(lastScan)}</p>
       )}
 
       <button
         onClick={() => void runTestScan()}
         disabled={scanStatus === "running"}
-        className="flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 text-zinc-700 text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+        className="flex items-center gap-2 bg-[var(--border-2)] hover:bg-zinc-200 disabled:opacity-50 text-[var(--text-2)] text-sm font-medium px-4 py-2 rounded-xl transition-colors"
       >
         {scanStatus === "running" ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />}
         {scanStatus === "running" ? "Running scan…" : "Test scan now"}
       </button>
 
       {scanResult && (
-        <p className="text-sm mt-2 text-zinc-500">
+        <p className="text-sm mt-2 text-[var(--text-2)]">
           ✓ Notified {scanResult.notified}{" "}
           {scanResult.notified === 1 ? "person" : "people"}
           {scanResult.skipped > 0 ? `, skipped ${scanResult.skipped}` : ""}
@@ -487,9 +487,9 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-full bg-white">
-      <div className="px-8 pt-7 pb-5 border-b border-zinc-100">
-        <h1 className="text-zinc-900 text-2xl font-semibold mb-0.5">Settings</h1>
-        <p className="text-zinc-500 text-sm">Configure your workspace and integrations</p>
+      <div className="px-8 pt-7 pb-5 border-b border-[var(--border-2)]">
+        <h1 className="text-[var(--text)] text-2xl font-semibold mb-0.5">Settings</h1>
+        <p className="text-[var(--text-2)] text-sm">Configure your workspace and integrations</p>
       </div>
 
       <div className="px-8 pt-5 pb-8 max-w-2xl">
