@@ -66,7 +66,7 @@ interface FeedbackItem {
   owner_profile: { display_name: string; slack_handle: string | null } | null;
 }
 
-type DecisionType = "approve" | "needs_work" | "clarify" | null;
+type DecisionKind = "approve" | "reject" | "clarify";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -486,6 +486,76 @@ function DecisionSummaryHero({ item }: { item: FeedbackItem }) {
   );
 }
 
+// ── Linked to panel (kit screen 4) ───────────────────────────────────────────
+
+function LinkedToPanel({ item, commentCount }: { item: FeedbackItem; commentCount: number }) {
+  const fc = item.figma_comment;
+  return (
+    <div className="rounded-panel border border-border bg-paper p-3.5 space-y-2.5">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Linked to</p>
+
+      {item.project && (
+        <div>
+          <p className="text-[10px] text-muted">Project</p>
+          <Link
+            href={`/projects/${item.project.id}`}
+            className="text-body text-blue hover:underline"
+          >
+            {item.project.name}
+          </Link>
+        </div>
+      )}
+
+      {fc?.figma_file?.name && (
+        <div>
+          <p className="text-[10px] text-muted">File</p>
+          <p className="text-body text-ink">{fc.figma_file.name}</p>
+        </div>
+      )}
+
+      <div>
+        <p className="text-[10px] text-muted mb-1">Sources</p>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-caption text-ink">
+              <svg width="10" height="13" viewBox="0 0 38 57" fill="none" className="shrink-0">
+                <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
+                <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
+                <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
+                <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
+                <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#A259FF"/>
+              </svg>
+              Figma
+            </span>
+            <span className="font-mono text-[10px] text-muted">
+              {commentCount} comment{commentCount !== 1 ? "s" : ""}
+            </span>
+          </div>
+          {item.slack_message_ts && item.slack_channel_id && (
+            <div className="flex items-center justify-between">
+              <a
+                href={`https://slack.com/app_redirect?channel=${item.slack_channel_id}&message_ts=${item.slack_message_ts}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-caption text-blue hover:underline"
+              >
+                <svg width="11" height="11" viewBox="0 0 122.8 122.8" className="shrink-0">
+                  <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#e01e5a"/>
+                  <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36c5f0"/>
+                  <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2eb67d"/>
+                  <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ecb22e"/>
+                </svg>
+                Slack thread
+              </a>
+              <span className="font-mono text-[10px] text-muted">linked</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Design context card ───────────────────────────────────────────────────────
 
 function DesignContextPreview({ item, frameCommentCount }: {
@@ -886,9 +956,9 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"thread" | "resolved">("thread");
 
-  // Decision state
-  const [decision, setDecision] = useState<DecisionType>(null);
-  const [note, setNote] = useState("");
+  // Decision state — suggestion text is editable via the Edit action
+  const [suggestionText, setSuggestionText] = useState("");
+  const [editingSuggestion, setEditingSuggestion] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<string | null>(null);
 
@@ -913,6 +983,12 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
         setItem(found);
         if (found) {
           setLocalReplies(found.replies ?? []);
+          setSuggestionText(prev => prev || (
+            found.ai_suggested_action
+            ?? (found.ai_key_question && found.ai_key_question !== "None"
+                ? `Resolve: ${found.ai_key_question}`
+                : "Mark this discussion as resolved.")
+          ));
           // Count all top-level comments on the same frame (same node_id)
           const sameFrame = all.filter(i => i.figma_node_id && i.figma_node_id === found.figma_node_id);
           setFrameCommentCount(sameFrame.length);
@@ -970,25 +1046,28 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
     } : prev);
   }
 
-  async function handleMakeDecision() {
-    if (!decision || !item) return;
-    const prefix = decision === "approve" ? "✅ Approved" : decision === "needs_work" ? "⚠️ Needs Work" : "❓ Asking for clarification";
-    const message = note.trim() ? `${prefix}: ${note.trim()}` : prefix;
+  async function submitDecision(kind: DecisionKind) {
+    if (!item) return;
+    const text = suggestionText.trim();
+    const message =
+      kind === "approve" ? (text ? `✅ Approved: ${text}` : "✅ Approved")
+      : kind === "reject" ? (text ? `⚠️ Needs Work: rejected "${text}"` : "⚠️ Needs Work")
+      : "❓ Asking for clarification";
     setSubmitting(true);
     const res = await fetch(`/api/feedback/${item.id}/reply`, {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, resolve: decision === "approve" }),
+      body: JSON.stringify({ message, resolve: kind === "approve" }),
     });
     const data = await res.json() as { ok?: boolean; error?: string };
     if (res.ok) {
       setSubmitMsg("Decision posted to Figma");
-      setItem(prev => prev ? { ...prev, status: decision === "approve" ? "resolved" : "open" } : prev);
+      setItem(prev => prev ? { ...prev, status: kind === "approve" ? "resolved" : "open" } : prev);
       setLocalReplies(prev => [...prev, {
         id: `temp-${Date.now()}`, author_name: "You",
         raw_content: message, figma_created_at: new Date().toISOString(),
       }]);
       setActiveTab("resolved");
-      setNote(""); setDecision(null);
+      setEditingSuggestion(false);
     } else {
       setSubmitMsg(`Failed: ${data.error ?? "Unknown error"}`);
     }
@@ -1149,69 +1228,79 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
                   </div>
                 )}
 
-                {/* Decision panel — moved above discussion; handlers unchanged */}
+                {/* Suggested decision panel — kit screen 4: Approve / Edit / Reject */}
                 {isActionable && (
-                  <div className="rounded-panel border border-border overflow-hidden">
-                    {/* Decision buttons */}
-                    <div className="grid grid-cols-3 divide-x divide-border border-b border-border">
-                      <button
-                        onClick={() => setDecision(d => d === "approve" ? null : "approve")}
-                        className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                          decision === "approve" ? "bg-green-soft text-green" : "text-muted hover:text-green hover:bg-green-soft/50"
-                        }`}
-                      >
-                        <CheckCircle2 size={14} /> Approve
-                      </button>
-                      <button
-                        onClick={() => setDecision(d => d === "needs_work" ? null : "needs_work")}
-                        className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                          decision === "needs_work" ? "bg-amber-soft text-amber" : "text-muted hover:text-amber hover:bg-amber-soft/50"
-                        }`}
-                      >
-                        <AlertCircle size={14} /> Needs Work
-                      </button>
-                      <button
-                        onClick={() => setDecision(d => d === "clarify" ? null : "clarify")}
-                        className={`flex items-center justify-center gap-1.5 py-3 text-body font-medium transition-colors ${
-                          decision === "clarify" ? "bg-blue-soft text-blue" : "text-muted hover:text-blue hover:bg-blue-soft/50"
-                        }`}
-                      >
-                        <HelpCircle size={14} /> Ask for Clarification
-                      </button>
-                    </div>
+                  <div
+                    className="rounded-panel p-4 space-y-3"
+                    style={{
+                      background: "var(--green-soft)",
+                      border: "1px solid color-mix(in oklab, var(--green) 18%, #ffffff)",
+                    }}
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-green">
+                      Suggested decision
+                    </p>
 
-                    {/* Note input */}
-                    <div className="px-4 py-3">
+                    {editingSuggestion ? (
                       <textarea
-                        value={note}
-                        onChange={e => setNote(e.target.value)}
+                        value={suggestionText}
+                        onChange={e => setSuggestionText(e.target.value)}
                         rows={2}
-                        placeholder="Add a note (optional) — will be included with your decision"
-                        className="w-full bg-transparent text-body text-ink placeholder:text-muted outline-none resize-none"
+                        autoFocus
+                        className="w-full bg-paper border border-border rounded-lg px-3 py-2 text-body text-ink outline-none resize-none focus:border-[var(--accent-border)]"
                       />
+                    ) : (
+                      <p className="text-body font-medium text-ink leading-relaxed">
+                        {suggestionText}
+                      </p>
+                    )}
+
+                    {submitMsg && (
+                      <p className={`text-caption ${submitMsg.startsWith("Decision") ? "text-green" : "text-red"}`}>
+                        {submitMsg}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => submitDecision("approve")}
+                        disabled={submitting}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-body font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
+                        style={{ background: "var(--green)", color: "#ffffff", border: "none", cursor: "pointer" }}
+                      >
+                        <CheckCircle2 size={13} />
+                        {submitting ? "Posting…" : "Approve"}
+                      </button>
+                      <button
+                        onClick={() => setEditingSuggestion(e => !e)}
+                        disabled={submitting}
+                        className="px-4 py-2 rounded-lg text-body font-medium bg-paper text-ink border border-border hover:border-[var(--accent-border)] transition-colors disabled:opacity-40"
+                        style={{ cursor: "pointer" }}
+                      >
+                        {editingSuggestion ? "Done" : "Edit"}
+                      </button>
+                      <button
+                        onClick={() => submitDecision("reject")}
+                        disabled={submitting}
+                        className="px-4 py-2 rounded-lg text-body font-medium bg-paper text-red border border-border hover:border-red/40 transition-colors disabled:opacity-40"
+                        style={{ cursor: "pointer" }}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        onClick={() => submitDecision("clarify")}
+                        disabled={submitting}
+                        className="ml-auto flex items-center gap-1 text-caption text-blue hover:underline disabled:opacity-40"
+                        style={{ background: "none", border: "none", cursor: "pointer" }}
+                      >
+                        <HelpCircle size={11} />
+                        Ask for clarification
+                      </button>
                     </div>
 
-                    {/* Make Decision CTA */}
-                    <div className="px-4 pb-4">
-                      {submitMsg && (
-                        <p className={`text-caption mb-2 ${submitMsg.startsWith("Decision") ? "text-green" : "text-red"}`}>
-                          {submitMsg}
-                        </p>
-                      )}
-                      <button
-                        onClick={handleMakeDecision}
-                        disabled={!decision || submitting}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-ink text-paper text-body font-semibold hover:opacity-80 disabled:opacity-30 transition-opacity"
-                      >
-                        <Send size={14} />
-                        {submitting ? "Posting decision…" : "Make Decision"}
-                      </button>
-                      {decision && (
-                        <p className="text-caption text-muted text-center mt-2">
-                          Decision will be posted to Figma as a reply
-                        </p>
-                      )}
-                    </div>
+                    <p className="text-caption text-muted">
+                      Approving resolves this item and posts the decision back to Figma.
+                    </p>
                   </div>
                 )}
               </section>
@@ -1361,6 +1450,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
       {/* ── Right: context sidebar ── */}
       <div className="w-80 shrink-0 overflow-y-auto bg-paper border-l border-border hidden lg:block">
         <div className="p-4 space-y-4">
+          <LinkedToPanel item={item} commentCount={localReplies.length + 1} />
           <DesignContextPreview item={item} frameCommentCount={frameCommentCount} />
           <OwnerPanel item={item} profiles={profiles} onOwnerChange={handleOwnerChange} />
           <RelatedDecisions item={item} />
