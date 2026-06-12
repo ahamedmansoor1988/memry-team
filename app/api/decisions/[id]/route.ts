@@ -44,8 +44,62 @@ export async function GET(
     owner_name: string | null; owner_profile_id: string | null;
     source: string; decided_at: string; feedback_item_id: string | null;
     outcome: string | null; alternatives: string[] | null;
+    slack_channel_id: string | null; slack_message_ts: string | null;
     slack_channel_name: string | null; slack_thread_url: string | null;
   };
+
+  // ── Slack discussion: fetch the actual thread so the decision shows its
+  //    full context (original message, replies, who said what) ──────────────
+  let slackMessages: { author: string; text: string; ts: string }[] = [];
+  if (d.source === "slack" && d.slack_channel_id && d.slack_message_ts) {
+    const { data: ws } = await admin
+      .from("workspaces")
+      .select("slack_bot_token")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const token = (ws as { slack_bot_token?: string | null } | null)?.slack_bot_token;
+
+    if (token) {
+      try {
+        const url = new URL("https://slack.com/api/conversations.replies");
+        url.searchParams.set("channel", d.slack_channel_id);
+        url.searchParams.set("ts", d.slack_message_ts);
+        url.searchParams.set("limit", "25");
+        const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json() as {
+          ok: boolean;
+          messages?: { user?: string; bot_id?: string; text?: string; ts: string }[];
+        };
+
+        if (data.ok && data.messages?.length) {
+          const human = data.messages.filter(m => m.user && !m.bot_id);
+          const userIds = Array.from(new Set(human.map(m => m.user!)));
+          const names: Record<string, string> = {};
+          await Promise.all(userIds.map(async uid => {
+            try {
+              const r = await fetch(`https://slack.com/api/users.info?user=${uid}`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const j = await r.json() as {
+                ok: boolean;
+                user?: { real_name?: string; name?: string; profile?: { display_name?: string } };
+              };
+              names[uid] = (j.ok && (j.user?.profile?.display_name || j.user?.real_name || j.user?.name)) || "Unknown";
+            } catch {
+              names[uid] = "Unknown";
+            }
+          }));
+          slackMessages = human.map(m => ({
+            author: names[m.user!] ?? "Unknown",
+            text:   m.text ?? "",
+            ts:     m.ts,
+          }));
+        }
+      } catch {
+        // best-effort — page still renders without the thread
+      }
+    }
+  }
 
   // Linked feedback item context (project, file, comment author, replies)
   let item: {
@@ -119,6 +173,7 @@ export async function GET(
     ...(d.owner_name ? [d.owner_name] : []),
     ...(item?.author_name ? [item.author_name] : []),
     ...(item?.reply_authors ?? []),
+    ...slackMessages.map(m => m.author).filter(n => n !== "Unknown"),
   ]));
 
   return NextResponse.json({
@@ -128,6 +183,7 @@ export async function GET(
       file_name: item?.file_name ?? null,
       item_title: item?.title ?? null,
       participants,
+      slack_messages: slackMessages,
       evidence: {
         figma_comments: item?.comment_count ?? 0,
         slack_thread: d.slack_thread_url,

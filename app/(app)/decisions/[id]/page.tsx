@@ -19,6 +19,8 @@ interface DecisionDetail {
   alternatives: string[] | null;
   slack_channel_name: string | null;
   slack_thread_url: string | null;
+  slack_message_ts?: string | null;
+  slack_messages?: { author: string; text: string; ts: string }[];
   project: { id: string; name: string } | null;
   file_name: string | null;
   item_title: string | null;
@@ -168,7 +170,7 @@ export default function DecisionDetailPage({ params }: { params: { id: string } 
                 {decision.decision_text}
               </p>
 
-              {decision.reason && (
+              {decision.reason ? (
                 <>
                   <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--green)", margin: "14px 0 6px" }}>
                     Rationale
@@ -177,8 +179,81 @@ export default function DecisionDetailPage({ params }: { params: { id: string } 
                     {decision.reason}
                   </p>
                 </>
+              ) : (
+                <p style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 10, fontStyle: "italic" }}>
+                  No rationale was stated in the source discussion.
+                </p>
               )}
             </div>
+
+            {/* Slack discussion — the actual thread that produced this decision */}
+            {decision.slack_messages && decision.slack_messages.length > 0 && (
+              <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 18, boxShadow: "var(--shadow-1)" }}>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 12 }}>
+                  Discussion
+                  {decision.slack_channel_name && (
+                    <span style={{ opacity: 0.7, textTransform: "none", letterSpacing: 0 }}>
+                      {"  "}#{decision.slack_channel_name}
+                    </span>
+                  )}
+                </p>
+                <div className="space-y-3">
+                  {decision.slack_messages.map(m => {
+                    const isDecisionMsg = m.ts === decision.slack_message_ts;
+                    return (
+                      <div key={m.ts} style={{ display: "flex", gap: 10 }}>
+                        <div style={{
+                          width: 28, height: 28, borderRadius: 99, flexShrink: 0,
+                          background: colorFor(m.author), color: "#fff",
+                          fontSize: 9, fontWeight: 700,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                        }}>
+                          {initials(m.author)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)" }}>{m.author}</span>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)" }}>
+                              {new Date(parseFloat(m.ts) * 1000).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                            {isDecisionMsg && (
+                              <span style={{
+                                fontSize: 9.5, fontWeight: 600,
+                                background: "var(--green-soft)", color: "var(--green)",
+                                borderRadius: 99, padding: "1px 7px",
+                              }}>
+                                Decision captured here
+                              </span>
+                            )}
+                          </div>
+                          <p style={{
+                            fontSize: 13, color: "var(--text)", lineHeight: 1.55, marginTop: 2,
+                            ...(isDecisionMsg ? {
+                              background: "var(--green-soft)", borderRadius: 8,
+                              padding: "6px 10px", display: "inline-block",
+                            } : {}),
+                          }}>
+                            {m.text}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {decision.slack_thread_url && (
+                  <a
+                    href={decision.slack_thread_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11.5, color: "var(--blue)", textDecoration: "none", marginTop: 12 }}
+                    className="hover:underline"
+                  >
+                    <ExternalLink style={{ width: 11, height: 11 }} />
+                    Open in Slack
+                  </a>
+                )}
+              </div>
+            )}
 
             {/* Outcome */}
             {decision.outcome && (
