@@ -167,4 +167,16 @@ export async function answerQuestion({
 
   const reply = source ? `*Memry:* ${answer}\n_${source}_` : `*Memry:* ${answer}`;
   await postReply(botToken, channelId, messageTs, reply);
+
+  // Log the answered question — feeds the "X questions answered" dashboard
+  // metric. Best-effort: a missing table must never break the reply itself.
+  const { error: logError } = await admin.from("answered_questions").insert({
+    workspace_id:     workspaceId,
+    slack_channel_id: channelId,
+    slack_message_ts: messageTs,
+    question:         messageText.slice(0, 1000),
+    answer:           answer.slice(0, 2000),
+    source,
+  });
+  if (logError) console.error("[answer-question] log failed:", logError.message);
 }

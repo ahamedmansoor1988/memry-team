@@ -212,14 +212,25 @@ export default function IntegrationsPage() {
         ...(slackSigningSecret.trim() ? { slack_signing_secret: slackSigningSecret.trim() } : {}),
       }),
     });
-    const data = await res.json() as { ok?: boolean; error?: string };
+    const data = await res.json() as {
+      ok?: boolean;
+      error?: string;
+      slack_error?: string;
+      slack_verified?: { team: string | null; bot_user: string | null; missing_scopes: string[] };
+    };
     if (data.ok) {
       setSlackConnected(true);
-      setSlackMsg("✓ Slack bot connected — decisions will post to your channel");
+      const v = data.slack_verified;
+      if (v?.missing_scopes?.length) {
+        setSlackMsg(`✓ Token verified${v.team ? ` for ${v.team}` : ""} — but missing scopes: ${v.missing_scopes.join(", ")}. Add them at api.slack.com/apps, reinstall, and save the new token.`);
+      } else {
+        setSlackMsg(`✓ Verified${v?.team ? ` — connected to ${v.team}` : ""}${v?.bot_user ? ` as @${v.bot_user}` : ""}. Decisions will be captured automatically.`);
+      }
       setSlackBotToken(""); // clear for security
       setSlackSigningSecret("");
     } else {
-      setSlackMsg(data.error ?? "Failed to save");
+      if (data.slack_error) setSlackConnected(false);
+      setSlackMsg(data.slack_error ?? data.error ?? "Failed to save");
     }
     setSlackSaving(false);
   }

@@ -41,6 +41,7 @@ interface HomeData {
     decisions_pending: number;
     updates_week: number;
     decisions_captured: number;
+    questions_answered_week?: number;
   };
   analyzed: {
     comments: number;
@@ -220,6 +221,18 @@ export default function HomePage() {
                   sub: risks.map(r => r.title).slice(0, 2).join(" · "),
                   color: "var(--red)",
                   bg: "var(--red-soft)",
+                });
+              }
+
+              // Questions answered by the Slack bot this week (proof of value)
+              if ((data.stats.questions_answered_week ?? 0) > 0) {
+                const n = data.stats.questions_answered_week!;
+                findings.push({
+                  icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
+                  text: <>Memry answered {n} question{n !== 1 ? "s" : ""} in Slack this week</>,
+                  sub: "Each one is a discussion your team didn't have to repeat",
+                  color: "var(--green)",
+                  bg: "var(--green-soft)",
                 });
               }
 

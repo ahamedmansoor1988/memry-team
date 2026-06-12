@@ -82,21 +82,56 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // When a Slack bot token is saved, fetch and store the team ID for event routing
+  // When a Slack bot token is saved, verify it with auth.test and report the
+  // result — a token that fails verification is useless and the user must know.
   const savedToken = body.slack_bot_token?.trim();
   if (savedToken) {
+    const REQUIRED_SCOPES = ["channels:history", "channels:read", "channels:join", "groups:history", "chat:write"];
     try {
       const authRes  = await fetch("https://slack.com/api/auth.test", {
         headers: { Authorization: `Bearer ${savedToken}` },
       });
-      const authData = await authRes.json() as { ok: boolean; team_id?: string };
-      if (authData.ok && authData.team_id) {
-        await admin
-          .from("workspaces")
+      const authData = await authRes.json() as {
+        ok: boolean; error?: string; team_id?: string; team?: string; user?: string;
+      };
+
+      if (!authData.ok) {
+        // Token is invalid — clear it so the events route doesn't use a dead token
+        await admin.from("workspaces")
+          .update({ slack_bot_token: null, slack_team_id: null })
+          .eq("id", workspaceId);
+        return NextResponse.json({
+          ok: false,
+          slack_error: `Slack rejected the token (${authData.error ?? "unknown error"}). Check that you copied the Bot User OAuth Token (starts with xoxb-).`,
+        }, { status: 400 });
+      }
+
+      if (authData.team_id) {
+        await admin.from("workspaces")
           .update({ slack_team_id: authData.team_id })
           .eq("id", workspaceId);
       }
-    } catch { /* non-fatal */ }
+
+      const grantedScopes = (authRes.headers.get("x-oauth-scopes") ?? "")
+        .split(",").map(s => s.trim()).filter(Boolean);
+      const missingScopes = grantedScopes.length > 0
+        ? REQUIRED_SCOPES.filter(s => !grantedScopes.includes(s))
+        : [];
+
+      return NextResponse.json({
+        ok: true,
+        slack_verified: {
+          team:           authData.team ?? null,
+          bot_user:       authData.user ?? null,
+          missing_scopes: missingScopes,
+        },
+      });
+    } catch {
+      return NextResponse.json({
+        ok: false,
+        slack_error: "Could not reach Slack to verify the token. Try again.",
+      }, { status: 502 });
+    }
   }
 
   return NextResponse.json({ ok: true });

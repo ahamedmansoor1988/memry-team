@@ -49,6 +49,7 @@ export async function GET() {
     { count: filesAnalyzed },
     { count: syncingFiles },
     { count: risksTotal },
+    { count: questionsAnswered },
   ] = await Promise.all([
     admin.from("feedback_items")
       .select(`
@@ -98,6 +99,10 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .eq("ai_risk_flag", true),
+    admin.from("answered_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .gte("created_at", weekAgo),
   ]);
 
   const items = ((openItems ?? []) as RawItem[]).map(i => ({
@@ -178,6 +183,7 @@ export async function GET() {
       decisions_pending: pending,
       updates_week: (weekItemCount ?? 0) + (weekDecisionCount ?? 0),
       decisions_captured: totalDecisions ?? 0,
+      questions_answered_week: questionsAnswered ?? 0,
     },
     analyzed: {
       comments: commentsAnalyzed ?? 0,
