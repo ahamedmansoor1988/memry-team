@@ -1,10 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import {
-  CheckCircle2, ExternalLink, Search, ChevronDown, ChevronRight,
-  Plus, Hash, ListChecks,
-} from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Search, ChevronDown, ListChecks } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,303 +38,57 @@ type SourceFilter = "all" | "slack" | "ai" | "manual";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function timeAgo(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30) return `${d}d ago`;
-  return `${Math.floor(d / 30)}mo ago`;
+function shortDate(date: string): string {
+  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function ownerInitials(name: string | null): string {
+function initials(name: string | null): string {
   if (!name) return "?";
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 }
 
-const SOURCE_LABEL: Record<string, string> = {
-  slack:  "Slack",
-  ai:     "Feedback",
-  manual: "Manual",
-};
+const AVATAR_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"];
+function colorFor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
 
-// ─── Outcome form ─────────────────────────────────────────────────────────────
+// ─── Source marks ─────────────────────────────────────────────────────────────
 
-function OutcomeForm({ decisionId, onSave, onCancel }: {
-  decisionId: string;
-  onSave: (outcome: string, alternatives: string[]) => void;
-  onCancel: () => void;
-}) {
-  const [outcomeText, setOutcomeText] = useState("");
-  const [altsText,    setAltsText]    = useState("");
-  const [saving,      setSaving]      = useState(false);
-
-  async function handleSave() {
-    const outcome      = outcomeText.trim();
-    const alternatives = altsText.split(",").map(s => s.trim()).filter(Boolean);
-    if (!outcome) return;
-    setSaving(true);
-    try {
-      await fetch(`/api/decisions/${decisionId}/outcome`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ outcome, alternatives }),
-      });
-      onSave(outcome, alternatives);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%", padding: "8px 10px", fontSize: 12,
-    borderRadius: 8, border: "1px solid var(--border)",
-    background: "var(--bg)", color: "var(--text)", outline: "none",
-  };
-
+function FigmaMark({ size = 12 }: { size?: number }) {
   return (
-    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border-2)" }} className="space-y-2">
-      <textarea
-        value={outcomeText}
-        onChange={e => setOutcomeText(e.target.value)}
-        placeholder="What actually happened? How did this play out?"
-        rows={3}
-        style={{ ...inputStyle, resize: "none" }}
-      />
-      <input
-        type="text"
-        value={altsText}
-        onChange={e => setAltsText(e.target.value)}
-        placeholder="Alternatives considered: Option A, Option B"
-        style={inputStyle}
-      />
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <button onClick={onCancel} style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}>
-          Cancel
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving || !outcomeText.trim()}
-          style={{
-            fontSize: 11, fontWeight: 500, padding: "5px 12px", borderRadius: 7,
-            background: "var(--accent)", color: "var(--accent-ink)", border: "none",
-            cursor: "pointer", opacity: saving || !outcomeText.trim() ? 0.4 : 1,
-          }}
-        >
-          {saving ? "Saving…" : "Save outcome"}
-        </button>
-      </div>
-    </div>
+    <svg width={size} height={size} viewBox="0 0 38 57" fill="none">
+      <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
+      <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
+      <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
+      <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
+      <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#A259FF"/>
+    </svg>
   );
 }
 
-// ─── Decision row ─────────────────────────────────────────────────────────────
-
-function DecisionRow({ decision, onUpdate }: {
-  decision: DecisionItem;
-  onUpdate: (id: string, patch: Partial<DecisionItem>) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-
-  const feedbackLink = decision.project_id && decision.feedback_item_id
-    ? `/inbox/${decision.project_id}/${decision.feedback_item_id}`
-    : null;
-
-  const hasDetail = !!(decision.reason || decision.outcome
-    || (decision.alternatives?.length) || feedbackLink || decision.slack_thread_url);
-
+function SlackMark({ size = 12 }: { size?: number }) {
   return (
-    <div style={{ borderBottom: "1px solid var(--border-2)" }} className="last:border-0">
-      {/* Main row */}
-      <div
-        onClick={() => hasDetail && setExpanded(e => !e)}
-        style={{
-          display: "flex", alignItems: "center", gap: 12,
-          padding: "12px 16px",
-          cursor: hasDetail ? "pointer" : "default",
-          background: "var(--surface)",
-          transition: "background 0.1s",
-        }}
-        className="hover:!bg-[var(--accent-softer)] group"
-      >
-        {/* Decided disc — green = success */}
-        <div style={{
-          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-          background: "var(--green-soft)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <CheckCircle2 style={{ width: 15, height: 15, color: "var(--green)" }} />
-        </div>
+    <svg width={size} height={size} viewBox="0 0 122.8 122.8">
+      <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#e01e5a"/>
+      <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36c5f0"/>
+      <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2eb67d"/>
+      <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ecb22e"/>
+    </svg>
+  );
+}
 
-        {/* Text */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">
-            {decision.decision_text}
-          </p>
-          <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }} className="truncate">
-            {decision.owner_name && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{
-                  width: 14, height: 14, borderRadius: 99, background: "var(--border)",
-                  fontSize: 7, fontWeight: 700, color: "var(--text-2)",
-                  display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                }}>
-                  {ownerInitials(decision.owner_name)}
-                </span>
-                {decision.owner_name}
-              </span>
-            )}
-            {decision.source === "slack" && decision.slack_channel_name ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
-                <Hash style={{ width: 10, height: 10 }} />{decision.slack_channel_name}
-              </span>
-            ) : decision.project_name ? (
-              <span>{decision.project_name}</span>
-            ) : null}
-            <span>· {timeAgo(decision.decided_at)}</span>
-          </p>
-        </div>
-
-        {/* Source pill */}
-        <span style={{
-          fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 500,
-          color: "var(--text-2)", background: "var(--bg)",
-          border: "1px solid var(--border)", borderRadius: 99,
-          padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0,
-        }}>
-          {SOURCE_LABEL[decision.source] ?? decision.source}
-        </span>
-
-        {/* Status pill — decided = green */}
-        <span style={{
-          fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", flexShrink: 0,
-          background: "var(--green-soft)", color: "var(--green)",
-          borderRadius: 99, padding: "3px 10px",
-        }}>
-          Decided
-        </span>
-
-        {hasDetail && (
-          <ChevronRight
-            style={{
-              width: 14, height: 14, color: "var(--text-3)", flexShrink: 0,
-              transform: expanded ? "rotate(90deg)" : "none",
-              transition: "transform 0.15s",
-            }}
-          />
-        )}
-      </div>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div style={{ padding: "0 16px 14px 60px", background: "var(--surface)" }} className="fade-in">
-          {decision.reason && (
-            <div style={{ marginBottom: 10 }}>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 3 }}>
-                Rationale
-              </p>
-              <p style={{ fontSize: 12, color: "var(--text-2)", lineHeight: 1.6 }}>{decision.reason}</p>
-            </div>
-          )}
-
-          {decision.outcome && (
-            <div style={{
-              background: "var(--green-soft)", border: "1px solid color-mix(in oklab, var(--green) 20%, #ffffff)",
-              borderRadius: 8, padding: "8px 12px", marginBottom: 10,
-            }}>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--green)", marginBottom: 3 }}>
-                Outcome
-              </p>
-              <p style={{ fontSize: 12, color: "var(--text)", lineHeight: 1.6 }}>{decision.outcome}</p>
-            </div>
-          )}
-
-          {decision.alternatives && decision.alternatives.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 3 }}>
-                Alternatives considered
-              </p>
-              <ul>
-                {decision.alternatives.map((alt, i) => (
-                  <li key={i} style={{ fontSize: 12, color: "var(--text-2)", display: "flex", gap: 6, lineHeight: 1.6 }}>
-                    <span style={{ opacity: 0.4 }}>·</span>{alt}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            {feedbackLink && (
-              <Link
-                href={feedbackLink}
-                onClick={e => e.stopPropagation()}
-                style={{ fontSize: 11, color: "var(--blue)", display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}
-                className="hover:underline"
-              >
-                <ExternalLink style={{ width: 10, height: 10 }} />
-                View context
-              </Link>
-            )}
-            {decision.slack_thread_url && (
-              <a
-                href={decision.slack_thread_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                style={{ fontSize: 11, color: "var(--blue)", display: "inline-flex", alignItems: "center", gap: 4, textDecoration: "none" }}
-                className="hover:underline"
-              >
-                <ExternalLink style={{ width: 10, height: 10 }} />
-                Open Slack thread
-              </a>
-            )}
-            {!decision.outcome && !showForm && (
-              <button
-                onClick={e => { e.stopPropagation(); setShowForm(true); }}
-                style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, padding: 0 }}
-                className="hover:text-[var(--text-2)]"
-              >
-                <Plus style={{ width: 10, height: 10 }} />
-                Add outcome
-              </button>
-            )}
-          </div>
-
-          {showForm && (
-            <OutcomeForm
-              decisionId={decision.id}
-              onSave={(outcome, alternatives) => {
-                onUpdate(decision.id, { outcome, alternatives });
-                setShowForm(false);
-              }}
-              onCancel={() => setShowForm(false)}
-            />
-          )}
-        </div>
+function SourceIcons({ d }: { d: DecisionItem }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      {d.source === "slack" && <SlackMark />}
+      {(d.source === "ai" || d.feedback_item_id) && <FigmaMark />}
+      {d.source === "manual" && !d.feedback_item_id && (
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--text-3)" }}>manual</span>
       )}
-    </div>
-  );
-}
-
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
-function RowSkeleton() {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderBottom: "1px solid var(--border-2)" }}>
-      <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <div className="skeleton" style={{ height: 13, width: "45%", borderRadius: 4, marginBottom: 6 }} />
-        <div className="skeleton" style={{ height: 11, width: "30%", borderRadius: 4 }} />
-      </div>
-      <div className="skeleton" style={{ height: 22, width: 70, borderRadius: 99 }} />
     </div>
   );
 }
@@ -345,25 +96,13 @@ function RowSkeleton() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function DecisionsPage() {
+  const router = useRouter();
   const [data,    setData]    = useState<TimelineData | null>(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState("");
   const [sourceFilter,  setSourceFilter]  = useState<SourceFilter>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [showProjectMenu, setShowProjectMenu] = useState(false);
-
-  function handleUpdate(id: string, patch: Partial<DecisionItem>) {
-    setData(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        timeline: prev.timeline.map(group => ({
-          ...group,
-          decisions: group.decisions.map(d => d.id === id ? { ...d, ...patch } : d),
-        })),
-      };
-    });
-  }
 
   useEffect(() => {
     fetch("/api/decisions/timeline")
@@ -379,7 +118,6 @@ export default function DecisionsPage() {
     return () => document.removeEventListener("click", handler);
   }, [showProjectMenu]);
 
-  // Flatten timeline groups into one chronological list
   const allDecisions = useMemo<DecisionItem[]>(
     () => (data?.timeline ?? []).flatMap(g => g.decisions),
     [data],
@@ -410,27 +148,31 @@ export default function DecisionsPage() {
       : (data?.projects.find(p => p.id === projectFilter)?.name ?? "All projects");
 
   const tabs: { key: SourceFilter; label: string; count: number }[] = [
-    { key: "all",    label: "All",    count: counts.all },
-    { key: "slack",  label: "Slack",  count: counts.slack },
+    { key: "all",    label: "All",      count: counts.all },
+    { key: "slack",  label: "Slack",    count: counts.slack },
     { key: "ai",     label: "Feedback", count: counts.ai },
-    { key: "manual", label: "Manual", count: counts.manual },
+    { key: "manual", label: "Manual",   count: counts.manual },
   ];
+
+  const colHeader: React.CSSProperties = {
+    fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600,
+    letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--text-3)",
+  };
 
   return (
     <div className="min-h-full" style={{ background: "var(--bg)" }}>
-      <div className="px-7 pt-6 pb-10 max-w-4xl">
+      <div className="px-7 pt-6 pb-10 max-w-5xl">
 
         {/* ── Header ── */}
         <div className="mb-5">
           <h1 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Decisions</h1>
           <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
-            Every decision captured across Figma and Slack — your organizational record.
+            All decisions across your organization.
           </p>
         </div>
 
         {/* ── Filters ── */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-          {/* Source tabs */}
           <div style={{ display: "flex", gap: 4 }}>
             {tabs.map(t => {
               const active = sourceFilter === t.key;
@@ -458,7 +200,6 @@ export default function DecisionsPage() {
           </div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            {/* Search */}
             <div style={{ position: "relative" }}>
               <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 12, height: 12, color: "var(--text-3)", pointerEvents: "none" }} />
               <input
@@ -474,7 +215,6 @@ export default function DecisionsPage() {
               />
             </div>
 
-            {/* Project filter */}
             {(data?.projects.length ?? 0) > 0 && (
               <div style={{ position: "relative" }}>
                 <button
@@ -529,12 +269,29 @@ export default function DecisionsPage() {
           </div>
         </div>
 
-        {/* ── List ── */}
+        {/* ── Table ── */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", boxShadow: "var(--shadow-1)" }}>
+
+          {/* Column header */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "8px 16px", borderBottom: "1px solid var(--border-2)",
+            background: "var(--bg)",
+          }}>
+            <span style={{ ...colHeader, flex: 1 }}>Decision</span>
+            <span style={{ ...colHeader, width: 110 }} className="max-md:hidden">Project</span>
+            <span style={{ ...colHeader, width: 120 }} className="max-sm:hidden">Approved by</span>
+            <span style={{ ...colHeader, width: 60 }} className="max-sm:hidden">Date</span>
+            <span style={{ ...colHeader, width: 70, textAlign: "center" }}>Status</span>
+            <span style={{ ...colHeader, width: 56, textAlign: "center" }} className="max-md:hidden">Sources</span>
+          </div>
+
           {loading ? (
-            <>
-              <RowSkeleton /><RowSkeleton /><RowSkeleton /><RowSkeleton />
-            </>
+            <div style={{ padding: 16 }} className="space-y-4">
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} className="skeleton" style={{ height: 18, borderRadius: 4 }} />
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <div style={{ padding: "56px 0", textAlign: "center" }}>
               <ListChecks style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 10px" }} />
@@ -546,21 +303,75 @@ export default function DecisionsPage() {
                   ? "Decisions are captured automatically from Slack and recorded when feedback is resolved."
                   : "Try adjusting your filters or search."}
               </p>
-              {allDecisions.length > 0 && (
-                <button
-                  onClick={() => { setSearch(""); setSourceFilter("all"); setProjectFilter("all"); }}
-                  style={{ marginTop: 10, fontSize: 12, color: "var(--text-2)", textDecoration: "underline", textUnderlineOffset: 2, background: "none", border: "none", cursor: "pointer" }}
-                >
-                  Clear filters
-                </button>
-              )}
             </div>
           ) : (
-            filtered.map(d => <DecisionRow key={d.id} decision={d} onUpdate={handleUpdate} />)
+            filtered.map(d => (
+              <div
+                key={d.id}
+                onClick={() => router.push(`/decisions/${d.id}`)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  padding: "11px 16px",
+                  borderBottom: "1px solid var(--border-2)",
+                  cursor: "pointer",
+                  transition: "background 0.1s",
+                }}
+                className="hover:bg-[var(--accent-softer)] last:border-0"
+              >
+                {/* Decision */}
+                <p style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">
+                  {d.decision_text}
+                </p>
+
+                {/* Project */}
+                <span style={{ width: 110, fontSize: 11.5, color: "var(--text-2)" }} className="truncate max-md:hidden">
+                  {d.project_name ?? (d.slack_channel_name ? `#${d.slack_channel_name}` : "—")}
+                </span>
+
+                {/* Approved by */}
+                <span style={{ width: 120, display: "flex", alignItems: "center", gap: 6 }} className="max-sm:hidden">
+                  {d.owner_name ? (
+                    <>
+                      <span style={{
+                        width: 18, height: 18, borderRadius: 99, flexShrink: 0,
+                        background: colorFor(d.owner_name), color: "#fff",
+                        fontSize: 7, fontWeight: 700,
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {initials(d.owner_name)}
+                      </span>
+                      <span style={{ fontSize: 11.5, color: "var(--text-2)", minWidth: 0 }} className="truncate">{d.owner_name}</span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 11.5, color: "var(--text-3)" }}>—</span>
+                  )}
+                </span>
+
+                {/* Date */}
+                <span style={{ width: 60, fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text-3)" }} className="max-sm:hidden">
+                  {shortDate(d.decided_at)}
+                </span>
+
+                {/* Status */}
+                <span style={{ width: 70, display: "flex", justifyContent: "center" }}>
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 500,
+                    background: "var(--green-soft)", color: "var(--green)",
+                    borderRadius: 99, padding: "2px 9px", whiteSpace: "nowrap",
+                  }}>
+                    Decided
+                  </span>
+                </span>
+
+                {/* Sources */}
+                <span style={{ width: 56, display: "flex", justifyContent: "center" }} className="max-md:hidden">
+                  <SourceIcons d={d} />
+                </span>
+              </div>
+            ))
           )}
         </div>
 
-        {/* Count footer */}
         {!loading && filtered.length > 0 && (
           <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)", marginTop: 10, textAlign: "right" }}>
             {filtered.length} of {allDecisions.length} decisions
