@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Search, CheckCircle2, Sparkles, Loader2 } from "lucide-react";
+import { Search, CheckCircle2, Sparkles, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +89,7 @@ export default function SearchPage() {
 
   const [answer, setAnswer]             = useState<Answer | null>(null);
   const [answerLoading, setAnswerLoading] = useState(false);
+  const [feedback, setFeedback]         = useState<"up" | "down" | null>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -98,6 +99,7 @@ export default function SearchPage() {
 
     setSearching(true);
     setAnswer(null);
+    setFeedback(null);
 
     // Fire the AI answer in parallel for question-like queries
     const wantAnswer = trimmed.split(/\s+/).length >= 3;
@@ -146,7 +148,7 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-full" style={{ background: "var(--bg)" }}>
-      <div className="px-7 pt-6 pb-10 max-w-3xl mx-auto">
+      <div className="px-7 pt-6 pb-10 max-w-4xl mx-auto">
 
         {/* ── Search input ── */}
         <div style={{ position: "relative", marginBottom: 16 }}>
@@ -201,6 +203,17 @@ export default function SearchPage() {
           </div>
         )}
 
+        {/* ── Results layout: main column + sources sidebar ── */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: searched && totalCount > 0 ? "1fr 210px" : "1fr",
+            gap: 16, alignItems: "start",
+          }}
+          className="max-md:!grid-cols-1"
+        >
+        <div style={{ minWidth: 0 }}>
+
         {/* ── AI answer card (blue = information) ── */}
         {(answerLoading || answer) && searched && (
           <div style={{
@@ -223,14 +236,46 @@ export default function SearchPage() {
               <>
                 <p style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>{answer.answer}</p>
                 {answer.key_points.length > 0 && (
-                  <ul style={{ marginTop: 8 }}>
-                    {answer.key_points.map((p, i) => (
-                      <li key={i} style={{ fontSize: 12, color: "var(--text-2)", display: "flex", gap: 6, lineHeight: 1.7 }}>
-                        <span style={{ color: "var(--blue)", flexShrink: 0 }}>·</span>{p}
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--blue)", marginTop: 10 }}>
+                      Key reasons
+                    </p>
+                    <ul style={{ marginTop: 4 }}>
+                      {answer.key_points.map((p, i) => (
+                        <li key={i} style={{ fontSize: 12, color: "var(--text-2)", display: "flex", gap: 6, lineHeight: 1.7 }}>
+                          <span style={{ color: "var(--blue)", flexShrink: 0 }}>·</span>{p}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
+
+                {/* Was this answer helpful? */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, paddingTop: 10, borderTop: "1px solid color-mix(in oklab, var(--blue) 12%, #ffffff)" }}>
+                  {feedback ? (
+                    <span style={{ fontSize: 11, color: "var(--text-3)" }}>Thanks for the feedback.</span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 11, color: "var(--text-3)" }}>Was this answer helpful?</span>
+                      <button
+                        onClick={() => setFeedback("up")}
+                        aria-label="Helpful"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 2 }}
+                        className="hover:!text-[var(--green)] transition-colors"
+                      >
+                        <ThumbsUp style={{ width: 13, height: 13 }} />
+                      </button>
+                      <button
+                        onClick={() => setFeedback("down")}
+                        aria-label="Not helpful"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 2 }}
+                        className="hover:!text-[var(--red)] transition-colors"
+                      >
+                        <ThumbsDown style={{ width: 13, height: 13 }} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -283,7 +328,7 @@ export default function SearchPage() {
               {decisions.map(d => (
                 <div
                   key={d.id}
-                  onClick={() => router.push("/decisions")}
+                  onClick={() => router.push(`/decisions/${d.id}`)}
                   style={{
                     display: "flex", alignItems: "center", gap: 12,
                     padding: "11px 16px", borderBottom: "1px solid var(--border-2)",
@@ -349,6 +394,75 @@ export default function SearchPage() {
             </div>
           </div>
         )}
+
+        </div>
+
+        {/* ── Sources sidebar ── */}
+        {searched && totalCount > 0 && (
+          <div style={{
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: 12, padding: 14, boxShadow: "var(--shadow-1)",
+            position: "sticky", top: 16,
+          }} className="max-md:!static">
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 10 }}>
+              Sources
+            </p>
+            <div className="space-y-2.5">
+              {results.length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: "var(--bg)", border: "1px solid var(--border-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="11" height="14" viewBox="0 0 38 57" fill="none">
+                      <path d="M19 28.5C19 23.8 22.8 20 27.5 20C32.2 20 36 23.8 36 28.5C36 33.2 32.2 37 27.5 37C22.8 37 19 33.2 19 28.5Z" fill="#1ABCFE"/>
+                      <path d="M2 46C2 41.3 5.8 37.5 10.5 37.5H19V46C19 50.7 15.2 54.5 10.5 54.5C5.8 54.5 2 50.7 2 46Z" fill="#0ACF83"/>
+                      <path d="M19 2V20H27.5C32.2 20 36 16.2 36 11.5C36 6.8 32.2 3 27.5 3H19V2Z" fill="#FF7262"/>
+                      <path d="M2 11.5C2 16.2 5.8 20 10.5 20H19V3H10.5C5.8 3 2 6.8 2 11.5Z" fill="#F24E1E"/>
+                      <path d="M2 28.5C2 33.2 5.8 37 10.5 37H19V20H10.5C5.8 20 2 23.8 2 28.5Z" fill="#A259FF"/>
+                    </svg>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }}>Figma</p>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)" }}>
+                      {results.length} signal{results.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {decisions.filter(d => d.source === "slack").length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: "var(--bg)", border: "1px solid var(--border-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="12" height="12" viewBox="0 0 122.8 122.8">
+                      <path d="M25.8 77.6c0 7.1-5.8 12.9-12.9 12.9S0 84.7 0 77.6s5.8-12.9 12.9-12.9h12.9v12.9zm6.5 0c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V77.6z" fill="#e01e5a"/>
+                      <path d="M45.2 25.8c-7.1 0-12.9-5.8-12.9-12.9S38.1 0 45.2 0s12.9 5.8 12.9 12.9v12.9H45.2zm0 6.5c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H12.9C5.8 58.1 0 52.3 0 45.2s5.8-12.9 12.9-12.9h32.3z" fill="#36c5f0"/>
+                      <path d="M97 45.2c0-7.1 5.8-12.9 12.9-12.9s12.9 5.8 12.9 12.9-5.8 12.9-12.9 12.9H97V45.2zm-6.5 0c0 7.1-5.8 12.9-12.9 12.9s-12.9-5.8-12.9-12.9V12.9C64.7 5.8 70.5 0 77.6 0s12.9 5.8 12.9 12.9v32.3z" fill="#2eb67d"/>
+                      <path d="M77.6 97c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9-12.9-5.8-12.9-12.9V97h12.9zm0-6.5c-7.1 0-12.9-5.8-12.9-12.9s5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9s-5.8 12.9-12.9 12.9H77.6z" fill="#ecb22e"/>
+                    </svg>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }}>Slack</p>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)" }}>
+                      {decisions.filter(d => d.source === "slack").length} decision{decisions.filter(d => d.source === "slack").length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {decisions.filter(d => d.source !== "slack").length > 0 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: 7, background: "var(--green-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <CheckCircle2 style={{ width: 12, height: 12, color: "var(--green)" }} />
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 500, color: "var(--text)" }}>Resolved feedback</p>
+                    <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)" }}>
+                      {decisions.filter(d => d.source !== "slack").length} decision{decisions.filter(d => d.source !== "slack").length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        </div>
 
       </div>
     </div>
