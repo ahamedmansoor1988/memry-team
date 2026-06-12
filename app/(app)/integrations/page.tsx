@@ -247,10 +247,10 @@ export default function IntegrationsPage() {
                   {stats?.figma.last_synced ? `Last synced ${relativeTime(stats.figma.last_synced)}` : "Not synced yet"}
                 </p>
                 <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
-                  {stats?.figma.files ?? 0} files · {stats?.figma.comments ?? 0} comments analyzed
+                  {stats?.figma.decisions ?? 0} decisions · {stats?.figma.risks ?? 0} risks captured
                 </p>
-                <p className="font-mono text-[11px] text-[var(--text-2)]">
-                  {stats?.figma.decisions ?? 0} decisions · {stats?.figma.risks ?? 0} risks extracted
+                <p className="font-mono text-[11px] text-[var(--text-3)]">
+                  from {stats?.figma.files ?? 0} files · {stats?.figma.comments ?? 0} comments
                 </p>
               </>
             ) : (
@@ -275,10 +275,10 @@ export default function IntegrationsPage() {
                   {stats?.slack.last_activity ? `Last decision ${relativeTime(stats.slack.last_activity)}` : "Listening for decisions"}
                 </p>
                 <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
-                  {stats?.slack.messages ?? 0} messages analyzed
+                  {stats?.slack.decisions ?? 0} decisions captured
                 </p>
-                <p className="font-mono text-[11px] text-[var(--text-2)]">
-                  {stats?.slack.decisions ?? 0} decisions extracted
+                <p className="font-mono text-[11px] text-[var(--text-3)]">
+                  from {stats?.slack.messages ?? 0} messages
                 </p>
               </>
             ) : (

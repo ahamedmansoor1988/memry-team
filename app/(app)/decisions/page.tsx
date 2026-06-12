@@ -278,9 +278,8 @@ export default function DecisionsPage() {
             padding: "8px 16px", borderBottom: "1px solid var(--border-2)",
             background: "var(--bg)",
           }}>
-            <span style={{ ...colHeader, flex: 1 }}>Decision</span>
+            <span style={{ ...colHeader, flex: 1 }}>Decision + Memry&apos;s analysis</span>
             <span style={{ ...colHeader, width: 110 }} className="max-md:hidden">Project</span>
-            <span style={{ ...colHeader, width: 120 }} className="max-sm:hidden">Approved by</span>
             <span style={{ ...colHeader, width: 60 }} className="max-sm:hidden">Date</span>
             <span style={{ ...colHeader, width: 70, textAlign: "center" }}>Status</span>
             <span style={{ ...colHeader, width: 56, textAlign: "center" }} className="max-md:hidden">Sources</span>
@@ -318,33 +317,33 @@ export default function DecisionsPage() {
                 }}
                 className="hover:bg-[var(--accent-softer)] last:border-0"
               >
-                {/* Decision */}
-                <p style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">
-                  {d.decision_text}
-                </p>
+                {/* Decision + rationale */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">
+                    {d.decision_text}
+                  </p>
+                  {(d.reason || d.ai_key_question) && (
+                    <p style={{ fontSize: 11, color: "var(--text-2)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }} className="truncate">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                      <span className="truncate">{d.reason ?? d.ai_key_question}</span>
+                    </p>
+                  )}
+                  {!d.reason && !d.ai_key_question && (
+                    <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
+                      No rationale captured
+                    </p>
+                  )}
+                  {!d.owner_name && (
+                    <p style={{ fontSize: 10.5, color: "var(--amber)", marginTop: 2, display: "flex", alignItems: "center", gap: 3 }}>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                      No owner assigned
+                    </p>
+                  )}
+                </div>
 
                 {/* Project */}
                 <span style={{ width: 110, fontSize: 11.5, color: "var(--text-2)" }} className="truncate max-md:hidden">
                   {d.project_name ?? (d.slack_channel_name ? `#${d.slack_channel_name}` : "—")}
-                </span>
-
-                {/* Approved by */}
-                <span style={{ width: 120, display: "flex", alignItems: "center", gap: 6 }} className="max-sm:hidden">
-                  {d.owner_name ? (
-                    <>
-                      <span style={{
-                        width: 18, height: 18, borderRadius: 99, flexShrink: 0,
-                        background: colorFor(d.owner_name), color: "#fff",
-                        fontSize: 7, fontWeight: 700,
-                        display: "inline-flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {initials(d.owner_name)}
-                      </span>
-                      <span style={{ fontSize: 11.5, color: "var(--text-2)", minWidth: 0 }} className="truncate">{d.owner_name}</span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: 11.5, color: "var(--text-3)" }}>—</span>
-                  )}
                 </span>
 
                 {/* Date */}

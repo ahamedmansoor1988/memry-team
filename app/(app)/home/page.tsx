@@ -112,7 +112,7 @@ export default function HomePage() {
             {greeting()}, {data?.name ?? "…"} 👋
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
-            Here&apos;s what Memry found while watching your tools.
+            Here&apos;s what Memry figured out while you were away.
           </p>
         </div>
 
@@ -150,83 +150,144 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── Organizational memory band ── */}
+        {/* ── Intelligence briefing ── */}
         {loading || !data ? (
-          <div className="skeleton" style={{ height: 76, borderRadius: 12, marginBottom: 20 }} />
+          <div className="skeleton" style={{ height: 120, borderRadius: 12, marginBottom: 20 }} />
         ) : (
           <div style={{
-            background: "var(--accent)", color: "var(--accent-ink)",
-            borderRadius: 12, padding: "16px 18px", marginBottom: 20,
-            display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+            background: "var(--surface)", border: "1px solid var(--border)",
+            borderRadius: 12, marginBottom: 20, overflow: "hidden",
+            boxShadow: "var(--shadow-1)",
           }}>
-            <div style={{ flex: 1, minWidth: 220 }}>
-              <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.7, display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{
-                  width: 7, height: 7, borderRadius: 99, flexShrink: 0,
-                  background: data.analyzed.reconstructing ? "var(--amber)" : "#4ade80",
-                }} className={data.analyzed.reconstructing ? "animate-pulse" : ""} />
-                Organizational memory · {data.analyzed.reconstructing ? "reconstructing" : "live"}
-              </p>
-              <p style={{ fontSize: 13.5, marginTop: 6, lineHeight: 1.55 }}>
-                {data.analyzed.reconstructing
-                  ? <>Memry is analyzing your workspace — building memory from {data.analyzed.files.toLocaleString()} files and {data.analyzed.comments.toLocaleString()} comments…</>
-                  : <>
-                      Memry analyzed{" "}
-                      <strong>{data.analyzed.files.toLocaleString()} files</strong>,{" "}
-                      <strong>{data.analyzed.comments.toLocaleString()} Figma comments</strong>
-                      {" "}and <strong>{data.analyzed.slack_messages.toLocaleString()} Slack messages</strong>
-                      {data.analyzed.meetings > 0 && <> and <strong>{data.analyzed.meetings.toLocaleString()} meetings</strong></>}
-                      {" "}— capturing <strong>{data.stats.decisions_captured} decisions</strong> and{" "}
-                      <strong>{data.analyzed.risks_total} risks</strong> so far.
-                    </>}
-              </p>
-            </div>
-            {data.stats.updates_week > 0 && (
-              <div style={{ textAlign: "right" }}>
-                <p style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600 }}>{data.stats.updates_week}</p>
-                <p style={{ fontSize: 10.5, opacity: 0.7 }}>new findings this week</p>
+            {/* Section header */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 7, justifyContent: "space-between",
+              padding: "10px 14px", borderBottom: "1px solid var(--border-2)",
+              background: "var(--bg)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-3)" }}>
+                  What Memry discovered
+                </span>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Memry connected (Linker findings) ── */}
-        {data && (data.linked_discussions?.length ?? 0) > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>
-              Memry connected {data.linked_discussions!.filter(l => l.cross_source).length > 0
-                ? "discussions across Figma and Slack"
-                : "related discussions"}
-            </p>
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-1)", overflow: "hidden" }}>
-              {data.linked_discussions!.map(ld => (
-                <div
-                  key={ld.id}
-                  onClick={() => ld.href && router.push(ld.href)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "10px 14px", borderBottom: "1px solid var(--border-2)",
-                    cursor: ld.href ? "pointer" : "default", transition: "background 0.1s",
-                  }}
-                  className="hover:bg-[var(--accent-softer)] last:border-0"
-                >
-                  <div style={{ width: 24, height: 24, borderRadius: 6, flexShrink: 0, background: "var(--blue-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                  </div>
-                  <p style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 500, color: "var(--text)" }} className="truncate">
-                    {ld.title}
-                  </p>
-                  <span style={{
-                    fontSize: 10.5, fontWeight: 500, flexShrink: 0,
-                    background: ld.cross_source ? "var(--blue-soft)" : "var(--border-2)",
-                    color: ld.cross_source ? "var(--blue)" : "var(--text-2)",
-                    borderRadius: 99, padding: "2px 9px",
-                  }}>
-                    {ld.cross_source ? "Figma + Slack" : `${ld.members} linked`}
-                  </span>
-                </div>
-              ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 6, height: 6, borderRadius: 99, background: data.analyzed.reconstructing ? "var(--amber)" : "#4ade80", flexShrink: 0 }} className={data.analyzed.reconstructing ? "animate-pulse" : ""} />
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-3)" }}>
+                  {data.analyzed.reconstructing ? "reconstructing" : "live"}
+                </span>
+              </div>
             </div>
+
+            {/* Findings list */}
+            {(() => {
+              const findings: { icon: React.ReactNode; text: React.ReactNode; sub?: string; href?: string; color?: string; bg?: string }[] = [];
+
+              // Cross-source links (highest value finding)
+              const crossLinks = (data.linked_discussions ?? []).filter(l => l.cross_source);
+              const sameSourceLinks = (data.linked_discussions ?? []).filter(l => !l.cross_source);
+
+              crossLinks.forEach(ld => {
+                findings.push({
+                  icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+                  text: ld.title,
+                  sub: "Connected across Figma and Slack",
+                  href: ld.href ?? undefined,
+                  color: "var(--blue)",
+                  bg: "var(--blue-soft)",
+                });
+              });
+
+              sameSourceLinks.forEach(ld => {
+                findings.push({
+                  icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>,
+                  text: ld.title,
+                  sub: `${ld.members} related discussions`,
+                  href: ld.href ?? undefined,
+                  color: "var(--blue)",
+                  bg: "var(--blue-soft)",
+                });
+              });
+
+              // Risks / blockers from attention
+              const risks = data.attention.filter(i => i.risk || i.classification === "Blocked");
+              if (risks.length > 0) {
+                findings.push({
+                  icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>,
+                  text: risks.length === 1
+                    ? <>Unresolved risk in <strong>{risks[0].project_name ?? "your workspace"}</strong></>
+                    : <>{risks.length} risks detected that need attention</>,
+                  sub: risks.map(r => r.title).slice(0, 2).join(" · "),
+                  color: "var(--red)",
+                  bg: "var(--red-soft)",
+                });
+              }
+
+              // Decisions captured
+              if (data.stats.decisions_captured > 0) {
+                findings.push({
+                  icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>,
+                  text: <>{data.stats.decisions_captured} decision{data.stats.decisions_captured !== 1 ? "s" : ""} captured across your workspace</>,
+                  sub: `From ${data.analyzed.files} files, ${data.analyzed.comments} Figma comments, ${data.analyzed.slack_messages} Slack messages`,
+                  color: "var(--green)",
+                  bg: "var(--green-soft)",
+                });
+              }
+
+              // Needs attention (unresolved decisions)
+              const pendingDecisions = data.attention.filter(i => !i.risk && i.classification === "Needs Decision");
+              if (pendingDecisions.length > 0) {
+                findings.push({
+                  icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>,
+                  text: <>{pendingDecisions.length} open question{pendingDecisions.length !== 1 ? "s" : ""} waiting for a decision</>,
+                  color: "var(--amber)",
+                  bg: "var(--amber-soft)",
+                });
+              }
+
+              if (findings.length === 0) {
+                return (
+                  <div style={{ padding: "20px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--green-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <CheckCircle2 style={{ width: 14, height: 14, color: "var(--green)" }} />
+                    </div>
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>Everything looks clear</p>
+                      <p style={{ fontSize: 11.5, color: "var(--text-3)", marginTop: 1 }}>
+                        Memry found no risks or unresolved questions.
+                        {data.analyzed.files > 0 && ` Watching ${data.analyzed.files} files.`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              }
+
+              return findings.map((f, i) => (
+                <div
+                  key={i}
+                  onClick={() => f.href && router.push(f.href)}
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                    padding: "10px 14px", borderBottom: "1px solid var(--border-2)",
+                    cursor: f.href ? "pointer" : "default", transition: "background 0.1s",
+                  }}
+                  className={`last:border-0 ${f.href ? "hover:bg-[var(--accent-softer)]" : ""}`}
+                >
+                  <div style={{
+                    width: 26, height: 26, borderRadius: 7, flexShrink: 0, marginTop: 1,
+                    background: f.bg ?? "var(--border-2)",
+                    color: f.color ?? "var(--text-2)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {f.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 12.5, fontWeight: 500, color: "var(--text)", lineHeight: 1.4 }}>{f.text}</p>
+                    {f.sub && <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>{f.sub}</p>}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
 

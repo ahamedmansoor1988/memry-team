@@ -186,23 +186,26 @@ function ItemRow({ item, checked, onCheck }: {
         <p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }} className="truncate">
           {itemTitle(item)}
         </p>
+        {/* Memry's reason for surfacing this item */}
+        {(item.ai_suggested_action || item.topic_title || item.ai_risk_flag || item.status === "blocked") && (
+          <p style={{ fontSize: 11, color: "var(--blue)", marginTop: 2, display: "flex", alignItems: "center", gap: 4 }} className="truncate">
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+            <span className="truncate" style={{ color: item.ai_risk_flag || item.status === "blocked" ? "var(--red)" : item.topic_title ? "var(--blue)" : "var(--text-2)" }}>
+              {item.status === "blocked"
+                ? "Memry: Blocked — someone is waiting on a decision"
+                : item.ai_risk_flag
+                ? "Memry: Risk detected in this discussion"
+                : item.topic_title
+                ? `Memry: Connected to "${item.topic_title}"`
+                : `Memry: ${item.ai_suggested_action}`}
+            </span>
+          </p>
+        )}
         <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }} className="truncate">
           {item.project_name ?? "No project"}
           <> · {item.source === "slack" ? "Slack" : "Figma"}</>
           <> · {timeAgo(item.created_at)}</>
         </p>
-        {item.topic_title && (
-          <span style={{
-            display: "inline-flex", alignItems: "center", gap: 4, marginTop: 3,
-            fontSize: 10, fontWeight: 500, color: "var(--blue)",
-            background: "var(--blue-soft)", borderRadius: 99, padding: "1px 8px",
-            maxWidth: "100%",
-          }}>
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <span className="truncate">Linked discussion · {item.topic_title}</span>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, opacity: 0.8 }}>{item.topic_count}</span>
-          </span>
-        )}
       </div>
 
       <AvatarStack names={[item.author_name, item.owner_name]} />
