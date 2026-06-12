@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  AlertTriangle, ShieldAlert, GitPullRequestDraft, RefreshCw,
+  AlertTriangle, ShieldAlert, RefreshCw,
   CheckCircle2, Search, ChevronRight,
 } from "lucide-react";
 
@@ -34,6 +34,12 @@ interface HomeData {
     risks: number;
     decisions_pending: number;
     updates_week: number;
+    decisions_captured: number;
+  };
+  analyzed: {
+    comments: number;
+    slack_messages: number;
+    meetings: number;
   };
   attention: AttentionItem[];
   recent_decisions: RecentDecision[];
@@ -124,8 +130,15 @@ export default function HomePage() {
             {greeting()}, {data?.name ?? "…"} 👋
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
-            Here&apos;s what&apos;s happening in your organization.
+            Here&apos;s what Memry found while watching your tools.
           </p>
+          {data && (
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text-3)", marginTop: 6 }}>
+              Analyzed {data.analyzed.comments.toLocaleString()} Figma comments
+              {" · "}{data.analyzed.slack_messages.toLocaleString()} Slack messages
+              {data.analyzed.meetings > 0 && <>{" · "}{data.analyzed.meetings.toLocaleString()} meetings</>}
+            </p>
+          )}
         </div>
 
         {/* ── Stat cards ── */}
@@ -139,10 +152,10 @@ export default function HomePage() {
           ) : (
             <>
               <StatCard
-                icon={<AlertTriangle style={{ width: 15, height: 15 }} />}
-                iconBg="var(--amber-soft)" iconColor="var(--amber)"
-                value={data.stats.needs_review}
-                label="Items need your review"
+                icon={<CheckCircle2 style={{ width: 15, height: 15 }} />}
+                iconBg="var(--green-soft)" iconColor="var(--green)"
+                value={data.stats.decisions_captured}
+                label="Decisions captured"
               />
               <StatCard
                 icon={<ShieldAlert style={{ width: 15, height: 15 }} />}
@@ -151,16 +164,16 @@ export default function HomePage() {
                 label="Risks detected"
               />
               <StatCard
-                icon={<GitPullRequestDraft style={{ width: 15, height: 15 }} />}
-                iconBg="var(--blue-soft)" iconColor="var(--blue)"
-                value={data.stats.decisions_pending}
-                label="Decisions pending"
+                icon={<AlertTriangle style={{ width: 15, height: 15 }} />}
+                iconBg="var(--amber-soft)" iconColor="var(--amber)"
+                value={data.stats.needs_review + data.stats.decisions_pending}
+                label="Discussions awaiting review"
               />
               <StatCard
                 icon={<RefreshCw style={{ width: 15, height: 15 }} />}
-                iconBg="var(--green-soft)" iconColor="var(--green)"
+                iconBg="var(--blue-soft)" iconColor="var(--blue)"
                 value={data.stats.updates_week}
-                label="Updates in last 7 days"
+                label="New findings this week"
               />
             </>
           )}
@@ -172,7 +185,7 @@ export default function HomePage() {
           {/* Needs your attention */}
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>Needs your attention</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>Memry needs your input</p>
               <Link href="/inbox" style={{ fontSize: 11, color: "var(--text-3)", textDecoration: "none" }} className="hover:text-[var(--text-2)]">
                 View all →
               </Link>
@@ -226,7 +239,7 @@ export default function HomePage() {
           {/* Recent decisions */}
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>Recent decisions</p>
+              <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>Decisions Memry captured</p>
               <Link href="/decisions" style={{ fontSize: 11, color: "var(--text-3)", textDecoration: "none" }} className="hover:text-[var(--text-2)]">
                 View all →
               </Link>

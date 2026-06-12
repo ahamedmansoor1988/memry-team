@@ -42,6 +42,10 @@ export async function GET() {
     { data: recentDecisions },
     { count: weekItemCount },
     { count: weekDecisionCount },
+    { count: totalDecisions },
+    { count: commentsAnalyzed },
+    { count: slackAnalyzed },
+    { count: meetingsAnalyzed },
   ] = await Promise.all([
     admin.from("feedback_items")
       .select(`
@@ -67,6 +71,19 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .gte("decided_at", weekAgo),
+    admin.from("decisions")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    admin.from("figma_comments")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    admin.from("slack_processed_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    admin.from("decisions")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("source", "meeting"),
   ]);
 
   const items = ((openItems ?? []) as RawItem[]).map(i => ({
@@ -107,6 +124,12 @@ export async function GET() {
       risks,
       decisions_pending: pending,
       updates_week: (weekItemCount ?? 0) + (weekDecisionCount ?? 0),
+      decisions_captured: totalDecisions ?? 0,
+    },
+    analyzed: {
+      comments: commentsAnalyzed ?? 0,
+      slack_messages: slackAnalyzed ?? 0,
+      meetings: meetingsAnalyzed ?? 0,
     },
     attention,
     recent_decisions: recentDecisions ?? [],

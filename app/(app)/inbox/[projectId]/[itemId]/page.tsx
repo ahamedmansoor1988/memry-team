@@ -1124,7 +1124,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
   if (!item) {
     return (
       <div className="flex h-screen items-center justify-center flex-col gap-3">
-        <p className="text-lead font-medium text-ink">Comment not found</p>
+        <p className="text-lead font-medium text-ink">Discussion not found</p>
         <button onClick={() => router.push(`/inbox/${projectId}`)} className="text-body text-muted hover:text-ink">
           ← Back to project
         </button>
@@ -1309,7 +1309,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
             {/* ── Discussion ── */}
             {/* Original comment */}
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Original Comment</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Discussion</p>
               <div className="flex items-start gap-3">
                 <Avatar name={fc?.author_name} />
                 <div className="flex-1 min-w-0">
@@ -1433,7 +1433,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
             {item.status === "resolved" && (
               <div className="flex items-center gap-2 px-4 py-3 rounded-panel bg-green-soft" style={{ border: "1px solid color-mix(in oklab, var(--green) 20%, #ffffff)" }}>
                 <CheckCircle2 size={15} className="text-green shrink-0" />
-                <p className="text-body text-green font-medium">This comment has been resolved</p>
+                <p className="text-body text-green font-medium">This discussion has been resolved</p>
               </div>
             )}
             {item.status === "archived" && (

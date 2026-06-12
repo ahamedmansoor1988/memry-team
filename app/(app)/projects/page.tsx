@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, FolderKanban, Loader2 } from "lucide-react";
+import { Search, FolderKanban } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,10 +50,6 @@ export default function ProjectsPage() {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState("");
 
-  const [showNew, setShowNew]   = useState(false);
-  const [newName, setNewName]   = useState("");
-  const [creating, setCreating] = useState(false);
-
   async function loadProjects() {
     const res  = await fetch("/api/projects");
     const data = await res.json() as { projects?: Project[] };
@@ -79,22 +75,6 @@ export default function ProjectsPage() {
       .catch(() => {});
   }, []);
 
-  async function createProject() {
-    if (!newName.trim()) return;
-    setCreating(true);
-    const res = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName }),
-    });
-    if (res.ok) {
-      setNewName("");
-      setShowNew(false);
-      await loadProjects();
-    }
-    setCreating(false);
-  }
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return q ? projects.filter(p => p.name.toLowerCase().includes(q)) : projects;
@@ -105,63 +85,12 @@ export default function ProjectsPage() {
       <div className="px-7 pt-6 pb-10 max-w-4xl">
 
         {/* ── Header ── */}
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Projects</h1>
-            <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
-              All projects across your organization.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowNew(v => !v)}
-            style={{
-              display: "flex", alignItems: "center", gap: 7,
-              background: "var(--accent)", color: "var(--accent-ink)",
-              borderRadius: 8, padding: "8px 14px",
-              fontSize: 12, fontWeight: 500, border: "none", cursor: "pointer",
-            }}
-            className="hover:opacity-90 transition-opacity"
-          >
-            <Plus style={{ width: 13, height: 13 }} />
-            New project
-          </button>
+        <div className="mb-5">
+          <h1 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>Projects</h1>
+          <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
+            Discovered automatically from your connected tools — nothing to set up.
+          </p>
         </div>
-
-        {/* ── New project form ── */}
-        {showNew && (
-          <div style={{
-            display: "flex", gap: 8, marginBottom: 16,
-            background: "var(--surface)", border: "1px solid var(--border)",
-            borderRadius: 12, padding: 12, boxShadow: "var(--shadow-1)",
-          }} className="fade-in">
-            <input
-              autoFocus
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") void createProject(); }}
-              placeholder="Project name…"
-              style={{
-                flex: 1, padding: "8px 12px", fontSize: 13,
-                borderRadius: 8, border: "1px solid var(--border)",
-                background: "var(--bg)", color: "var(--text)", outline: "none",
-              }}
-            />
-            <button
-              onClick={createProject}
-              disabled={creating || !newName.trim()}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                background: "var(--accent)", color: "var(--accent-ink)",
-                borderRadius: 8, padding: "8px 16px", fontSize: 12, fontWeight: 500,
-                border: "none", cursor: "pointer",
-                opacity: creating || !newName.trim() ? 0.4 : 1,
-              }}
-            >
-              {creating && <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />}
-              Create
-            </button>
-          </div>
-        )}
 
         {/* ── Search ── */}
         <div style={{ position: "relative", marginBottom: 14 }}>
@@ -190,11 +119,11 @@ export default function ProjectsPage() {
           <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "56px 0", textAlign: "center", boxShadow: "var(--shadow-1)" }}>
             <FolderKanban style={{ width: 28, height: 28, color: "var(--border)", margin: "0 auto 10px" }} />
             <p style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>
-              {projects.length === 0 ? "No projects yet" : "No projects match"}
+              {projects.length === 0 ? "No projects discovered yet" : "No projects match"}
             </p>
             <p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
               {projects.length === 0
-                ? "Sync from Figma in Integrations, or create one manually."
+                ? "Connect Figma in Integrations and Memry will discover your projects automatically."
                 : `Nothing named “${search}”.`}
             </p>
           </div>
