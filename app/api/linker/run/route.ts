@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 404 });
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.JINA_API_KEY) {
     return NextResponse.json(
-      { error: "OPENAI_API_KEY is not configured — the Linker needs it for embeddings" },
+      { error: "JINA_API_KEY is not configured — the Linker needs it for embeddings" },
       { status: 503 },
     );
   }

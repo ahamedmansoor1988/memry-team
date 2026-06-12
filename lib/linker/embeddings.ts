@@ -1,12 +1,13 @@
 /**
  * Embedding pipeline for the Linker Agent.
- * OpenAI text-embedding-3-small (1536 dims). Embeddings are stored in
+ * Jina AI jina-embeddings-v3 (1024 dims, free tier). Embeddings are stored in
  * item_embeddings and skipped when the source text hash is unchanged.
  */
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 
-const EMBED_MODEL = "text-embedding-3-small";
+const EMBED_MODEL = "jina-embeddings-v3";
+const EMBED_DIMS  = 1024;
 
 export interface LinkableItem {
   item_type: "feedback_item" | "decision";
@@ -20,16 +21,21 @@ function hashText(text: string): string {
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY is not set — the Linker needs it for embeddings");
+  const apiKey = process.env.JINA_API_KEY;
+  if (!apiKey) throw new Error("JINA_API_KEY is not set — the Linker needs it for embeddings");
 
-  const res = await fetch("https://api.openai.com/v1/embeddings", {
+  const res = await fetch("https://api.jina.ai/v1/embeddings", {
     method: "POST",
     headers: {
       "Content-Type":  "application/json",
       "Authorization": `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ model: EMBED_MODEL, input: text.slice(0, 8000) }),
+    body: JSON.stringify({
+      model:           EMBED_MODEL,
+      dimensions:      EMBED_DIMS,
+      task:            "retrieval.passage",
+      input:           [text.slice(0, 8000)],
+    }),
   });
   if (!res.ok) {
     const body = await res.text();
