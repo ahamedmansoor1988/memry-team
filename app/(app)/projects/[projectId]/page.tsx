@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, use } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -74,8 +74,8 @@ function StatCard({ value, label, icon }: { value: number; label: string; icon: 
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function ProjectDetailPage({ params }: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = use(params);
+export default function ProjectDetailPage({ params }: { params: { projectId: string } }) {
+  const { projectId } = params;
   const router = useRouter();
 
   const [project, setProject]     = useState<Project | null>(null);
