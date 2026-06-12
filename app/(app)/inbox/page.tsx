@@ -22,6 +22,8 @@ interface InboxItem {
   project_name:        string | null;
   created_at:          string;
   source:              string;
+  topic_title:         string | null;
+  topic_count:         number;
 }
 
 type FilterKey = "all" | "needs_review" | "suggested" | "mine";
@@ -189,6 +191,18 @@ function ItemRow({ item, checked, onCheck }: {
           <> · {item.source === "slack" ? "Slack" : "Figma"}</>
           <> · {timeAgo(item.created_at)}</>
         </p>
+        {item.topic_title && (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4, marginTop: 3,
+            fontSize: 10, fontWeight: 500, color: "var(--blue)",
+            background: "var(--blue-soft)", borderRadius: 99, padding: "1px 8px",
+            maxWidth: "100%",
+          }}>
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            <span className="truncate">Linked discussion · {item.topic_title}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, opacity: 0.8 }}>{item.topic_count}</span>
+          </span>
+        )}
       </div>
 
       <AvatarStack names={[item.author_name, item.owner_name]} />

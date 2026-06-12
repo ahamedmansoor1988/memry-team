@@ -8,6 +8,7 @@ import {
   Activity, ZoomIn, MessageSquare, Clock, ChevronDown, Zap,
   type LucideIcon,
 } from "lucide-react";
+import ConnectedContext from "@/components/linker/ConnectedContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1450,6 +1451,7 @@ export default function ItemDetailPage({ params }: { params: { projectId: string
       {/* ── Right: context sidebar ── */}
       <div className="w-80 shrink-0 overflow-y-auto bg-paper border-l border-border hidden lg:block">
         <div className="p-4 space-y-4">
+          <ConnectedContext itemType="feedback_item" itemId={item.id} />
           <LinkedToPanel item={item} commentCount={localReplies.length + 1} />
           <DesignContextPreview item={item} frameCommentCount={frameCommentCount} />
           <OwnerPanel item={item} profiles={profiles} onOwnerChange={handleOwnerChange} />

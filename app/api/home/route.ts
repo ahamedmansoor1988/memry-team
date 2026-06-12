@@ -131,7 +131,46 @@ export async function GET() {
       risk: !!i.ai_risk_flag || i.status === "blocked" || i.ai_classification === "Blocked",
     }));
 
+  // Linker findings: discussions Memry connected recently
+  const { data: recentTopics } = await admin
+    .from("topics")
+    .select("id, title, updated_at")
+    .eq("workspace_id", workspaceId)
+    .gte("updated_at", weekAgo)
+    .order("updated_at", { ascending: false })
+    .limit(5);
+  const topicRows = (recentTopics ?? []) as { id: string; title: string; updated_at: string }[];
+  const linked_discussions: { id: string; title: string; members: number; cross_source: boolean; href: string | null }[] = [];
+  if (topicRows.length > 0) {
+    const { data: tLinks } = await admin
+      .from("topic_links")
+      .select("topic_id, item_type, item_id")
+      .eq("status", "active")
+      .in("topic_id", topicRows.map(t => t.id));
+    const linkRows = (tLinks ?? []) as { topic_id: string; item_type: string; item_id: string }[];
+    const fiIds = linkRows.filter(l => l.item_type === "feedback_item").map(l => l.item_id);
+    const { data: fiRows } = fiIds.length > 0
+      ? await admin.from("feedback_items").select("id, project_id").in("id", fiIds)
+      : { data: [] };
+    const projectByItem = new Map(((fiRows ?? []) as { id: string; project_id: string | null }[]).map(r => [r.id, r.project_id]));
+    for (const t of topicRows) {
+      const members = linkRows.filter(l => l.topic_id === t.id);
+      if (members.length < 2) continue;
+      const types = new Set(members.map(m => m.item_type));
+      const firstFi = members.find(m => m.item_type === "feedback_item");
+      const pid = firstFi ? projectByItem.get(firstFi.item_id) : null;
+      linked_discussions.push({
+        id: t.id,
+        title: t.title,
+        members: members.length,
+        cross_source: types.size > 1,
+        href: firstFi && pid ? `/inbox/${pid}/${firstFi.item_id}` : null,
+      });
+    }
+  }
+
   return NextResponse.json({
+    linked_discussions,
     name: (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ?? user.email?.split("@")[0] ?? "there",
     stats: {
       needs_review: needsReview,

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, CheckCircle2, ExternalLink, MessageSquare, Hash, FileText,
 } from "lucide-react";
+import ConnectedContext from "@/components/linker/ConnectedContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -339,6 +340,8 @@ export default function DecisionDetailPage({ params }: { params: { id: string } 
 
           {/* RIGHT — approval sidebar */}
           <div className="space-y-4">
+
+            <ConnectedContext itemType="decision" itemId={decision.id} heading="Related Discussions" />
 
             {/* Approval */}
             <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: 16, boxShadow: "var(--shadow-1)" }}>

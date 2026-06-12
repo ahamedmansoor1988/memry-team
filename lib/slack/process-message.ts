@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import { createAdminClient } from "@/lib/supabase/server";
 import { matchResolution } from "@/lib/slack/match-resolution";
+import { linkItem } from "@/lib/linker/linker";
 
 interface GroqTwoTrackResult {
   is_decision:           boolean;
@@ -199,7 +200,7 @@ async function handleDecisionTrack(
     return;
   }
 
-  const { error: decisionError } = await admin.from("decisions").insert({
+  const { data: insertedDecision, error: decisionError } = await admin.from("decisions").insert({
     workspace_id:       workspaceId,
     decision_text:      groqResult.decision_text,
     reason:             groqResult.rationale ?? null,
@@ -210,7 +211,7 @@ async function handleDecisionTrack(
     slack_thread_url:   slackUrl,
     owner_name:         userName,
     decided_at:         new Date(parseFloat(messageTs) * 1000).toISOString(),
-  });
+  }).select("id").single();
   if (decisionError) {
     // Leave decision_extracted = false so the daily catch-up scan retries this message
     console.error("[process-message] decision insert error:", decisionError.message);
@@ -218,4 +219,17 @@ async function handleDecisionTrack(
   }
 
   await markDecisionExtracted(true);
+
+  // Linker Agent: connect this decision to related discussions (best-effort)
+  const newDecisionId = (insertedDecision as { id: string } | null)?.id;
+  if (newDecisionId && process.env.OPENAI_API_KEY) {
+    try {
+      const linked = await linkItem(workspaceId, "decision", newDecisionId);
+      if (linked.action === "auto_linked") {
+        console.log(`[linker] decision ${newDecisionId} linked to "${linked.topic_title}" (${linked.confidence})`);
+      }
+    } catch (e) {
+      console.error("[linker] post-decision link failed:", e instanceof Error ? e.message : e);
+    }
+  }
 }

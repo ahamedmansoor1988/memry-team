@@ -8,6 +8,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { fetchComments } from "@/lib/figma/sync";
 import { classifyComment } from "@/lib/ai/classify";
 import { resolveOwner, type OwnerProfile } from "@/lib/ai/resolve-owner";
+import { linkUnprocessed } from "@/lib/linker/linker";
 
 export async function POST(
   req: NextRequest,
@@ -389,6 +390,19 @@ export async function POST(
     if (cronSecret) {
       console.log(`[sync] triggering background enrich (${newDrCount} new DR(s))`);
       fireBackgroundEnrich(appUrl, cronSecret, workspaceId);
+    }
+
+    // Linker Agent: connect newly captured items to related discussions.
+    // Small batch, best-effort — the backfill endpoint covers anything missed.
+    if (added > 0 && process.env.OPENAI_API_KEY) {
+      try {
+        const linked = await linkUnprocessed(workspaceId, 10);
+        if (linked.auto_linked > 0 || linked.suggested > 0) {
+          console.log(`[linker] sync pass: ${linked.auto_linked} linked, ${linked.suggested} suggested`);
+        }
+      } catch (e) {
+        console.error("[linker] post-sync pass failed:", e instanceof Error ? e.message : e);
+      }
     }
 
     return NextResponse.json({ added, replies_added: repliesAdded, total: topLevel.length, deleted: deletedCount });

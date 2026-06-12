@@ -24,7 +24,16 @@ interface RecentDecision {
   decided_at: string;
 }
 
+interface LinkedDiscussion {
+  id: string;
+  title: string;
+  members: number;
+  cross_source: boolean;
+  href: string | null;
+}
+
 interface HomeData {
+  linked_discussions?: LinkedDiscussion[];
   name: string;
   stats: {
     needs_review: number;
@@ -178,6 +187,46 @@ export default function HomePage() {
                 <p style={{ fontSize: 10.5, opacity: 0.7 }}>new findings this week</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Memry connected (Linker findings) ── */}
+        {data && (data.linked_discussions?.length ?? 0) > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>
+              Memry connected {data.linked_discussions!.filter(l => l.cross_source).length > 0
+                ? "discussions across Figma and Slack"
+                : "related discussions"}
+            </p>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "var(--shadow-1)", overflow: "hidden" }}>
+              {data.linked_discussions!.map(ld => (
+                <div
+                  key={ld.id}
+                  onClick={() => ld.href && router.push(ld.href)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 14px", borderBottom: "1px solid var(--border-2)",
+                    cursor: ld.href ? "pointer" : "default", transition: "background 0.1s",
+                  }}
+                  className="hover:bg-[var(--accent-softer)] last:border-0"
+                >
+                  <div style={{ width: 24, height: 24, borderRadius: 6, flexShrink: 0, background: "var(--blue-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" strokeWidth="2.5" strokeLinecap="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  </div>
+                  <p style={{ flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 500, color: "var(--text)" }} className="truncate">
+                    {ld.title}
+                  </p>
+                  <span style={{
+                    fontSize: 10.5, fontWeight: 500, flexShrink: 0,
+                    background: ld.cross_source ? "var(--blue-soft)" : "var(--border-2)",
+                    color: ld.cross_source ? "var(--blue)" : "var(--text-2)",
+                    borderRadius: 99, padding: "2px 9px",
+                  }}>
+                    {ld.cross_source ? "Figma + Slack" : `${ld.members} linked`}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

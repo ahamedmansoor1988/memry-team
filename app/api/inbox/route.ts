@@ -84,8 +84,42 @@ export async function GET() {
     };
   });
 
+  // Linked discussions: attach topic chip data to listed items
+  const itemIds = items.map(i => i.id);
+  const topicByItem = new Map<string, { title: string; count: number }>();
+  if (itemIds.length > 0) {
+    const { data: links } = await admin
+      .from("topic_links")
+      .select("topic_id, item_id")
+      .eq("workspace_id", workspaceId)
+      .eq("item_type", "feedback_item")
+      .eq("status", "active")
+      .in("item_id", itemIds);
+    const linkRows = (links ?? []) as { topic_id: string; item_id: string }[];
+    const topicIds = Array.from(new Set(linkRows.map(l => l.topic_id)));
+    if (topicIds.length > 0) {
+      const [{ data: topicRows }, { data: allLinks }] = await Promise.all([
+        admin.from("topics").select("id, title").in("id", topicIds),
+        admin.from("topic_links").select("topic_id").eq("status", "active").in("topic_id", topicIds),
+      ]);
+      const titleMap = new Map(((topicRows ?? []) as { id: string; title: string }[]).map(t => [t.id, t.title]));
+      const countMap = new Map<string, number>();
+      for (const l of (allLinks ?? []) as { topic_id: string }[]) {
+        countMap.set(l.topic_id, (countMap.get(l.topic_id) ?? 0) + 1);
+      }
+      for (const l of linkRows) {
+        const title = titleMap.get(l.topic_id);
+        if (title) topicByItem.set(l.item_id, { title, count: countMap.get(l.topic_id) ?? 0 });
+      }
+    }
+  }
+
   return NextResponse.json({
-    items,
+    items: items.map(i => ({
+      ...i,
+      topic_title: topicByItem.get(i.id)?.title ?? null,
+      topic_count: topicByItem.get(i.id)?.count ?? 0,
+    })),
     me: (myProfile as { id: string } | null)?.id ?? null,
   });
 }
