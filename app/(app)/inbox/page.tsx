@@ -57,18 +57,18 @@ function isSuggested(item: InboxItem): boolean {
   return !!item.ai_suggested_action;
 }
 
-// Badge per kit: blue = needs review, amber = needs decision, red = high risk,
-// green = suggested decision
+// Agent language: every badge says what Memry detected, not what data exists.
+// blue = discussion, amber = decision needed, red = blocker/risk, green = decision detected
 function statusBadge(item: InboxItem): { label: string; bg: string; color: string } {
   if (item.status === "blocked" || item.ai_classification === "Blocked")
-    return { label: "Blocked", bg: "var(--red-soft)", color: "var(--red)" };
+    return { label: "Blocker detected", bg: "var(--red-soft)", color: "var(--red)" };
   if (item.ai_risk_flag)
-    return { label: "High risk", bg: "var(--red-soft)", color: "var(--red)" };
+    return { label: "Risk detected", bg: "var(--red-soft)", color: "var(--red)" };
   if (item.status === "needs_decision" || item.ai_classification === "Needs Decision")
-    return { label: "Needs decision", bg: "var(--amber-soft)", color: "var(--amber)" };
+    return { label: "Decision needed", bg: "var(--amber-soft)", color: "var(--amber)" };
   if (isSuggested(item))
-    return { label: "Suggested decision", bg: "var(--green-soft)", color: "var(--green)" };
-  return { label: "Needs review", bg: "var(--blue-soft)", color: "var(--blue)" };
+    return { label: "Decision detected", bg: "var(--green-soft)", color: "var(--green)" };
+  return { label: "Discussion detected", bg: "var(--blue-soft)", color: "var(--blue)" };
 }
 
 // ─── Source badge (brand colors, per kit) ─────────────────────────────────────

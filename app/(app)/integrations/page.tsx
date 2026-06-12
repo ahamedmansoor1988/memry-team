@@ -70,7 +70,7 @@ export default function IntegrationsPage() {
 
   // Source card stats
   const [stats, setStats] = useState<{
-    figma: { comments: number; last_synced: string | null };
+    figma: { files: number; comments: number; decisions: number; risks: number; last_synced: string | null };
     slack: { messages: number; decisions: number; last_activity: string | null };
   } | null>(null);
 
@@ -95,7 +95,7 @@ export default function IntegrationsPage() {
   useEffect(() => {
     fetch("/api/integrations/stats")
       .then(r => r.json())
-      .then((d: { figma?: { comments: number; last_synced: string | null }; slack?: { messages: number; decisions: number; last_activity: string | null } }) => {
+      .then((d: { figma?: { files: number; comments: number; decisions: number; risks: number; last_synced: string | null }; slack?: { messages: number; decisions: number; last_activity: string | null } }) => {
         if (d.figma && d.slack) setStats({ figma: d.figma, slack: d.slack });
       })
       .catch(() => null);
@@ -247,7 +247,10 @@ export default function IntegrationsPage() {
                   {stats?.figma.last_synced ? `Last synced ${relativeTime(stats.figma.last_synced)}` : "Not synced yet"}
                 </p>
                 <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
-                  {stats?.figma.comments ?? 0} comments
+                  {stats?.figma.files ?? 0} files · {stats?.figma.comments ?? 0} comments analyzed
+                </p>
+                <p className="font-mono text-[11px] text-[var(--text-2)]">
+                  {stats?.figma.decisions ?? 0} decisions · {stats?.figma.risks ?? 0} risks extracted
                 </p>
               </>
             ) : (
@@ -272,7 +275,10 @@ export default function IntegrationsPage() {
                   {stats?.slack.last_activity ? `Last decision ${relativeTime(stats.slack.last_activity)}` : "Listening for decisions"}
                 </p>
                 <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
-                  {stats?.slack.messages ?? 0} messages · {stats?.slack.decisions ?? 0} decisions
+                  {stats?.slack.messages ?? 0} messages analyzed
+                </p>
+                <p className="font-mono text-[11px] text-[var(--text-2)]">
+                  {stats?.slack.decisions ?? 0} decisions extracted
                 </p>
               </>
             ) : (

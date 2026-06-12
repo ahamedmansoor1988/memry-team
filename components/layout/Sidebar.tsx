@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Home, Inbox, FolderKanban, ListChecks, ShieldAlert, Search, Users, Plug,
+  Home, Inbox, FolderKanban, ListChecks, ShieldAlert, Sparkles, Users, Plug,
   Settings, LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -33,7 +33,7 @@ export default function Sidebar({ workspaceName, userName, userAvatar, openCount
     { href: "/projects",     label: "Projects",     icon: FolderKanban, badge: null },
     { href: "/decisions",    label: "Decisions",    icon: ListChecks,   badge: null },
     { href: "/risks",        label: "Risks",        icon: ShieldAlert,  badge: null },
-    { href: "/search",       label: "Search",       icon: Search,       badge: null },
+    { href: "/search",       label: "Ask Memry",    icon: Sparkles,     badge: null },
     { href: "/people",       label: "People",       icon: Users,        badge: null },
     { href: "/integrations", label: "Integrations", icon: Plug,         badge: null },
   ];

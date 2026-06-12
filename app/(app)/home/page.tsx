@@ -2,10 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  AlertTriangle, ShieldAlert, RefreshCw,
-  CheckCircle2, Search, ChevronRight,
-} from "lucide-react";
+import { CheckCircle2, Search } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +37,9 @@ interface HomeData {
     comments: number;
     slack_messages: number;
     meetings: number;
+    files: number;
+    risks_total: number;
+    reconstructing: boolean;
   };
   attention: AttentionItem[];
   recent_decisions: RecentDecision[];
@@ -68,37 +68,10 @@ function greeting(): string {
 
 function attentionBadge(item: AttentionItem): { label: string; bg: string; color: string } {
   if (item.risk)
-    return { label: "High risk", bg: "var(--red-soft)", color: "var(--red)" };
+    return { label: "Risk detected", bg: "var(--red-soft)", color: "var(--red)" };
   if (item.status === "needs_decision" || item.classification === "Needs Decision")
-    return { label: "Needs decision", bg: "var(--amber-soft)", color: "var(--amber)" };
-  return { label: "Needs review", bg: "var(--blue-soft)", color: "var(--blue)" };
-}
-
-// ─── Stat card ────────────────────────────────────────────────────────────────
-
-function StatCard({ icon, iconBg, iconColor, value, label }: {
-  icon: React.ReactNode; iconBg: string; iconColor: string;
-  value: number; label: string;
-}) {
-  return (
-    <div style={{
-      background: "var(--surface)", border: "1px solid var(--border)",
-      borderRadius: 12, padding: "14px 16px", boxShadow: "var(--shadow-1)",
-      display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0,
-    }}>
-      <div style={{
-        width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-        background: iconBg, color: iconColor,
-        display: "flex", alignItems: "center", justifyContent: "center",
-      }}>
-        {icon}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <p style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", lineHeight: 1.1, fontFamily: "var(--font-mono)" }}>{value}</p>
-        <p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }} className="truncate">{label}</p>
-      </div>
-    </div>
-  );
+    return { label: "Decision needed", bg: "var(--amber-soft)", color: "var(--amber)" };
+  return { label: "Discussion detected", bg: "var(--blue-soft)", color: "var(--blue)" };
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -125,59 +98,88 @@ export default function HomePage() {
       <div className="px-7 pt-6 pb-10 max-w-5xl">
 
         {/* ── Greeting ── */}
-        <div className="mb-5">
+        <div className="mb-4">
           <h1 style={{ fontSize: 20, fontWeight: 600, color: "var(--text)", letterSpacing: "-0.02em" }}>
             {greeting()}, {data?.name ?? "…"} 👋
           </h1>
           <p style={{ fontSize: 13, color: "var(--text-2)", marginTop: 2 }}>
             Here&apos;s what Memry found while watching your tools.
           </p>
-          {data && (
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10.5, color: "var(--text-3)", marginTop: 6 }}>
-              Analyzed {data.analyzed.comments.toLocaleString()} Figma comments
-              {" · "}{data.analyzed.slack_messages.toLocaleString()} Slack messages
-              {data.analyzed.meetings > 0 && <>{" · "}{data.analyzed.meetings.toLocaleString()} meetings</>}
-            </p>
-          )}
         </div>
 
-        {/* ── Stat cards ── */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-          {loading || !data ? (
-            <>
-              {[0, 1, 2, 3].map(i => (
-                <div key={i} className="skeleton" style={{ height: 64, borderRadius: 12, flex: 1, minWidth: 140 }} />
-              ))}
-            </>
-          ) : (
-            <>
-              <StatCard
-                icon={<CheckCircle2 style={{ width: 15, height: 15 }} />}
-                iconBg="var(--green-soft)" iconColor="var(--green)"
-                value={data.stats.decisions_captured}
-                label="Decisions captured"
-              />
-              <StatCard
-                icon={<ShieldAlert style={{ width: 15, height: 15 }} />}
-                iconBg="var(--red-soft)" iconColor="var(--red)"
-                value={data.stats.risks}
-                label="Risks detected"
-              />
-              <StatCard
-                icon={<AlertTriangle style={{ width: 15, height: 15 }} />}
-                iconBg="var(--amber-soft)" iconColor="var(--amber)"
-                value={data.stats.needs_review + data.stats.decisions_pending}
-                label="Discussions awaiting review"
-              />
-              <StatCard
-                icon={<RefreshCw style={{ width: 15, height: 15 }} />}
-                iconBg="var(--blue-soft)" iconColor="var(--blue)"
-                value={data.stats.updates_week}
-                label="New findings this week"
-              />
-            </>
-          )}
+        {/* ── Ask Memry — the front door to organizational memory ── */}
+        <div style={{ marginBottom: 16 }}>
+          <button
+            onClick={() => router.push("/search")}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10,
+              background: "var(--surface)", border: "1px solid var(--border)",
+              borderRadius: 12, padding: "13px 16px", cursor: "pointer",
+              boxShadow: "var(--shadow-2)", fontSize: 13, color: "var(--text-3)",
+            }}
+            className="hover:border-[var(--accent-border)] transition-colors"
+          >
+            <Search style={{ width: 14, height: 14, flexShrink: 0 }} />
+            <span style={{ flex: 1, textAlign: "left" }}>Ask Memry anything about your work…</span>
+            <kbd style={{ fontFamily: "var(--font-mono)", fontSize: 10, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 6px" }}>⌘K</kbd>
+          </button>
+          <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+            {["What changed this week?", "What is still blocked?", "What did we decide about fonts?"].map(q => (
+              <button
+                key={q}
+                onClick={() => router.push(`/search?q=${encodeURIComponent(q)}`)}
+                style={{
+                  fontSize: 11, color: "var(--text-2)", background: "var(--surface)",
+                  border: "1px solid var(--border)", borderRadius: 99, padding: "4px 11px",
+                  cursor: "pointer",
+                }}
+                className="hover:border-[var(--accent-border)] transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* ── Organizational memory band ── */}
+        {loading || !data ? (
+          <div className="skeleton" style={{ height: 76, borderRadius: 12, marginBottom: 20 }} />
+        ) : (
+          <div style={{
+            background: "var(--accent)", color: "var(--accent-ink)",
+            borderRadius: 12, padding: "16px 18px", marginBottom: 20,
+            display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+          }}>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.7, display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{
+                  width: 7, height: 7, borderRadius: 99, flexShrink: 0,
+                  background: data.analyzed.reconstructing ? "var(--amber)" : "#4ade80",
+                }} className={data.analyzed.reconstructing ? "animate-pulse" : ""} />
+                Organizational memory · {data.analyzed.reconstructing ? "reconstructing" : "live"}
+              </p>
+              <p style={{ fontSize: 13.5, marginTop: 6, lineHeight: 1.55 }}>
+                {data.analyzed.reconstructing
+                  ? <>Memry is analyzing your workspace — building memory from {data.analyzed.files.toLocaleString()} files and {data.analyzed.comments.toLocaleString()} comments…</>
+                  : <>
+                      Memry analyzed{" "}
+                      <strong>{data.analyzed.files.toLocaleString()} files</strong>,{" "}
+                      <strong>{data.analyzed.comments.toLocaleString()} Figma comments</strong>
+                      {" "}and <strong>{data.analyzed.slack_messages.toLocaleString()} Slack messages</strong>
+                      {data.analyzed.meetings > 0 && <> and <strong>{data.analyzed.meetings.toLocaleString()} meetings</strong></>}
+                      {" "}— capturing <strong>{data.stats.decisions_captured} decisions</strong> and{" "}
+                      <strong>{data.analyzed.risks_total} risks</strong> so far.
+                    </>}
+              </p>
+            </div>
+            {data.stats.updates_week > 0 && (
+              <div style={{ textAlign: "right" }}>
+                <p style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 600 }}>{data.stats.updates_week}</p>
+                <p style={{ fontSize: 10.5, opacity: 0.7 }}>new findings this week</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── Two columns ── */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }} className="max-md:!grid-cols-1">
@@ -281,23 +283,6 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-
-        {/* ── Ask Memry bar ── */}
-        <button
-          onClick={() => router.push("/search")}
-          style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 10,
-            background: "var(--surface)", border: "1px solid var(--border)",
-            borderRadius: 12, padding: "13px 16px", cursor: "pointer",
-            boxShadow: "var(--shadow-1)", fontSize: 13, color: "var(--text-3)",
-          }}
-          className="hover:border-[var(--accent-border)] transition-colors"
-        >
-          <Search style={{ width: 14, height: 14, flexShrink: 0 }} />
-          <span style={{ flex: 1, textAlign: "left" }}>Ask Memry anything about your work…</span>
-          <kbd style={{ fontFamily: "var(--font-mono)", fontSize: 10, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 4, padding: "2px 6px" }}>⌘K</kbd>
-          <ChevronRight style={{ width: 13, height: 13, flexShrink: 0 }} />
-        </button>
 
       </div>
     </div>

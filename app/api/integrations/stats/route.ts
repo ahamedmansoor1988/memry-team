@@ -23,6 +23,9 @@ export async function GET() {
 
   const [
     { count: figmaComments },
+    { count: figmaFiles },
+    { count: figmaDecisions },
+    { count: risksDetected },
     { count: slackMessages },
     { count: slackDecisions },
     { data: latestFile },
@@ -30,6 +33,12 @@ export async function GET() {
   ] = await Promise.all([
     admin.from("figma_comments").select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId),
+    admin.from("figma_files").select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    admin.from("decisions").select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId).eq("source", "ai"),
+    admin.from("feedback_items").select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId).eq("ai_risk_flag", true),
     admin.from("slack_processed_messages").select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId),
     admin.from("decisions").select("id", { count: "exact", head: true })
@@ -44,7 +53,10 @@ export async function GET() {
 
   return NextResponse.json({
     figma: {
+      files: figmaFiles ?? 0,
       comments: figmaComments ?? 0,
+      decisions: figmaDecisions ?? 0,
+      risks: risksDetected ?? 0,
       last_synced: (latestFile as { last_synced_at?: string | null } | null)?.last_synced_at ?? null,
     },
     slack: {

@@ -46,6 +46,9 @@ export async function GET() {
     { count: commentsAnalyzed },
     { count: slackAnalyzed },
     { count: meetingsAnalyzed },
+    { count: filesAnalyzed },
+    { count: syncingFiles },
+    { count: risksTotal },
   ] = await Promise.all([
     admin.from("feedback_items")
       .select(`
@@ -84,6 +87,17 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspaceId)
       .eq("source", "meeting"),
+    admin.from("figma_files")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId),
+    admin.from("figma_files")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("sync_status", "syncing"),
+    admin.from("feedback_items")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("ai_risk_flag", true),
   ]);
 
   const items = ((openItems ?? []) as RawItem[]).map(i => ({
@@ -130,6 +144,9 @@ export async function GET() {
       comments: commentsAnalyzed ?? 0,
       slack_messages: slackAnalyzed ?? 0,
       meetings: meetingsAnalyzed ?? 0,
+      files: filesAnalyzed ?? 0,
+      risks_total: risksTotal ?? 0,
+      reconstructing: (syncingFiles ?? 0) > 0,
     },
     attention,
     recent_decisions: recentDecisions ?? [],

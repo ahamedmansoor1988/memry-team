@@ -37,7 +37,7 @@ export default function SearchBar() {
       className="hover:border-[var(--accent-border)]"
     >
       <Search style={{ width: 12, height: 12, flexShrink: 0 }} />
-      <span style={{ flex: 1, textAlign: "left" }}>Search feedback, decisions…</span>
+      <span style={{ flex: 1, textAlign: "left" }}>Ask Memry anything…</span>
       <kbd style={{ fontFamily: "var(--font-mono)", fontSize: 10, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px", color: "var(--text-3)", flexShrink: 0 }}>⌘K</kbd>
     </button>
   );

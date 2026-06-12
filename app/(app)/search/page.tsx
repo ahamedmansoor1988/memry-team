@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Search, CheckCircle2, Sparkles, Loader2, ThumbsUp, ThumbsDown } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -76,11 +76,12 @@ const EXAMPLE_QUERIES = [
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function SearchPage() {
+function SearchPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [query, setQuery]         = useState("");
+  const [query, setQuery]         = useState(searchParams.get("q") ?? "");
   const [results, setResults]     = useState<SearchResult[]>([]);
   const [decisions, setDecisions] = useState<DecisionResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -466,5 +467,13 @@ export default function SearchPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchPageInner />
+    </Suspense>
   );
 }
