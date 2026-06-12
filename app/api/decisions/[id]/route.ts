@@ -31,7 +31,7 @@ export async function GET(
     .select(`
       id, decision_text, reason, owner_name, owner_profile_id, source,
       decided_at, feedback_item_id, outcome, alternatives,
-      slack_channel_name, slack_thread_url
+      slack_channel_id, slack_message_ts, slack_channel_name, slack_thread_url
     `)
     .eq("workspace_id", workspaceId)
     .eq("id", id)
