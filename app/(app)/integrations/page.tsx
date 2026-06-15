@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle, Copy, Check, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle, Copy, Check, Plus, Trash2, Shield, X, Circle, CircleDot } from "lucide-react";
 
 function FigmaLogo() {
   return (
@@ -66,6 +66,7 @@ export default function IntegrationsPage() {
   const [figmaSaving, setFigmaSaving] = useState(false);
   const [figmaMsg, setFigmaMsg] = useState<string | null>(null);
   const [figmaConnected, setFigmaConnected] = useState(false);
+  const [figmaAuthMethod, setFigmaAuthMethod] = useState<"pat" | "oauth">("pat");
 
   // Figma sync
   const [syncing, setSyncing] = useState(false);
@@ -541,6 +542,32 @@ export default function IntegrationsPage() {
             )}
 
             <div className="space-y-3 border-t border-[var(--border-2)] pt-5">
+              <p className="text-xs text-[var(--text-2)]">Choose how you want to connect your Figma workspace to Memry.</p>
+
+              {/* Option 1: PAT — available now */}
+              <button
+                type="button"
+                onClick={() => setFigmaAuthMethod("pat")}
+                className={`w-full flex items-start gap-3 text-left rounded-xl border p-3 transition-colors ${figmaAuthMethod === "pat" ? "border-[var(--accent-border)] bg-[var(--bg)]" : "border-[var(--border-2)] hover:border-[var(--border)]"}`}
+              >
+                {figmaAuthMethod === "pat"
+                  ? <CircleDot size={16} className="text-[var(--accent)] mt-0.5 flex-shrink-0" />
+                  : <Circle size={16} className="text-[var(--text-3)] mt-0.5 flex-shrink-0" />}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-[var(--text)]">Personal Access Token</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full">
+                      <CheckCircle2 size={9} /> Available now
+                    </span>
+                  </div>
+                  <p className="text-[var(--text-3)] text-xs mt-0.5">
+                    Paste a token from your Figma account settings. Works immediately — no approval needed. Best for getting started.
+                  </p>
+                </div>
+              </button>
+
+              {figmaAuthMethod === "pat" && (
+              <div className="space-y-3 pl-1">
               <div>
                 <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
                   Personal Access Token (PAT)
@@ -607,6 +634,45 @@ export default function IntegrationsPage() {
                   </p>
                 )}
               </div>
+              </div>
+              )}
+
+              {/* Option 2: Figma OAuth — under review */}
+              <button
+                type="button"
+                disabled
+                className="w-full flex items-start gap-3 text-left rounded-xl border border-[var(--border-2)] p-3 opacity-70 cursor-not-allowed"
+              >
+                <Circle size={16} className="text-[var(--text-3)] mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-[var(--text)]">Connect with Figma</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--amber)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
+                      <Clock size={9} /> Under review with Figma
+                    </span>
+                  </div>
+                  <p className="text-[var(--text-3)] text-xs mt-0.5">
+                    One-click sign-in via Figma OAuth. No token copying needed — ideal for whole teams. Available once Figma approves our app.
+                  </p>
+                </div>
+              </button>
+              <div className="pl-1 space-y-2">
+                <button
+                  type="button"
+                  disabled
+                  className="flex items-center gap-1.5 bg-[var(--bg)] border border-[var(--border-2)] text-[var(--text-3)] text-sm font-medium px-4 py-2.5 rounded-lg cursor-not-allowed opacity-70"
+                >
+                  <FigmaLogo />
+                  Continue with Figma
+                </button>
+                <div className="flex items-center gap-1.5 text-xs text-[var(--amber)] bg-[var(--bg)] border border-[var(--border-2)] rounded-lg px-3 py-2">
+                  <Clock size={12} className="flex-shrink-0" />
+                  <span>
+                    Want to be notified when OAuth launches?{" "}
+                    <a href="mailto:hello@memry.team?subject=Notify%20me%20when%20Figma%20OAuth%20launches" className="underline">Notify me</a>
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -630,7 +696,7 @@ export default function IntegrationsPage() {
                   )}
                 </div>
                 <p className="text-[var(--text-2)] text-sm leading-relaxed">
-                  Post design decisions to a dedicated Slack channel. Approve, request changes, or ask for clarification — directly from Slack.
+                  Add Memry to your Slack workspace in one click. Memry watches the channels you choose for decisions, risks, and items needing review — no token copying required.
                 </p>
               </div>
             </div>
@@ -638,13 +704,47 @@ export default function IntegrationsPage() {
             <div className="space-y-3 border-t border-[var(--border-2)] pt-5">
               {/* ── One-click OAuth (primary) ── */}
               {!slackConnected ? (
-                <a
-                  href="/api/integrations/slack/oauth/start"
-                  className="inline-flex items-center gap-2 bg-[#4A154B] hover:opacity-90 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-opacity"
-                >
-                  <SlackLogo />
-                  Connect Slack
-                </a>
+                <>
+                  <a
+                    href="/api/integrations/slack/oauth/start"
+                    className="flex items-center justify-center gap-2 w-full bg-[var(--bg)] border border-[var(--border)] hover:border-[var(--accent-border)] text-[var(--text)] text-sm font-medium px-4 py-3 rounded-lg transition-colors"
+                  >
+                    <SlackLogo />
+                    Add to Slack
+                  </a>
+
+                  {/* What Memry will access */}
+                  <div className="rounded-xl border border-[var(--border-2)] bg-[var(--bg)] overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-[var(--border-2)]">
+                      <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-[var(--text-3)]">
+                        What Memry will access
+                      </span>
+                    </div>
+                    <div>
+                      {[
+                        { ok: true,  title: "Read messages in channels you add Memry to",        desc: "To detect decisions and items needing review" },
+                        { ok: true,  title: "Send messages and DMs as Memry",                    desc: "To notify decision owners and ask for clarification" },
+                        { ok: true,  title: "View basic workspace info and member list",         desc: "To map Slack users to Memry team members" },
+                        { ok: false, title: "Memry never reads DMs or private channels unless explicitly added", desc: null },
+                      ].map((row, i) => (
+                        <div key={i} className={`flex items-start gap-2.5 px-4 py-2.5 ${i > 0 ? "border-t border-[var(--border-2)]" : ""}`}>
+                          {row.ok
+                            ? <Check size={14} className="text-[var(--green)] mt-0.5 flex-shrink-0" />
+                            : <X size={14} className="text-[var(--text-3)] mt-0.5 flex-shrink-0" />}
+                          <div>
+                            <p className="text-xs font-medium text-[var(--text)]">{row.title}</p>
+                            {row.desc && <p className="text-[11px] text-[var(--text-3)] mt-0.5">{row.desc}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="flex items-center gap-1.5 text-[11px] text-[var(--text-3)]">
+                    <Shield size={12} className="flex-shrink-0" />
+                    No token copying needed. Slack handles authentication securely — Memry never sees your password.
+                  </p>
+                </>
               ) : (
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center gap-1.5 text-sm text-[var(--green)]">
