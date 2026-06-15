@@ -141,8 +141,9 @@ async function handleDecisionTrack(
     return;
   }
 
-  // ── Fetch channel name ─────────────────────────────────────────────────
+  // ── Fetch channel name + project mapping ──────────────────────────────
   let channelName = channelId;
+  let mappedProjectId: string | null = null;
   try {
     const chanRes  = await fetch(`https://slack.com/api/conversations.info?channel=${channelId}`, {
       headers: { Authorization: `Bearer ${botToken}` },
@@ -152,6 +153,14 @@ async function handleDecisionTrack(
       channelName = chanData.channel.name;
     }
   } catch { /* non-fatal */ }
+
+  const { data: mapping } = await admin
+    .from("slack_channel_mappings")
+    .select("project_id")
+    .eq("workspace_id", workspaceId)
+    .eq("slack_channel_id", channelId)
+    .maybeSingle();
+  mappedProjectId = (mapping as { project_id: string } | null)?.project_id ?? null;
 
   // ── Fetch user name ────────────────────────────────────────────────────
   let userName = "Slack user";
@@ -217,6 +226,7 @@ async function handleDecisionTrack(
     slack_thread_url:   slackUrl,
     owner_name:         userName,
     decided_at:         new Date(parseFloat(messageTs) * 1000).toISOString(),
+    ...(mappedProjectId ? { project_id: mappedProjectId } : {}),
   }).select("id").single();
   if (decisionError) {
     // Leave decision_extracted = false so the daily catch-up scan retries this message

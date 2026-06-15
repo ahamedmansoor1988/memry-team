@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle, Copy, Check } from "lucide-react";
+import { CheckCircle2, Clock, RefreshCw, Loader2, Save, AlertTriangle, Copy, Check, Plus, Trash2 } from "lucide-react";
 
 function FigmaLogo() {
   return (
@@ -93,6 +93,17 @@ export default function IntegrationsPage() {
   const [slackConnected, setSlackConnected] = useState(false);
   const [eventsUrlCopied, setEventsUrlCopied] = useState(false);
 
+  // Channel → project mappings
+  interface ChannelMapping { id: string; slack_channel_id: string; slack_channel_name: string | null; project_id: string; projects: { name: string } | null }
+  interface ProjectOption { id: string; name: string }
+  const [channelMappings, setChannelMappings] = useState<ChannelMapping[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [newChannelId, setNewChannelId] = useState("");
+  const [newChannelName, setNewChannelName] = useState("");
+  const [newProjectId, setNewProjectId] = useState("");
+  const [mappingSaving, setMappingSaving] = useState(false);
+  const [mappingMsg, setMappingMsg] = useState<string | null>(null);
+
   const loadMetrics = useCallback(() => {
     setMetricsLoading(true);
     fetch("/api/figma/preview-metrics")
@@ -132,6 +143,52 @@ export default function IntegrationsPage() {
       })
       .catch(() => null);
   }, [loadMetrics]);
+
+  useEffect(() => {
+    fetch("/api/integrations/slack/channels")
+      .then(r => r.json())
+      .then((d: { mappings?: ChannelMapping[] }) => { if (d.mappings) setChannelMappings(d.mappings); })
+      .catch(() => null);
+    fetch("/api/projects")
+      .then(r => r.json())
+      .then((d: { projects?: ProjectOption[] } | ProjectOption[]) => {
+        const list = Array.isArray(d) ? d : (d as { projects?: ProjectOption[] }).projects ?? [];
+        setProjects(list.map((p: ProjectOption) => ({ id: p.id, name: p.name })));
+      })
+      .catch(() => null);
+  }, []);
+
+  async function addChannelMapping() {
+    if (!newChannelId.trim() || !newProjectId) return;
+    setMappingSaving(true); setMappingMsg(null);
+    const res = await fetch("/api/integrations/slack/channels", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slack_channel_id: newChannelId.trim(), slack_channel_name: newChannelName.trim() || null, project_id: newProjectId }),
+    });
+    const data = await res.json() as { ok?: boolean; mapping?: ChannelMapping; error?: string };
+    if (data.ok && data.mapping) {
+      const proj = projects.find(p => p.id === data.mapping!.project_id) ?? null;
+      setChannelMappings(prev => {
+        const without = prev.filter(m => m.slack_channel_id !== data.mapping!.slack_channel_id);
+        return [...without, { ...data.mapping!, projects: proj ? { name: proj.name } : null }];
+      });
+      setNewChannelId(""); setNewChannelName(""); setNewProjectId("");
+      setMappingMsg("✓ Mapping saved");
+    } else {
+      setMappingMsg(data.error ?? "Failed to save");
+    }
+    setMappingSaving(false);
+  }
+
+  async function removeChannelMapping(id: string) {
+    await fetch("/api/integrations/slack/channels", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    setChannelMappings(prev => prev.filter(m => m.id !== id));
+  }
 
   async function saveFigmaSettings() {
     const resolvedTeamId = extractTeamIdFromUrl(figmaTeamUrl || figma.figma_team_id);
@@ -677,6 +734,62 @@ export default function IntegrationsPage() {
                   </ul>
                 </div>
               </div>
+
+              {/* ── Channel → project mapping ── */}
+              {slackConnected && (
+                <div className="mt-5 border-t border-[var(--border-2)] pt-5 space-y-3">
+                  <div>
+                    <p className="text-xs font-medium text-[var(--text-2)] mb-0.5">Channel → project mapping</p>
+                    <p className="text-[11px] text-[var(--text-3)]">
+                      Scope decisions from a Slack channel to a specific project. Prevents cross-client bleed in multi-project workspaces.
+                    </p>
+                  </div>
+
+                  {channelMappings.length > 0 && (
+                    <div className="rounded-xl border border-[var(--border-2)] overflow-hidden">
+                      {channelMappings.map((m, i) => (
+                        <div key={m.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${i > 0 ? "border-t border-[var(--border-2)]" : ""}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono text-xs text-[var(--text-2)] truncate">
+                              {m.slack_channel_name ? `#${m.slack_channel_name}` : m.slack_channel_id}
+                            </span>
+                            <span className="text-[var(--text-3)] text-xs">→</span>
+                            <span className="text-xs text-[var(--text)] truncate">{m.projects?.name ?? m.project_id}</span>
+                          </div>
+                          <button onClick={() => void removeChannelMapping(m.id)} className="flex-shrink-0 text-[var(--text-3)] hover:text-[var(--red)] transition-colors" title="Remove mapping">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Channel ID</label>
+                      <input type="text" value={newChannelId} onChange={e => { setNewChannelId(e.target.value); setMappingMsg(null); }} placeholder="C0123ABCDEF" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text)] text-xs placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Channel name (optional)</label>
+                      <input type="text" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} placeholder="client-acme" className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text)] text-xs placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-[11px] text-[var(--text-3)] mb-1">Project</label>
+                      <select value={newProjectId} onChange={e => { setNewProjectId(e.target.value); setMappingMsg(null); }} className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text)] text-xs outline-none focus:border-[var(--accent-border)] transition-colors">
+                        <option value="">Select project…</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                    </div>
+                    <button onClick={() => void addChannelMapping()} disabled={mappingSaving || !newChannelId.trim() || !newProjectId} className="flex items-center gap-1 text-xs font-medium text-[var(--accent-ink)] bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 px-3 py-2 rounded-lg transition-colors flex-shrink-0">
+                      {mappingSaving ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+                      Add
+                    </button>
+                  </div>
+                  {mappingMsg && (
+                    <p className={`text-xs ${mappingMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}`}>{mappingMsg}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

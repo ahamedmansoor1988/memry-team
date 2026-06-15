@@ -67,8 +67,17 @@ export async function matchResolution({
       .eq("slack_message_ts", messageTs);
   }
 
-  // ── 1. Fetch open feedback items ──────────────────────────────────────────
-  const { data: itemRows, error: itemsError } = await admin
+  // ── 0. Check for channel→project mapping ─────────────────────────────────
+  const { data: mapping } = await admin
+    .from("slack_channel_mappings")
+    .select("project_id")
+    .eq("workspace_id", workspaceId)
+    .eq("slack_channel_id", channelId)
+    .maybeSingle();
+  const mappedProjectId = (mapping as { project_id: string } | null)?.project_id ?? null;
+
+  // ── 1. Fetch open feedback items (scoped to project if channel is mapped) ─
+  let itemQuery = admin
     .from("feedback_items")
     .select(`
       id, status, ai_key_question, ai_summary,
@@ -80,6 +89,12 @@ export async function matchResolution({
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(30);
+
+  if (mappedProjectId) {
+    itemQuery = itemQuery.eq("project_id", mappedProjectId);
+  }
+
+  const { data: itemRows, error: itemsError } = await itemQuery;
 
   if (itemsError) {
     // Leave resolution_extracted = false so the catch-up scan retries
