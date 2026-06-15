@@ -158,6 +158,24 @@ export default function IntegrationsPage() {
       .catch(() => null);
   }, []);
 
+  useEffect(() => {
+    const slack = new URLSearchParams(window.location.search).get("slack");
+    if (!slack) return;
+    const messages: Record<string, string> = {
+      connected:       "✓ Slack connected — Memry is now listening for decisions.",
+      denied:          "Connection cancelled.",
+      state_mismatch:  "Security check failed — please try connecting again.",
+      not_configured:  "Slack OAuth isn't configured yet (missing app credentials).",
+      exchange_failed: "Couldn't complete the connection with Slack. Try again.",
+      no_workspace:    "No workspace found for your account.",
+      save_failed:     "Connected to Slack but couldn't save the token — try again.",
+      error:           "Something went wrong connecting Slack.",
+    };
+    setSlackMsg(messages[slack] ?? null);
+    if (slack === "connected") setSlackConnected(true);
+    window.history.replaceState({}, "", "/integrations");
+  }, []);
+
   async function addChannelMapping() {
     if (!newChannelId.trim() || !newProjectId) return;
     setMappingSaving(true); setMappingMsg(null);
@@ -618,67 +636,95 @@ export default function IntegrationsPage() {
             </div>
 
             <div className="space-y-3 border-t border-[var(--border-2)] pt-5">
-              <div>
-                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
-                  Bot Token
-                </label>
-                <input
-                  type="password"
-                  value={slackBotToken}
-                  onChange={e => { setSlackBotToken(e.target.value); setSlackMsg(null); }}
-                  placeholder={slackConnected ? "••••••••••••••• (already saved)" : "xoxb-…"}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
-                />
-                <p className="text-[var(--text-3)] text-xs mt-1">
-                  Slack app → OAuth & Permissions → Bot User OAuth Token
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
-                  Channel ID
-                </label>
-                <input
-                  type="text"
-                  value={slackChannelId}
-                  onChange={e => { setSlackChannelId(e.target.value); setSlackMsg(null); }}
-                  placeholder="C0123ABCDEF"
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
-                />
-                <p className="text-[var(--text-3)] text-xs mt-1">
-                  Right-click your channel in Slack → Copy link → last segment is the ID
-                </p>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
-                  Signing Secret <span className="text-[var(--text-3)] font-normal">(for verifying button clicks)</span>
-                </label>
-                <input
-                  type="password"
-                  value={slackSigningSecret}
-                  onChange={e => { setSlackSigningSecret(e.target.value); setSlackMsg(null); }}
-                  placeholder={slackConnected ? "••••••••••••••• (already saved)" : "abc123…"}
-                  className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
-                />
-                <p className="text-[var(--text-3)] text-xs mt-1">
-                  Slack app → Basic Information → App Credentials → Signing Secret
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3 pt-1">
-                <button
-                  onClick={saveSlackBot}
-                  disabled={slackSaving || (!slackBotToken.trim() && !slackConnected) || !slackChannelId.trim()}
-                  className="flex items-center gap-1.5 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 text-[var(--accent-ink)] text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+              {/* ── One-click OAuth (primary) ── */}
+              {!slackConnected ? (
+                <a
+                  href="/api/integrations/slack/oauth/start"
+                  className="inline-flex items-center gap-2 bg-[#4A154B] hover:opacity-90 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-opacity"
                 >
-                  {slackSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  {slackConnected ? "Update" : "Connect Slack"}
-                </button>
-                {slackMsg && (
-                  <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
-                    {slackMsg}
-                  </p>
-                )}
-              </div>
+                  <SlackLogo />
+                  Connect Slack
+                </a>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-sm text-[var(--green)]">
+                    <CheckCircle2 size={15} /> Slack connected
+                  </span>
+                  <a
+                    href="/api/integrations/slack/oauth/start"
+                    className="text-xs text-[var(--text-3)] hover:text-[var(--text-2)] underline transition-colors"
+                  >
+                    Reconnect
+                  </a>
+                </div>
+              )}
+              {slackMsg && (
+                <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
+                  {slackMsg}
+                </p>
+              )}
+
+              {/* ── Manual token entry (advanced fallback) ── */}
+              <details className="group">
+                <summary className="text-xs text-[var(--text-3)] hover:text-[var(--text-2)] cursor-pointer select-none">
+                  Connect with a token instead (advanced)
+                </summary>
+                <div className="space-y-3 mt-3">
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
+                      Bot Token
+                    </label>
+                    <input
+                      type="password"
+                      value={slackBotToken}
+                      onChange={e => { setSlackBotToken(e.target.value); setSlackMsg(null); }}
+                      placeholder={slackConnected ? "••••••••••••••• (already saved)" : "xoxb-…"}
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
+                    />
+                    <p className="text-[var(--text-3)] text-xs mt-1">
+                      Slack app → OAuth &amp; Permissions → Bot User OAuth Token
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
+                      Channel ID
+                    </label>
+                    <input
+                      type="text"
+                      value={slackChannelId}
+                      onChange={e => { setSlackChannelId(e.target.value); setSlackMsg(null); }}
+                      placeholder="C0123ABCDEF"
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
+                    />
+                    <p className="text-[var(--text-3)] text-xs mt-1">
+                      Right-click your channel in Slack → Copy link → last segment is the ID
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-[var(--text-2)] mb-1.5">
+                      Signing Secret <span className="text-[var(--text-3)] font-normal">(for verifying button clicks)</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={slackSigningSecret}
+                      onChange={e => { setSlackSigningSecret(e.target.value); setSlackMsg(null); }}
+                      placeholder={slackConnected ? "••••••••••••••• (already saved)" : "abc123…"}
+                      className="w-full bg-[var(--bg)] border border-[var(--border)] rounded-lg px-4 py-2.5 text-[var(--text)] text-sm placeholder:text-[var(--text-3)] outline-none focus:border-[var(--accent-border)] transition-colors"
+                    />
+                    <p className="text-[var(--text-3)] text-xs mt-1">
+                      Slack app → Basic Information → App Credentials → Signing Secret
+                    </p>
+                  </div>
+                  <button
+                    onClick={saveSlackBot}
+                    disabled={slackSaving || (!slackBotToken.trim() && !slackConnected) || !slackChannelId.trim()}
+                    className="flex items-center gap-1.5 bg-[var(--accent)] hover:opacity-90 disabled:opacity-40 text-[var(--accent-ink)] text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"
+                  >
+                    {slackSaving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                    {slackConnected ? "Update" : "Save token"}
+                  </button>
+                </div>
+              </details>
 
               {/* Events URL — always show for setup */}
               <div className="bg-[var(--bg)] border border-[var(--border-2)] rounded-xl p-4 mt-1 space-y-3">
