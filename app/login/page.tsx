@@ -4,9 +4,8 @@ import { createClient } from "@/lib/supabase/client";
 export default function LoginPage() {
   async function signInWithGoogle() {
     const supabase = createClient();
-    // Preserve ?redirect= param so auth callback can forward it
     const redirectParam = new URLSearchParams(window.location.search).get("redirect");
-    const next = redirectParam?.startsWith("/invite/") ? redirectParam : "/inbox";
+    const next = redirectParam?.startsWith("/invite/") ? redirectParam : "/onboarding";
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -18,19 +17,20 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[#0f0f13] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="flex items-center gap-3 mb-10 justify-center">
           <div className="w-9 h-9 rounded-xl bg-zinc-700 flex items-center justify-center">
             <span className="text-white font-bold text-lg">m</span>
           </div>
-          <span className="text-white font-bold text-xl tracking-tight">memry.team</span>
+          <span className="text-white font-bold text-xl tracking-tight">memry</span>
         </div>
 
-        {/* Card */}
         <div className="bg-[#1a1a24] border border-white/10 rounded-2xl p-8">
           <h1 className="text-white text-2xl font-bold mb-1">Welcome back</h1>
-          <p className="text-white/40 text-sm mb-8">
-            Sign in to your workspace
+          <p className="text-white/40 text-sm mb-2">
+            Capture every decision. Automatically.
+          </p>
+          <p className="text-white/25 text-xs mb-8">
+            Slack · Figma · Jira · Notion
           </p>
 
           <button
@@ -50,10 +50,6 @@ export default function LoginPage() {
             By continuing you agree to our Terms & Privacy Policy
           </p>
         </div>
-
-        <p className="text-white/20 text-xs text-center mt-6">
-          memry.team — ambient automation for designers
-        </p>
       </div>
     </div>
   );

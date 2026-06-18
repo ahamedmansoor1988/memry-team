@@ -25,7 +25,10 @@ export async function updateSession(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");
-  const isPublicPage = pathname.startsWith("/share") || pathname.startsWith("/onboarding");
+  const isPublicPage =
+    pathname.startsWith("/share") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/invite");
   const isApiRoute = pathname.startsWith("/api/");
 
   if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
@@ -36,7 +39,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/inbox";
+    url.pathname = "/integrations";
     return NextResponse.redirect(url);
   }
 
