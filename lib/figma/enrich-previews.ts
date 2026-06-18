@@ -245,12 +245,15 @@ async function writeBatchFailure(
     const frameName = nodeInfoMap[dr.node_id]?.frameName ?? dr.frame_name ?? null;
     const pageName  = nodeInfoMap[dr.node_id]?.pageName  ?? dr.page_name  ?? null;
 
+    // rate_limited is a distinct status: it's not an error, it's a queue position.
+    // The cron picks it up again once preview_next_retry_at has passed.
+    const newStatus = reason === "rate_limited" ? "rate_limited" : "failed";
     await admin
       .from("design_references")
       .update({
         frame_name: frameName,
         page_name: pageName,
-        preview_status: "failed",
+        preview_status: newStatus,
         preview_error_reason: reason,
         preview_retry_count: retryCount,
         preview_next_retry_at: nextRetryAt,
@@ -323,7 +326,7 @@ export async function enrichPreviews(
     .from("design_references")
     .select("id, file_key, node_id, frame_name, page_name, preview_retry_count, preview_status")
     .eq("workspace_id", workspaceId)
-    .in("preview_status", ["pending", "failed", "stale"])
+    .in("preview_status", ["pending", "failed", "stale", "rate_limited"])
     .order("preview_next_retry_at", { ascending: true, nullsFirst: true })
     .limit(limit);
 
@@ -384,7 +387,7 @@ export async function enrichPreviews(
     .from("design_references")
     .update({ preview_status: "generating", preview_last_attempt_at: now, updated_at: now })
     .in("id", eligibleIds)
-    .in("preview_status", ["pending", "failed", "stale"]) // atomic guard: skip rows already claimed
+    .in("preview_status", ["pending", "failed", "stale", "rate_limited"]) // atomic guard: skip rows already claimed
     .select("id");
 
   const claimedIds = new Set((claimedRows ?? []).map(r => (r as { id: string }).id));
@@ -617,6 +620,7 @@ export interface PreviewMetrics {
   generating: number;
   failed: number;
   stale: number;
+  rate_limited: number;
   errorBreakdown: Partial<Record<PreviewErrorReason, number>>;
   nextRetryAt: string | null;
 }
@@ -630,7 +634,7 @@ export async function getPreviewMetrics(workspaceId: string): Promise<PreviewMet
     .eq("workspace_id", workspaceId);
 
   const records = data ?? [];
-  const counts = { total: records.length, ready: 0, pending: 0, generating: 0, failed: 0, stale: 0 };
+  const counts = { total: records.length, ready: 0, pending: 0, generating: 0, failed: 0, stale: 0, rate_limited: 0 };
   const errorBreakdown: Partial<Record<PreviewErrorReason, number>> = {};
   let nextRetryAt: string | null = null;
 

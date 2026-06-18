@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const { data: workspaces } = await admin
     .from("design_references")
     .select("workspace_id")
-    .in("preview_status", ["pending", "failed", "stale"])
+    .in("preview_status", ["pending", "failed", "stale", "rate_limited"])
     .or(`preview_next_retry_at.is.null,preview_next_retry_at.lte.${now}`)
     .limit(100);
 

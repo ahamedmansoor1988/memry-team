@@ -7,9 +7,37 @@ interface FigmaImagesResponse {
   images: Record<string, string | null>;
 }
 
+// ─── Retry helper ─────────────────────────────────────────────────────────────
+
+const MAX_RETRIES = 3;
+
+/**
+ * Fetch with exponential backoff + jitter on 429 responses.
+ * Delays: ~1s, ~2s, ~4s (base doubled each attempt, +0–200ms jitter).
+ * Returns the last Response even if it's still a 429 after all retries.
+ */
+async function fetchWithBackoff(
+  url: string,
+  headers: Record<string, string>,
+): Promise<Response> {
+  let res!: Response;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    res = await fetch(url, { headers });
+    if (res.status !== 429) return res;
+    if (attempt === MAX_RETRIES) break;
+    const base = Math.pow(2, attempt) * 1000;  // 1 000, 2 000, 4 000 ms
+    const jitter = Math.random() * 200;
+    await new Promise(r => setTimeout(r, base + jitter));
+  }
+  return res;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 /**
  * Returns the CDN URL for a PNG export of `nodeId` in `fileKey`, or null if
  * the node has no image, the file isn't accessible, or the API call fails.
+ * Retries up to 3× on 429 with exponential backoff before giving up.
  *
  * nodeId may contain ":" (e.g. "1:23") — it is URL-encoded automatically.
  */
@@ -22,7 +50,7 @@ export async function getNodeThumbnail(
     const encodedId = encodeURIComponent(nodeId);
     const url = `${FIGMA_API}/images/${fileKey}?ids=${encodedId}&format=png&scale=1`;
 
-    const res = await fetch(url, { headers: figmaHeaders(pat) });
+    const res = await fetchWithBackoff(url, figmaHeaders(pat));
     if (!res.ok) return null;
 
     const data = await res.json() as FigmaImagesResponse;
@@ -38,6 +66,7 @@ export async function getNodeThumbnail(
 /**
  * Fetches CDN URLs for multiple nodes in a single Figma Images API call.
  * Returns a map of nodeId → URL; nodes with no image are omitted.
+ * Retries up to 3× on 429 with exponential backoff before giving up.
  *
  * Use this in the sync pipeline to batch all nodes for a file into one request
  * instead of one request per comment.
@@ -53,7 +82,7 @@ export async function getBatchThumbnails(
     const encodedIds = nodeIds.map(id => encodeURIComponent(id)).join(",");
     const url = `${FIGMA_API}/images/${fileKey}?ids=${encodedIds}&format=png&scale=1`;
 
-    const res = await fetch(url, { headers: figmaHeaders(pat) });
+    const res = await fetchWithBackoff(url, figmaHeaders(pat));
     if (!res.ok) return {};
 
     const data = await res.json() as FigmaImagesResponse;

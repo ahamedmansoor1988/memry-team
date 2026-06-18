@@ -20,7 +20,7 @@ interface SlackOAuthResponse {
   access_token?: string;            // bot token (xoxb-…)
   token_type?:   string;
   scope?:        string;
-  team?:         { id?: string; name?: string };
+  team?:         { id?: string; name?: string; };  // name stored as slack_team_name
 }
 
 export async function GET(req: NextRequest) {
@@ -81,8 +81,10 @@ export async function GET(req: NextRequest) {
   const { error: updateError } = await admin
     .from("workspaces")
     .update({
-      slack_bot_token: tokenData.access_token,
-      slack_team_id:   tokenData.team?.id ?? null,
+      slack_bot_token:    tokenData.access_token,
+      slack_team_id:      tokenData.team?.id   ?? null,
+      slack_team_name:    tokenData.team?.name  ?? null,
+      slack_connected_at: new Date().toISOString(),
     })
     .eq("id", workspaceId);
 

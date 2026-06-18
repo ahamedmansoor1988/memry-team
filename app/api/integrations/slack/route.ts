@@ -1,6 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
+export async function DELETE() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const admin = createAdminClient();
+  const { data: membership } = await admin
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+
+  if (!membership) return NextResponse.json({ error: "No workspace" }, { status: 404 });
+
+  const { error } = await admin
+    .from("workspaces")
+    .update({
+      slack_bot_token:    null,
+      slack_team_id:      null,
+      slack_team_name:    null,
+      slack_connected_at: null,
+    })
+    .eq("id", (membership as { workspace_id: string }).workspace_id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

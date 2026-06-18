@@ -92,6 +92,9 @@ export default function IntegrationsPage() {
   const [slackSaving, setSlackSaving] = useState(false);
   const [slackMsg, setSlackMsg] = useState<string | null>(null);
   const [slackConnected, setSlackConnected] = useState(false);
+  const [slackTeamName, setSlackTeamName] = useState<string | null>(null);
+  const [slackConnectedAt, setSlackConnectedAt] = useState<string | null>(null);
+  const [slackDisconnecting, setSlackDisconnecting] = useState(false);
   const [eventsUrlCopied, setEventsUrlCopied] = useState(false);
 
   // Channel → project mappings
@@ -136,8 +139,10 @@ export default function IntegrationsPage() {
           setFigmaConnected(true);
           loadMetrics();
         }
-        if (d.slack_bot_token) {
+        if (d.slack_connected) {
           setSlackConnected(true);
+          setSlackTeamName((d.slack_team_name as string | null) ?? null);
+          setSlackConnectedAt((d.slack_connected_at as string | null) ?? null);
         }
         if (d.slack_channel_id) setSlackChannelId(d.slack_channel_id as string);
         if (d.last_synced_at) setLastSynced(d.last_synced_at as string);
@@ -173,7 +178,10 @@ export default function IntegrationsPage() {
       error:           "Something went wrong connecting Slack.",
     };
     setSlackMsg(messages[slack] ?? null);
-    if (slack === "connected") setSlackConnected(true);
+    if (slack === "connected") {
+      setSlackConnected(true);
+      // Team name + timestamp will arrive from the settings fetch already in-flight
+    }
     window.history.replaceState({}, "", "/integrations");
   }, []);
 
@@ -207,6 +215,21 @@ export default function IntegrationsPage() {
       body: JSON.stringify({ id }),
     });
     setChannelMappings(prev => prev.filter(m => m.id !== id));
+  }
+
+  async function disconnectSlack() {
+    setSlackDisconnecting(true);
+    setSlackMsg(null);
+    const res = await fetch("/api/integrations/slack", { method: "DELETE" });
+    if (res.ok) {
+      setSlackConnected(false);
+      setSlackTeamName(null);
+      setSlackConnectedAt(null);
+      setSlackMsg("Slack disconnected.");
+    } else {
+      setSlackMsg("Failed to disconnect — try again.");
+    }
+    setSlackDisconnecting(false);
   }
 
   async function saveFigmaSettings() {
@@ -370,7 +393,11 @@ export default function IntegrationsPage() {
                   <CheckCircle2 size={9} /> Connected
                 </span>
                 <p className="text-[11px] text-[var(--text-3)]">
-                  {stats?.slack.last_activity ? `Last decision ${relativeTime(stats.slack.last_activity)}` : "Listening for decisions"}
+                  {slackTeamName
+                    ? slackTeamName
+                    : stats?.slack.last_activity
+                      ? `Last decision ${relativeTime(stats.slack.last_activity)}`
+                      : "Listening for decisions"}
                 </p>
                 <p className="font-mono text-[11px] text-[var(--text-2)] mt-1">
                   {stats?.slack.decisions ?? 0} decisions captured
@@ -678,27 +705,48 @@ export default function IntegrationsPage() {
 
           {/* ── Slack ── */}
           <div className="bg-[var(--surface)] rounded-xl border border-[var(--border)] p-6 shadow-1">
-            <div className="flex items-start gap-4 mb-5">
-              <div className="w-12 h-12 rounded-xl bg-[var(--bg)] border border-[var(--border-2)] flex items-center justify-center flex-shrink-0">
-                <SlackLogo />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-[var(--text)] text-base font-semibold">Slack</h3>
-                  {slackConnected ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full">
-                      <CheckCircle2 size={10} /> Connected
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
-                      <Clock size={10} /> Not connected
-                    </span>
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-[var(--bg)] border border-[var(--border-2)] flex items-center justify-center flex-shrink-0">
+                  <SlackLogo />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-[var(--text)] text-base font-semibold">Slack</h3>
+                    {slackConnected ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--green)] bg-[var(--green-soft)] px-2 py-0.5 rounded-full">
+                        <CheckCircle2 size={10} /> Connected
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--text-3)] bg-[var(--border-2)] px-2 py-0.5 rounded-full">
+                        <Clock size={10} /> Not connected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[var(--text-2)] text-sm leading-relaxed">
+                    Add Memry to your Slack workspace in one click. Memry watches the channels you choose for decisions, risks, and items needing review — no token copying required.
+                  </p>
+                  {slackConnected && (slackTeamName || slackConnectedAt) && (
+                    <p className="text-[var(--text-3)] text-xs mt-1">
+                      {slackTeamName && <span>{slackTeamName}</span>}
+                      {slackTeamName && slackConnectedAt && <span className="mx-1">·</span>}
+                      {slackConnectedAt && <span>Connected {relativeTime(slackConnectedAt)}</span>}
+                    </p>
                   )}
                 </div>
-                <p className="text-[var(--text-2)] text-sm leading-relaxed">
-                  Add Memry to your Slack workspace in one click. Memry watches the channels you choose for decisions, risks, and items needing review — no token copying required.
-                </p>
               </div>
+              {slackConnected && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={disconnectSlack}
+                    disabled={slackDisconnecting}
+                    className="flex items-center gap-1.5 text-sm font-medium text-[var(--text-2)] bg-[var(--surface)] border border-[var(--border)] hover:border-[var(--red)] hover:text-[var(--red)] disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    {slackDisconnecting ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                    {slackDisconnecting ? "Disconnecting…" : "Disconnect"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 border-t border-[var(--border-2)] pt-5">
@@ -746,17 +794,12 @@ export default function IntegrationsPage() {
                   </p>
                 </>
               ) : (
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-sm text-[var(--green)]">
-                    <CheckCircle2 size={15} /> Slack connected
-                  </span>
-                  <a
-                    href="/api/integrations/slack/oauth/start"
-                    className="text-xs text-[var(--text-3)] hover:text-[var(--text-2)] underline transition-colors"
-                  >
-                    Reconnect
-                  </a>
-                </div>
+                <a
+                  href="/api/integrations/slack/oauth/start"
+                  className="text-xs text-[var(--text-3)] hover:text-[var(--text-2)] underline transition-colors self-start"
+                >
+                  Reconnect with a different workspace
+                </a>
               )}
               {slackMsg && (
                 <p className={`text-xs ${slackMsg.startsWith("✓") ? "text-[var(--green)]" : "text-[var(--red)]"}`}>

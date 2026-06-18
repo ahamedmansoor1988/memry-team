@@ -93,8 +93,7 @@ export async function POST(req: NextRequest) {
     .from("design_references")
     .update({ preview_status: "pending", preview_next_retry_at: null })
     .eq("workspace_id", workspaceId)
-    .eq("preview_status", "failed")
-    .eq("preview_error_reason", "rate_limited")
+    .eq("preview_status", "rate_limited")
     .gt("preview_next_retry_at", fiveMinutesFromNow);
 
   // ── Check whether anything is due for processing ──────────────────────────
@@ -106,7 +105,7 @@ export async function POST(req: NextRequest) {
     .from("design_references")
     .select("id", { count: "exact", head: true })
     .eq("workspace_id", workspaceId)
-    .in("preview_status", ["pending", "failed", "stale"]);
+    .in("preview_status", ["pending", "failed", "stale", "rate_limited"]);
 
   const { count: pendingCount } = await (isCron
     ? gateQuery.or(`preview_next_retry_at.is.null,preview_next_retry_at.lte.${now}`)

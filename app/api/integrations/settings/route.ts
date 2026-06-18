@@ -25,7 +25,7 @@ export async function GET() {
 
   const { data: ws } = await admin
     .from("workspaces")
-    .select("figma_team_id, figma_pat, figma_user_id, slack_webhook_url")
+    .select("figma_team_id, figma_pat, figma_user_id, slack_webhook_url, slack_bot_token, slack_team_id, slack_team_name, slack_connected_at, slack_channel_id")
     .eq("id", workspaceId)
     .single();
 
@@ -38,14 +38,18 @@ export async function GET() {
     .limit(1)
     .maybeSingle();
 
+  const w = ws as Record<string, unknown> | null;
   return NextResponse.json({
-    figma_team_id: (ws as Record<string, unknown>)?.figma_team_id ?? null,
-    figma_pat: (ws as Record<string, unknown>)?.figma_pat ?? null,
-    figma_user_id: (ws as Record<string, unknown>)?.figma_user_id ?? null,
-    slack_webhook_url:   (ws as Record<string, unknown>)?.slack_webhook_url ?? null,
-    slack_bot_token:     (ws as Record<string, unknown>)?.slack_bot_token ? "configured" : null,
-    slack_channel_id:    (ws as Record<string, unknown>)?.slack_channel_id ?? null,
-    last_synced_at: (latestFile as Record<string, unknown> | null)?.last_synced_at ?? null,
+    figma_team_id:      w?.figma_team_id   ?? null,
+    figma_pat:          w?.figma_pat        ?? null,
+    figma_user_id:      w?.figma_user_id    ?? null,
+    slack_webhook_url:  w?.slack_webhook_url ?? null,
+    // Token is never sent to the client — presence is signalled by slack_connected
+    slack_connected:    !!(w?.slack_bot_token && w?.slack_team_id),
+    slack_team_name:    w?.slack_team_name    ?? null,
+    slack_connected_at: w?.slack_connected_at ?? null,
+    slack_channel_id:   w?.slack_channel_id   ?? null,
+    last_synced_at:     (latestFile as Record<string, unknown> | null)?.last_synced_at ?? null,
   });
 }
 
