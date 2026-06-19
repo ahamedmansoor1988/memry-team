@@ -12,20 +12,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "PAT and Team ID are required" }, { status: 400 });
   }
 
-  // Verify PAT by listing team projects
-  const verifyRes = await fetch(
-    `https://api.figma.com/v1/teams/${team_id.trim()}/projects`,
-    { headers: { "X-Figma-Token": pat.trim() } },
-  );
-  if (!verifyRes.ok) {
-    const body = await verifyRes.text();
-    console.error("[figma/connect] PAT/team verify failed:", verifyRes.status, body);
-    return NextResponse.json(
-      { error: `Could not access Figma team (${verifyRes.status}) — check your PAT and Team ID` },
-      { status: 400 },
-    );
-  }
-
   const admin = createAdminClient();
   const { error } = await admin.from("workspaces").update({
     figma_pat:          pat.trim(),
