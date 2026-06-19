@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
-
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const code  = searchParams.get("code");
-  const state = searchParams.get("state");
-  const err   = searchParams.get("error");
+  const reqUrl          = new URL(req.url);
+  const origin          = reqUrl.origin;
+  const redirectUri     = `${origin}/api/integrations/jira/oauth/callback`;
+  const integrationsUrl = `${origin}/integrations`;
+
+  const code  = reqUrl.searchParams.get("code");
+  const state = reqUrl.searchParams.get("state");
+  const err   = reqUrl.searchParams.get("error");
 
   if (err || !code || !state) {
-    return NextResponse.redirect(`${APP_URL}/integrations?error=jira_denied`);
+    return NextResponse.redirect(`${integrationsUrl}?error=jira_denied`);
   }
 
   let workspaceId: string;
   try {
     workspaceId = JSON.parse(Buffer.from(state, "base64url").toString("utf8")).wid;
   } catch {
-    return NextResponse.redirect(`${APP_URL}/integrations?error=jira_state`);
+    return NextResponse.redirect(`${integrationsUrl}?error=jira_state`);
   }
-
-  const redirectUri = `${APP_URL}/api/integrations/jira/oauth/callback`;
 
   // Exchange code for tokens
   const tokenRes = await fetch("https://auth.atlassian.com/oauth/token", {
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   if (!tokenData.access_token) {
     console.error("[jira-oauth] token exchange failed:", tokenData.error);
-    return NextResponse.redirect(`${APP_URL}/integrations?error=jira_token`);
+    return NextResponse.redirect(`${integrationsUrl}?error=jira_token`);
   }
 
   // Get the first accessible Jira cloud ID
@@ -60,5 +60,5 @@ export async function GET(req: NextRequest) {
     jira_connected_at:  new Date().toISOString(),
   }).eq("id", workspaceId);
 
-  return NextResponse.redirect(`${APP_URL}/integrations?connected=jira`);
+  return NextResponse.redirect(`${integrationsUrl}?connected=jira`);
 }

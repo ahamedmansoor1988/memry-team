@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron/blocker-scan",  "schedule": "0 8 * * *" },
     { "path": "/api/cron/figma-poll",    "schedule": "0 9 * * *" },
-    { "path": "/api/cron/notion-poll",   "schedule": "0 10 * * *" }
+    { "path": "/api/cron/notion-poll",   "schedule": "0 10 * * *" },
+    { "path": "/api/cron/jira-poll",     "schedule": "0 11 * * *" }
   ]
 }
