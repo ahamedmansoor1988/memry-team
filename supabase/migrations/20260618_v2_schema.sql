@@ -6,13 +6,15 @@
 
 -- ── workspaces: add v2 integration columns ────────────────────────────────────
 ALTER TABLE workspaces
-  ADD COLUMN IF NOT EXISTS figma_connected_at   timestamptz,
-  ADD COLUMN IF NOT EXISTS jira_access_token    text,
-  ADD COLUMN IF NOT EXISTS jira_refresh_token   text,
-  ADD COLUMN IF NOT EXISTS jira_cloud_id        text,
-  ADD COLUMN IF NOT EXISTS jira_connected_at    timestamptz,
-  ADD COLUMN IF NOT EXISTS notion_access_token  text,
-  ADD COLUMN IF NOT EXISTS notion_connected_at  timestamptz,
+  ADD COLUMN IF NOT EXISTS figma_connected_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS figma_team_id          text,
+  ADD COLUMN IF NOT EXISTS jira_access_token      text,
+  ADD COLUMN IF NOT EXISTS jira_refresh_token     text,
+  ADD COLUMN IF NOT EXISTS jira_cloud_id          text,
+  ADD COLUMN IF NOT EXISTS jira_connected_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS notion_access_token    text,
+  ADD COLUMN IF NOT EXISTS notion_connected_at    timestamptz,
+  ADD COLUMN IF NOT EXISTS slack_signing_secret   text,
   ADD COLUMN IF NOT EXISTS last_slack_webhook_at  timestamptz,
   ADD COLUMN IF NOT EXISTS last_figma_webhook_at  timestamptz,
   ADD COLUMN IF NOT EXISTS last_jira_webhook_at   timestamptz,
