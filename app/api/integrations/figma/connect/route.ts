@@ -6,7 +6,7 @@ import crypto from "crypto";
 async function registerFigmaWebhook(
   pat: string,
   teamId: string,
-  eventType: "FILE_COMMENT" | "COMMENT_RESOLVED",
+  eventType: "FILE_COMMENT",
   endpoint: string,
   passcode: string,
 ): Promise<string> {
@@ -55,12 +55,10 @@ export async function POST(req: NextRequest) {
   const endpoint   = `${origin}/api/webhooks/figma?ws=${ctx.workspace.id}`;
 
   let webhookIdComment: string;
-  let webhookIdResolved: string;
   try {
-    [webhookIdComment, webhookIdResolved] = await Promise.all([
-      registerFigmaWebhook(pat.trim(), team_id.trim(), "FILE_COMMENT", endpoint, passcode),
-      registerFigmaWebhook(pat.trim(), team_id.trim(), "COMMENT_RESOLVED", endpoint, passcode),
-    ]);
+    webhookIdComment = await registerFigmaWebhook(
+      pat.trim(), team_id.trim(), "FILE_COMMENT", endpoint, passcode,
+    );
   } catch (err: any) {
     console.error("[figma/connect] webhook registration error:", err.message);
     return NextResponse.json({ error: err.message ?? "Failed to register Figma webhooks" }, { status: 400 });
@@ -72,7 +70,7 @@ export async function POST(req: NextRequest) {
     figma_team_id:             team_id.trim(),
     figma_connected_at:        new Date().toISOString(),
     figma_webhook_id_comment:  webhookIdComment,
-    figma_webhook_id_resolved: webhookIdResolved,
+    figma_webhook_id_resolved: null,
     figma_webhook_passcode:    passcode,
   }).eq("id", ctx.workspace.id);
 
