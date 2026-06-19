@@ -113,6 +113,60 @@ function ToolIcon({ tool }: { tool: "slack" | "figma" | "jira" | "notion" }) {
   }
 }
 
+// ── Notion connect form (inline, token-based) ─────────────────────────────────
+
+function NotionConnectForm({ onSuccess }: { onSuccess: () => void }) {
+  const [token, setToken] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function connect() {
+    if (!token.trim()) { setError("Token is required"); return; }
+    setLoading(true);
+    setError("");
+    const res = await fetch("/api/integrations/notion/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: token.trim() }),
+    });
+    const data = await res.json() as { error?: string };
+    setLoading(false);
+    if (!res.ok) { setError(data.error ?? "Failed to connect"); return; }
+    onSuccess();
+  }
+
+  return (
+    <div className="mt-4 space-y-2.5">
+      <div>
+        <label className="block text-xs text-text-3 mb-1">Internal Integration Token</label>
+        <input
+          type="password"
+          value={token}
+          onChange={e => setToken(e.target.value)}
+          placeholder="ntn_…"
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-3 outline-none focus:border-accent-border transition-colors"
+        />
+        <p className="text-2xs text-text-3 mt-1">
+          Get it at notion.com/my-integrations → your integration → Internal Integration Secret
+        </p>
+      </div>
+      {error && (
+        <p className="flex items-center gap-1.5 text-xs text-red">
+          <AlertCircle size={12} /> {error}
+        </p>
+      )}
+      <button
+        onClick={connect}
+        disabled={loading}
+        className="w-full flex items-center justify-center gap-2 bg-accent text-accent-ink text-sm font-medium py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+      >
+        {loading && <Loader2 size={13} className="animate-spin" />}
+        {loading ? "Verifying…" : "Connect Notion"}
+      </button>
+    </div>
+  );
+}
+
 // ── Figma connect form (inline, PAT-based) ────────────────────────────────────
 
 function FigmaConnectForm({ onSuccess }: { onSuccess: () => void }) {
@@ -195,11 +249,12 @@ interface CardProps {
   onDisconnect: () => Promise<void>;
   connectHref?: string;
   isOAuth:     boolean;
+  customForm?: (onSuccess: () => void) => React.ReactNode;
 }
 
 function IntegrationCard({
   tool, name, description, connected, connectedAt, meta,
-  webhook, onConnect, onDisconnect, connectHref, isOAuth,
+  webhook, onConnect, onDisconnect, connectHref, isOAuth, customForm,
 }: CardProps) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -270,7 +325,7 @@ function IntegrationCard({
               >
                 Connect {name}
               </button>
-            ) : (
+            ) : customForm ? customForm(onConnect) : (
               <FigmaConnectForm onSuccess={onConnect} />
             )}
           </>
@@ -386,10 +441,10 @@ export default function IntegrationsPage() {
             connectedAt={s?.notion.connected_at ?? null}
             meta={null}
             webhook={s?.notion.webhook ?? "waiting"}
-            isOAuth={true}
-            connectHref="/api/integrations/notion/oauth"
+            isOAuth={false}
             onConnect={fetchSettings}
             onDisconnect={() => disconnect("/api/integrations/notion/disconnect")}
+            customForm={(onSuccess) => <NotionConnectForm onSuccess={onSuccess} />}
           />
         </div>
       )}
