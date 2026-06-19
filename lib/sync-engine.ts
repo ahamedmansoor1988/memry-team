@@ -253,7 +253,7 @@ async function notifyBlocker(
   await postSlack(
     creds.token,
     creds.channelId,
-    `⛔ *Blocker detected* — held by ${who}. <https://memry.link/${threadId}|View context →>`
+    `⛔ *Blocker detected* — held by ${who}. <${process.env.APP_URL ?? "https://memry-team-opal.vercel.app"}/threads/${threadId}|View context →>`
   );
 }
 
@@ -267,12 +267,41 @@ async function requestClarification(
   const creds = await getSlackChannel(workspaceId, projectId);
   if (!creds) return;
 
-  const at     = authorName  ? `@${authorName} — ` : "";
-  const reason = vagueReason ? ` (${vagueReason})` : "";
+  const appUrl = process.env.APP_URL ?? "https://memry-team-opal.vercel.app";
+  const at     = authorName  ? `*${authorName}* — ` : "";
+  const reason = vagueReason ? `\n_${vagueReason}_` : "";
+
   await postSlack(
     creds.token,
     creds.channelId,
-    `👋 ${at}Memry flagged a comment as unclear${reason}. Could you clarify? <https://memry.link/${threadId}|View thread →>`
+    `👋 ${at}Memry flagged a comment as unclear${reason.replace(/\n_/, " (")}${reason ? ")" : ""}. Could you clarify?`,
+    [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `👋 ${at}Memry flagged a comment as unclear${reason}\nCould you add more context so this decision can be captured properly?`,
+        },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "View thread" },
+            url: `${appUrl}/threads/${threadId}`,
+            action_id: "view_thread",
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "Mark as clear ✓" },
+            value: threadId,
+            action_id: "mark_clear",
+            style: "primary",
+          },
+        ],
+      },
+    ]
   );
 }
 

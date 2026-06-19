@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       const hoursBlocked = Math.round(
         (Date.now() - new Date(t.created_at).getTime()) / 3_600_000
       );
-      const threadUrl = `https://memry.link/${t.id}`;
+      const threadUrl = `${process.env.APP_URL ?? "https://memry-team-opal.vercel.app"}/threads/${t.id}`;
       const title     = t.title ?? "Untitled thread";
 
       await fetch("https://slack.com/api/chat.postMessage", {

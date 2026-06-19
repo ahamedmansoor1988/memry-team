@@ -27,6 +27,7 @@ export async function updateSession(request: NextRequest) {
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");
   const isPublicPage =
     pathname.startsWith("/share") ||
+    pathname.startsWith("/threads") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/invite");
   const isApiRoute = pathname.startsWith("/api/");

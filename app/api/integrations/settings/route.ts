@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
@@ -40,5 +41,16 @@ export async function GET() {
       connected_at: ws.notion_connected_at,
       webhook: webhookHealth(ws.last_notion_webhook_at),
     },
+    slack_channel_id: ws.slack_channel_id,
   });
+}
+
+export async function PATCH(req: NextRequest) {
+  const ctx = await getWorkspace();
+  if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { slack_channel_id } = await req.json() as { slack_channel_id?: string | null };
+  const admin = createAdminClient();
+  await admin.from("workspaces").update({ slack_channel_id: slack_channel_id ?? null }).eq("id", ctx.workspace.id);
+  return NextResponse.json({ ok: true });
 }
