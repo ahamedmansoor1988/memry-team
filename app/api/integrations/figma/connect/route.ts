@@ -42,19 +42,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "PAT and Team ID are required" }, { status: 400 });
   }
 
-  // Verify PAT
-  const meRes = await fetch("https://api.figma.com/v1/me", {
-    headers: { "X-Figma-Token": pat.trim() },
-  });
-  if (!meRes.ok) {
-    const body = await meRes.text();
-    console.error("[figma/connect] PAT verification failed:", meRes.status, body);
-    return NextResponse.json(
-      { error: `Figma PAT rejected (${meRes.status}): ${body}` },
-      { status: 400 },
-    );
-  }
-
   const passcode   = crypto.randomBytes(32).toString("hex");
   const origin     = new URL(req.url).origin;
   const endpoint   = `${origin}/api/webhooks/figma?ws=${ctx.workspace.id}`;
