@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/blocker-scan", "schedule": "0 8 * * *" }
+    { "path": "/api/cron/blocker-scan",  "schedule": "0 8 * * *" },
+    { "path": "/api/cron/figma-poll",    "schedule": "0 9 * * *" }
   ]
 }
