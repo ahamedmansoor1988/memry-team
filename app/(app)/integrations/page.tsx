@@ -441,10 +441,10 @@ export default function IntegrationsPage() {
             connectedAt={s?.notion.connected_at ?? null}
             meta={null}
             webhook={s?.notion.webhook ?? "waiting"}
-            isOAuth={false}
+            isOAuth={true}
+            connectHref="/api/integrations/notion/oauth"
             onConnect={fetchSettings}
             onDisconnect={() => disconnect("/api/integrations/notion/disconnect")}
-            customForm={(onSuccess) => <NotionConnectForm onSuccess={onSuccess} />}
           />
         </div>
       )}
