@@ -1,6 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getWorkspace } from "@/lib/workspace";
+import crypto from "crypto";
+
+async function registerFigmaWebhook(
+  pat: string,
+  teamId: string,
+  eventType: "FILE_COMMENT" | "COMMENT_RESOLVED",
+  endpoint: string,
+  passcode: string,
+): Promise<string> {
+  const res = await fetch("https://api.figma.com/v1/webhooks", {
+    method: "POST",
+    headers: {
+      "X-Figma-Token": pat,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ event_type: eventType, team_id: teamId, endpoint, passcode }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Figma webhook registration failed (${eventType}): ${body}`);
+  }
+  const data = await res.json() as { id: string };
+  return data.id;
+}
+
+async function deregisterFigmaWebhook(pat: string, webhookId: string): Promise<void> {
+  await fetch(`https://api.figma.com/v1/webhooks/${webhookId}`, {
+    method: "DELETE",
+    headers: { "X-Figma-Token": pat },
+  });
+}
 
 export async function POST(req: NextRequest) {
   const ctx = await getWorkspace();
@@ -11,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "PAT and Team ID are required" }, { status: 400 });
   }
 
-  // Verify PAT against Figma API
+  // Verify PAT
   const meRes = await fetch("https://api.figma.com/v1/me", {
     headers: { "X-Figma-Token": pat.trim() },
   });
@@ -19,11 +50,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid Figma PAT — please check and try again" }, { status: 400 });
   }
 
+  const passcode   = crypto.randomBytes(32).toString("hex");
+  const origin     = new URL(req.url).origin;
+  const endpoint   = `${origin}/api/webhooks/figma?ws=${ctx.workspace.id}`;
+
+  let webhookIdComment: string;
+  let webhookIdResolved: string;
+  try {
+    [webhookIdComment, webhookIdResolved] = await Promise.all([
+      registerFigmaWebhook(pat.trim(), team_id.trim(), "FILE_COMMENT", endpoint, passcode),
+      registerFigmaWebhook(pat.trim(), team_id.trim(), "COMMENT_RESOLVED", endpoint, passcode),
+    ]);
+  } catch (err: any) {
+    console.error("[figma/connect] webhook registration error:", err.message);
+    return NextResponse.json({ error: err.message ?? "Failed to register Figma webhooks" }, { status: 400 });
+  }
+
   const admin = createAdminClient();
   const { error } = await admin.from("workspaces").update({
-    figma_pat:          pat.trim(),
-    figma_team_id:      team_id.trim(),
-    figma_connected_at: new Date().toISOString(),
+    figma_pat:                 pat.trim(),
+    figma_team_id:             team_id.trim(),
+    figma_connected_at:        new Date().toISOString(),
+    figma_webhook_id_comment:  webhookIdComment,
+    figma_webhook_id_resolved: webhookIdResolved,
+    figma_webhook_passcode:    passcode,
   }).eq("id", ctx.workspace.id);
 
   if (error) {
@@ -37,12 +87,29 @@ export async function DELETE() {
   const ctx = await getWorkspace();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { workspace } = ctx;
   const admin = createAdminClient();
+
+  // Deregister webhooks if we have the IDs and PAT
+  if (workspace.figma_pat) {
+    const jobs: Promise<void>[] = [];
+    if (workspace.figma_webhook_id_comment) {
+      jobs.push(deregisterFigmaWebhook(workspace.figma_pat, workspace.figma_webhook_id_comment));
+    }
+    if (workspace.figma_webhook_id_resolved) {
+      jobs.push(deregisterFigmaWebhook(workspace.figma_pat, workspace.figma_webhook_id_resolved));
+    }
+    await Promise.allSettled(jobs);
+  }
+
   await admin.from("workspaces").update({
-    figma_pat:          null,
-    figma_team_id:      null,
-    figma_connected_at: null,
-  }).eq("id", ctx.workspace.id);
+    figma_pat:                 null,
+    figma_team_id:             null,
+    figma_connected_at:        null,
+    figma_webhook_id_comment:  null,
+    figma_webhook_id_resolved: null,
+    figma_webhook_passcode:    null,
+  }).eq("id", workspace.id);
 
   return NextResponse.json({ ok: true });
 }

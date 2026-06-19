@@ -7,11 +7,7 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); }
   catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
 
-  // Verify passcode (set when registering the Figma webhook)
   const passcode = body.passcode ?? req.headers.get("x-figma-passcode");
-  if (process.env.FIGMA_WEBHOOK_PASSCODE && passcode !== process.env.FIGMA_WEBHOOK_PASSCODE) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
 
   // Route to workspace — prefer ?ws= param, fall back to team_id lookup
   const wsParam = new URL(req.url).searchParams.get("ws");
@@ -28,6 +24,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (!workspaceId) return NextResponse.json({ ok: true }); // ack but no-op
+
+  // Verify passcode against workspace-specific stored value
+  const { data: ws } = await admin
+    .from("workspaces")
+    .select("figma_webhook_passcode")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const storedPasscode = (ws as any)?.figma_webhook_passcode ?? process.env.FIGMA_WEBHOOK_PASSCODE;
+  if (storedPasscode && passcode !== storedPasscode) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
 
   const eventType = body.event_type as string;
 

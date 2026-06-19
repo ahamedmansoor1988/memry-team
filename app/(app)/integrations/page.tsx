@@ -361,7 +361,7 @@ export default function IntegrationsPage() {
             webhook={s?.figma.webhook ?? "waiting"}
             isOAuth={false}
             onConnect={fetchSettings}
-            onDisconnect={() => disconnect("/api/integrations/figma/connect")}
+            onDisconnect={() => disconnect("/api/integrations/figma/disconnect")}
           />
 
           <IntegrationCard

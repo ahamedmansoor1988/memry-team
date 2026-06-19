@@ -13,6 +13,9 @@ export interface WorkspaceRow {
   figma_pat: string | null;
   figma_team_id: string | null;
   figma_connected_at: string | null;
+  figma_webhook_id_comment: string | null;
+  figma_webhook_id_resolved: string | null;
+  figma_webhook_passcode: string | null;
   jira_access_token: string | null;
   jira_refresh_token: string | null;
   jira_cloud_id: string | null;
