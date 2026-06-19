@@ -47,7 +47,12 @@ export async function POST(req: NextRequest) {
     headers: { "X-Figma-Token": pat.trim() },
   });
   if (!meRes.ok) {
-    return NextResponse.json({ error: "Invalid Figma PAT — please check and try again" }, { status: 400 });
+    const body = await meRes.text();
+    console.error("[figma/connect] PAT verification failed:", meRes.status, body);
+    return NextResponse.json(
+      { error: `Figma PAT rejected (${meRes.status}): ${body}` },
+      { status: 400 },
+    );
   }
 
   const passcode   = crypto.randomBytes(32).toString("hex");
