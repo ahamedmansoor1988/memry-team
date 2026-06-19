@@ -20,8 +20,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${APP_URL}/integrations?error=slack_state`);
   }
 
-  const redirectUri = `${APP_URL}/api/integrations/slack/oauth/callback`;
-
   const tokenRes = await fetch("https://slack.com/api/oauth.v2.access", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -29,7 +27,6 @@ export async function GET(req: NextRequest) {
       client_id:     process.env.SLACK_CLIENT_ID!,
       client_secret: process.env.SLACK_CLIENT_SECRET!,
       code,
-      redirect_uri:  redirectUri,
     }),
   });
   const tokenData = await tokenRes.json() as {
