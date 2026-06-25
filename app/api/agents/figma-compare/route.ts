@@ -423,17 +423,17 @@ Return ONLY a valid JSON array. No text outside the array.`,
         } catch {}
 
         // Group discrepancies by category — one comment per category, placed on a relevant node
-        const byCategory = new Map<string, typeof discrepancies>();
+        const groupedByCategory = new Map<string, typeof discrepancies>();
         for (const d of discrepancies) {
           const cat = d.category ?? "other";
-          if (!byCategory.has(cat)) byCategory.set(cat, []);
-          byCategory.get(cat)!.push(d);
+          if (!groupedByCategory.has(cat)) groupedByCategory.set(cat, []);
+          groupedByCategory.get(cat)!.push(d);
         }
 
-        send("step", { text: `Posting ${byCategory.size} comments to Figma (one per category)…` });
+        send("step", { text: `Posting ${groupedByCategory.size} comments to Figma (one per category)…` });
 
         const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
-        const categories = Array.from(byCategory.entries());
+        const categories = Array.from(groupedByCategory.entries());
 
         for (let i = 0; i < categories.length; i++) {
           const [cat, items] = categories[i];
