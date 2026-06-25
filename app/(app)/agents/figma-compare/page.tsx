@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ScanSearch, Play, Loader2, ChevronRight, Eye, EyeOff, AlertCircle, CheckCircle2, Info, Trash2 } from "lucide-react";
+import {
+  Play, Loader2, ChevronRight, Eye, EyeOff,
+  AlertCircle, CheckCircle2, Trash2, ArrowUp,
+  FileCode2, Globe, KeyRound, Sparkles,
+} from "lucide-react";
 
 interface Message {
   id: string;
@@ -24,13 +28,11 @@ export default function FigmaComparePage() {
   const [running,   setRunning]      = useState(false);
   const [retryIn,   setRetryIn]      = useState(0);
   const [liveStyles,    setLiveStyles]    = useState<any[] | null>(null);
-  const [liveStylesUrl, setLiveStylesUrl] = useState<string>("");
-  const [messages,  setMessages]     = useState<Message[]>([{
-    id: "welcome", type: "info",
-    text: "Paste a Figma frame URL and a live site URL on the right, then hit **Run** to start the comparison. I'll check every text node for font and color discrepancies and annotate each one directly in Figma.",
-  }]);
+  const [liveStylesUrl, setLiveStylesUrl] = useState("");
+  const [messages,  setMessages]     = useState<Message[]>([]);
+  const [configOpen, setConfigOpen]  = useState(false);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const bottomRef    = useRef<HTMLDivElement>(null);
   const liveStylesRef = useRef<any[] | null>(null);
   liveStylesRef.current = liveStyles;
 
@@ -44,7 +46,6 @@ export default function FigmaComparePage() {
     setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
   }, []);
 
-  // Poll extension bridge
   useEffect(() => {
     let lastTs = 0;
     const id = setInterval(() => {
@@ -71,19 +72,23 @@ export default function FigmaComparePage() {
   }
 
   async function run() {
-    if (!figmaUrl.trim() || !liveUrl.trim() || !pat.trim()) return;
+    if (!figmaUrl.trim() || !liveUrl.trim() || !pat.trim()) {
+      setConfigOpen(true);
+      return;
+    }
 
     setRunning(true);
-    addMessage({ type: "user", text: `Compare Figma frame against ${liveUrl.trim()}` });
+    setConfigOpen(false);
+    addMessage({ type: "user", text: `Compare Figma design against ${liveUrl.trim()}` });
 
     try {
       const fileKeyMatch = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
       const nodeIdMatch  = figmaUrl.match(/node-id=([^&]+)/);
       if (!fileKeyMatch) { addMessage({ type: "error", text: "Invalid Figma URL — could not extract file key." }); return; }
-      if (!nodeIdMatch)  { addMessage({ type: "error", text: "Figma URL must include node-id (right-click a frame → Copy link to selection)." }); return; }
+      if (!nodeIdMatch)  { addMessage({ type: "error", text: "Figma URL must include node-id (right-click frame → Copy link to selection)." }); return; }
 
-      const fileKey = fileKeyMatch[1];
-      const nodeId  = decodeURIComponent(nodeIdMatch[1]).replace("-", ":");
+      const fileKey  = fileKeyMatch[1];
+      const nodeId   = decodeURIComponent(nodeIdMatch[1]).replace("-", ":");
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
       const cached   = localStorage.getItem(cacheKey);
 
@@ -94,12 +99,7 @@ export default function FigmaComparePage() {
         const parsed = JSON.parse(cached);
         figmaNodes   = parsed.figmaNodes;
         styleNameMap = parsed.styleNameMap ?? {};
-        addMessage({ type: "step", text: "Figma nodes loaded from cache." });
-      } else {
-        addMessage({ type: "step", text: "Fetching Figma data via server…" });
       }
-
-      addMessage({ type: "step", text: "Running AI comparison…" });
 
       const res = await fetch("/api/agents/figma-compare", {
         method:  "POST",
@@ -120,8 +120,7 @@ export default function FigmaComparePage() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n").filter(l => l.startsWith("data: "));
+        const lines = decoder.decode(value).split("\n").filter(l => l.startsWith("data: "));
         for (const line of lines) {
           try {
             const data = JSON.parse(line.slice(6));
@@ -141,142 +140,195 @@ export default function FigmaComparePage() {
     }
   }
 
-  function clearChat() {
-    setMessages([{ id: "welcome", type: "info", text: "Paste a Figma frame URL and a live site URL on the right, then hit **Run** to start the comparison. I'll check every text node for font and color discrepancies and annotate each one directly in Figma." }]);
-  }
-
   const canRun = !running && retryIn === 0 && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim();
+  const configured = !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim();
 
   return (
-    <div className="flex h-screen">
-      {/* ── Left: Chat ───────────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col border-r border-[#e8e8ec]">
-        <div className="flex items-center gap-2.5 border-b border-[#e8e8ec] px-5 py-3.5">
-          <ScanSearch size={15} className="text-[#9a9aa5]" />
+    <div className="flex h-screen flex-col bg-white">
+      {/* ── Top bar ────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between border-b border-[#f0f0f0] px-6 py-3 shrink-0">
+        <div className="flex items-center gap-2">
+          <Sparkles size={14} className="text-[#9a9aa5]" />
           <span className="text-[13px] font-medium text-[#17171c]">Figma vs Live</span>
-          <span className="ml-auto text-[11px] text-[#9a9aa5]">Design QA agent</span>
-          <button onClick={clearChat} title="Clear chat" className="ml-3 flex h-6 w-6 items-center justify-center rounded text-[#9a9aa5] hover:text-[#17171c] hover:bg-[#f1f1f4] transition-colors">
-            <Trash2 size={12} />
-          </button>
+          <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#9a9aa5]">Design QA</span>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-          {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
-          <div ref={bottomRef} />
+        <div className="flex items-center gap-2">
+          {liveStyles && (
+            <span className="flex items-center gap-1.5 rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#1a9457]" />
+              {liveStyles.length} styles from {liveStylesUrl ? new URL(liveStylesUrl).hostname : "extension"}
+            </span>
+          )}
+          {messages.length > 0 && (
+            <button onClick={() => setMessages([])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-[#9a9aa5] hover:bg-[#f7f7f8] hover:text-[#17171c] transition-colors">
+              <Trash2 size={12} />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Right: Config ────────────────────────────────────────── */}
-      <div className="flex w-[380px] shrink-0 flex-col bg-[#fafafa]">
-        <div className="border-b border-[#e8e8ec] px-5 py-3.5">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#9a9aa5]">Configuration</p>
-        </div>
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
-          <Field label="Figma Frame URL" required hint="Must include node-id (e.g. ?node-id=123-456)">
-            <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)} placeholder="https://figma.com/design/..." className="node-input" />
-          </Field>
-          <Field label="Live Site URL" required>
-            <input value={liveUrl} onChange={e => setLiveUrl(e.target.value)} placeholder="https://yoursite.com/page" className="node-input" />
-          </Field>
-          <Field label="Figma Personal Access Token" required hint="Needs file_comments:write scope. Stored only in your browser.">
-            <div className="relative">
-              <input type={showPat ? "text" : "password"} value={pat} onChange={e => setPat(e.target.value)} placeholder="figd_..." className="node-input font-mono pr-9" />
-              <button type="button" onClick={() => setShowPat(p => !p)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9a9aa5] hover:text-[#17171c]">
-                {showPat ? <EyeOff size={13} /> : <Eye size={13} />}
-              </button>
+      {/* ── Chat area ──────────────────────────────────────────── */}
+      <div className="flex-1 overflow-y-auto">
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-6 px-6 py-12">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f0f0f]">
+              <Sparkles size={20} className="text-white" />
             </div>
-          </Field>
+            <div className="text-center">
+              <p className="text-[16px] font-semibold text-[#17171c]">Figma vs Live comparison</p>
+              <p className="mt-1 text-[13px] text-[#9a9aa5]">Compare every text element for font and color discrepancies,<br />then annotate findings directly in Figma.</p>
+            </div>
 
-          {/* Extension badge */}
-          <div className={`rounded-lg border p-3 flex gap-2.5 ${liveStyles ? "border-[#1a9457]/30 bg-[#e8f6ee]" : "border-[#e8e8ec] bg-white"}`}>
-            <Info size={13} className={`mt-0.5 shrink-0 ${liveStyles ? "text-[#1a9457]" : "text-[#9a9aa5]"}`} />
-            <div>
-              <p className={`text-[12px] leading-[18px] ${liveStyles ? "text-[#1a9457] font-medium" : "text-[#5b5b66]"}`}>
-                {liveStyles
-                  ? `✓ ${liveStyles.length} computed styles ready from ${liveStylesUrl || "live site"}`
-                  : "Open your live site — the Loupe extension will auto-extract styles."}
-              </p>
-              {liveStyles && (
-                <button onClick={() => { setLiveStyles(null); setLiveStylesUrl(""); }} className="text-[11px] text-[#9a9aa5] underline mt-0.5">Clear</button>
-              )}
+            {/* Quick config cards */}
+            <div className="w-full max-w-lg space-y-2">
+              <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
+              <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl}
+                badge={liveStyles ? `✓ ${liveStyles.length} styles captured` : undefined} />
+              <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
             </div>
+
+            <button
+              onClick={run}
+              disabled={!canRun}
+              className="flex items-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-[#1a1a1a] disabled:opacity-40 transition-all"
+            >
+              {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+            </button>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-2xl px-6 py-6 space-y-4">
+            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
+            {running && (
+              <div className="flex items-center gap-2 text-[12px] text-[#9a9aa5]">
+                <Loader2 size={12} className="animate-spin" />
+                Analyzing…
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Bottom input bar (shown after first run) ─────────────── */}
+      {messages.length > 0 && (
+        <div className="shrink-0 border-t border-[#f0f0f0] bg-white px-6 py-4">
+          {/* Config toggles */}
+          {configOpen && (
+            <div className="mb-3 rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4 space-y-3">
+              <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
+              <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl}
+                badge={liveStyles ? `✓ ${liveStyles.length} styles captured` : undefined} />
+              <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setConfigOpen(o => !o)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}
+            >
+              Configure
+            </button>
+            <button
+              onClick={run}
+              disabled={!canRun}
+              className="ml-auto flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all"
+            >
+              {running ? <><Loader2 size={12} className="animate-spin" />Running…</>
+                : retryIn > 0 ? `Rate limited — retry in ${retryIn}s`
+                : <><ArrowUp size={12} />Run again</>}
+            </button>
           </div>
         </div>
-
-        {/* Run button */}
-        <div className="border-t border-[#e8e8ec] p-4">
-          <button onClick={run} disabled={!canRun}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#18181b] px-4 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40">
-            {running ? <><Loader2 size={13} className="animate-spin" />Running…</>
-              : retryIn > 0 ? <>Rate limited — retry in {retryIn}s</>
-              : <><Play size={13} />Run comparison</>}
-          </button>
-        </div>
-      </div>
-
-      <style>{`.node-input { width: 100%; border: 1px solid #e8e8ec; border-radius: 8px; background: white; padding: 6px 10px; font-size: 13px; color: #17171c; outline: none; transition: border-color 0.15s; } .node-input:focus { border-color: #18181b; } .node-input::placeholder { color: #9a9aa5; }`}</style>
+      )}
     </div>
   );
 }
 
-function Field({ label, required, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
+// ── Config card ───────────────────────────────────────────────────────────────
+
+function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, secret, badge }: {
+  icon: any; label: string; value: string; placeholder: string;
+  onChange: (v: string) => void; hint?: string; secret?: boolean; badge?: string;
+}) {
+  const [show, setShow] = useState(false);
   return (
-    <div className="space-y-1.5">
-      <label className="flex items-center gap-1 text-[12px] font-medium text-[#17171c]">
-        {label}{required && <span className="text-[#d4373e]">*</span>}
-      </label>
-      {children}
-      {hint && <p className="text-[11px] text-[#9a9aa5] leading-[15px]">{hint}</p>}
+    <div className="flex items-start gap-3 rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
+      <Icon size={14} className="mt-0.5 shrink-0 text-[#9a9aa5]" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-wide">{label}</span>
+          {badge && <span className="rounded-full bg-[#e8f6ee] px-2 py-0.5 text-[10px] font-medium text-[#1a9457]">{badge}</span>}
+        </div>
+        <div className="relative">
+          <input
+            type={secret && !show ? "password" : "text"}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="w-full bg-transparent text-[13px] text-[#17171c] placeholder:text-[#c8c8d0] outline-none pr-6 font-mono"
+          />
+          {secret && (
+            <button type="button" onClick={() => setShow(s => !s)} className="absolute right-0 top-0 text-[#c8c8d0] hover:text-[#9a9aa5]">
+              {show ? <EyeOff size={12} /> : <Eye size={12} />}
+            </button>
+          )}
+        </div>
+        {hint && <p className="mt-1 text-[10px] text-[#c8c8d0]">{hint}</p>}
+      </div>
     </div>
   );
 }
+
+// ── Message bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg }: { msg: Message }) {
   if (msg.type === "user") return (
     <div className="flex justify-end">
-      <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-[#18181b] px-4 py-2.5">
-        <p className="text-[13px] text-white leading-[20px]">{msg.text}</p>
+      <div className="max-w-[75%] rounded-2xl rounded-tr-sm bg-[#0f0f0f] px-4 py-2.5">
+        <p className="text-[13px] text-white leading-relaxed">{msg.text}</p>
       </div>
     </div>
   );
 
   if (msg.type === "step") return (
-    <div className="flex items-center gap-2.5 text-[12px] text-[#5b5b66]">
-      <ChevronRight size={12} className="text-[#9a9aa5] shrink-0" />
+    <div className="flex items-center gap-2 text-[12px] text-[#b0b0b8]">
+      <ChevronRight size={11} className="shrink-0" />
       {msg.text}
     </div>
   );
 
   if (msg.type === "error") return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-[#fdecec] bg-[#fdecec] px-4 py-3">
-      <AlertCircle size={13} className="text-[#d4373e] mt-0.5 shrink-0" />
-      <p className="text-[13px] text-[#d4373e] leading-[20px]">{msg.text}</p>
+    <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
+      <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+      <p className="text-[13px] text-red-600 leading-relaxed">{msg.text}</p>
     </div>
   );
 
   if (msg.type === "result") return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2.5 rounded-xl border border-[#e8f6ee] bg-[#e8f6ee] px-4 py-3">
-        <CheckCircle2 size={13} className="text-[#1a9457] mt-0.5 shrink-0" />
-        <p className="text-[13px] text-[#1a9457] leading-[20px]">{msg.text}</p>
+      <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+        <CheckCircle2 size={14} className="text-emerald-600 mt-0.5 shrink-0" />
+        <p className="text-[13px] text-emerald-700 leading-relaxed">{msg.text}</p>
       </div>
       {msg.table && msg.table.length > 0 && (
-        <div className="rounded-xl border border-[#e8e8ec] overflow-hidden">
+        <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
           <table className="w-full text-[12px]">
             <thead>
-              <tr className="border-b border-[#e8e8ec] bg-[#f7f7f8]">
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">#</th>
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">Element</th>
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">Issue</th>
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">Comment</th>
+              <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
+                <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5] w-6">#</th>
+                <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Element</th>
+                <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Issue</th>
+                <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Comment</th>
               </tr>
             </thead>
             <tbody>
               {msg.table.map((row, i) => (
-                <tr key={i} className="border-b border-[#f1f1f4] last:border-0">
-                  <td className="px-3 py-2 text-[#9a9aa5]">{i + 1}</td>
-                  <td className="px-3 py-2 text-[#17171c] font-medium">{row.element}</td>
-                  <td className="px-3 py-2 text-[#5b5b66]">{row.issue}</td>
-                  <td className="px-3 py-2 font-mono text-[11px] text-[#9a9aa5]">{row.commentId ?? "—"}</td>
+                <tr key={i} className="border-b border-[#f7f7f8] last:border-0 hover:bg-[#fafafa]">
+                  <td className="px-4 py-2.5 text-[#c8c8d0]">{i + 1}</td>
+                  <td className="px-4 py-2.5 font-medium text-[#17171c]">{row.element}</td>
+                  <td className="px-4 py-2.5 text-[#5b5b66]">{row.issue}</td>
+                  <td className="px-4 py-2.5 font-mono text-[10px] text-[#9a9aa5]">{row.commentId ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -286,19 +338,15 @@ function MessageBubble({ msg }: { msg: Message }) {
     </div>
   );
 
+  // info
   return (
-    <div className="flex items-start gap-2.5">
-      <div className="mt-0.5 h-5 w-5 shrink-0 rounded-full bg-[#f1f1f4] flex items-center justify-center">
-        <span className="text-[10px] font-bold text-[#17171c]">L</span>
+    <div className="flex items-start gap-3">
+      <div className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-[#0f0f0f] flex items-center justify-center">
+        <Sparkles size={10} className="text-white" />
       </div>
-      <div className="flex-1 rounded-2xl rounded-tl-sm border border-[#e8e8ec] bg-white px-4 py-3">
-        <p className="text-[13px] text-[#5b5b66] leading-[20px]">{renderMd(msg.text)}</p>
+      <div className="flex-1 rounded-2xl rounded-tl-sm border border-[#f0f0f0] bg-white px-4 py-3">
+        <p className="text-[13px] text-[#5b5b66] leading-relaxed">{msg.text}</p>
       </div>
     </div>
   );
-}
-
-function renderMd(text: string): React.ReactNode {
-  const parts = text.split(/\*\*(.+?)\*\*/g);
-  return parts.map((p, i) => i % 2 === 1 ? <strong key={i} className="font-semibold text-[#17171c]">{p}</strong> : p);
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ScanSearch, LogOut } from "lucide-react";
+import { ScanSearch, LogOut, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const AGENTS = [
@@ -10,13 +10,11 @@ const AGENTS = [
     id: "figma-compare",
     label: "Figma vs Live",
     icon: ScanSearch,
-    description: "Compare Figma frames against live websites and annotate discrepancies.",
+    description: "Compare Figma frames against live websites",
   },
 ];
 
-interface Props {
-  userEmail: string;
-}
+interface Props { userEmail: string; }
 
 export function Sidebar({ userEmail }: Props) {
   const pathname = usePathname();
@@ -29,71 +27,58 @@ export function Sidebar({ userEmail }: Props) {
   }
 
   return (
-    <aside className="flex h-screen border-r border-[#e8e8ec] bg-white">
-      {/* Icon rail */}
-      <div className="flex w-14 flex-col items-center gap-1 border-r border-[#e8e8ec] py-4">
-        {/* Logo mark */}
-        <Link href="/agents" className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg bg-[#18181b]">
-          <span className="text-[13px] font-bold text-white tracking-tight">L</span>
-        </Link>
-
-        {AGENTS.map((agent) => {
-          const Icon   = agent.icon;
-          const active = pathname.startsWith(`/agents/${agent.id}`);
-          return (
-            <Link
-              key={agent.id}
-              href={`/agents/${agent.id}`}
-              title={agent.label}
-              className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
-                active
-                  ? "bg-[#18181b] text-white"
-                  : "text-[#9a9aa5] hover:bg-[#f1f1f4] hover:text-[#17171c]"
-              }`}
-            >
-              <Icon size={16} strokeWidth={1.75} />
-            </Link>
-          );
-        })}
-
-        {/* Sign out at bottom */}
-        <div className="mt-auto">
-          <button
-            onClick={signOut}
-            title="Sign out"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-[#9a9aa5] transition-colors hover:bg-[#f1f1f4] hover:text-[#17171c]"
-          >
-            <LogOut size={14} />
-          </button>
+    <aside className="flex h-screen w-[220px] shrink-0 flex-col bg-[#0f0f0f] text-white">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-white/[0.06]">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white">
+          <span className="text-[12px] font-bold text-[#0f0f0f] tracking-tight">L</span>
         </div>
+        <span className="text-[14px] font-semibold tracking-tight text-white">Loupe</span>
       </div>
 
-      {/* Agent list panel */}
-      <div className="flex w-52 flex-col">
-        <div className="border-b border-[#e8e8ec] px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#9a9aa5]">Agents</p>
-        </div>
-        <nav className="flex-1 overflow-y-auto p-2">
+      {/* New agent button */}
+      <div className="px-3 pt-3">
+        <button className="flex w-full items-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-[12px] text-white/50 hover:bg-white/[0.04] hover:text-white/80 transition-colors">
+          <Plus size={13} />
+          New agent
+        </button>
+      </div>
+
+      {/* Agents */}
+      <div className="px-3 pt-4">
+        <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-white/25">Agents</p>
+        <nav className="space-y-0.5">
           {AGENTS.map((agent) => {
+            const Icon   = agent.icon;
             const active = pathname.startsWith(`/agents/${agent.id}`);
             return (
               <Link
                 key={agent.id}
                 href={`/agents/${agent.id}`}
-                className={`flex flex-col gap-0.5 rounded-lg px-3 py-2.5 transition-colors ${
-                  active ? "bg-[#f1f1f4]" : "hover:bg-[#f7f7f8]"
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
+                  active
+                    ? "bg-white/[0.08] text-white"
+                    : "text-white/50 hover:bg-white/[0.04] hover:text-white/80"
                 }`}
               >
-                <span className={`text-[13px] font-medium ${active ? "text-[#17171c]" : "text-[#5b5b66]"}`}>
-                  {agent.label}
-                </span>
-                <span className="text-[11px] leading-[15px] text-[#9a9aa5]">{agent.description}</span>
+                <Icon size={14} strokeWidth={1.75} />
+                <span className="text-[13px] font-medium">{agent.label}</span>
               </Link>
             );
           })}
         </nav>
-        <div className="border-t border-[#e8e8ec] px-4 py-3">
-          <p className="text-[11px] text-[#9a9aa5] truncate">{userEmail}</p>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-auto border-t border-white/[0.06] px-3 py-3">
+        <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+          <div className="h-6 w-6 shrink-0 rounded-full bg-white/10 flex items-center justify-center">
+            <span className="text-[10px] font-semibold text-white/60">{userEmail[0]?.toUpperCase()}</span>
+          </div>
+          <span className="flex-1 truncate text-[11px] text-white/40">{userEmail}</span>
+          <button onClick={signOut} title="Sign out" className="text-white/25 hover:text-white/60 transition-colors">
+            <LogOut size={13} />
+          </button>
         </div>
       </div>
     </aside>
