@@ -279,18 +279,20 @@ export async function POST(req: NextRequest) {
         const headingNodes = textNodes.filter(n => n.fontSize >= 24).slice(0, 10);
         const bodyNodes    = textNodes.filter(n => n.fontSize < 24).slice(0, 15);
 
-        const sampleTexts = [
-          ...textNodes.filter(n => n.fontSize >= 24).slice(0, 8),
-          ...textNodes.filter(n => n.fontSize < 24).slice(0, 8),
-        ].map(n => `"${n.characters.slice(0, 60)}" (${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color})`);
+        // Include per-node detail so AI uses exact font names and can reference real text
+        const nodeDetails = [
+          ...textNodes.filter(n => n.fontSize >= 24).slice(0, 10),
+          ...textNodes.filter(n => n.fontSize < 24 && n.fontSize >= 14).slice(0, 10),
+        ].map(n => `text="${n.characters.slice(0, 60)}" font="${n.fontFamily}" size=${n.fontSize}px weight=${n.fontWeight} color=${n.color}`);
 
-        const figmaSummary = `Font families: ${figmaFonts.join(", ")}
+        const figmaSummary = `DESIGN SYSTEM:
+Font families: ${figmaFonts.join(", ")}
 Font sizes: ${figmaSizes.join(", ")}px
 Font weights: ${figmaWeights.join(", ")}
-Colors: ${figmaColors.slice(0, 20).join(", ")}
+Colors: ${figmaColors.slice(0, 15).join(", ")}
 
-Sample text nodes (use these for "element" field):
-${sampleTexts.join("\n")}`;
+TEXT NODES (use exact text value for "element" field):
+${nodeDetails.join("\n")}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
@@ -312,30 +314,23 @@ ${sampleTexts.join("\n")}`;
 
 The Figma spec and live page may be different pages of the same product — do NOT require text content to match.
 
-Only check the following categories (ignore everything else): ${(checks && checks.length > 0 ? checks : ["font_family","font_size","font_weight","color"]).join(", ")}
+Only check: ${(checks && checks.length > 0 ? checks : ["font_family","font_size","font_weight","color"]).join(", ")}
 
-Category rules:
-- font_family: Flag typeface mismatches (e.g. Figma: Inter, Live: Arial)
-- font_size: Flag size differences > 2px, especially headings
-- font_weight: Flag weight mismatches (e.g. Figma: 700, Live: 400)
-- color: Flag visually distinct color differences in text or backgrounds
-- spacing: Flag notable padding/margin differences if visible in the data
-- menu: Focus on navigation/header text styles
-- footer: Focus on footer text styles
-- buttons: Focus on button label styles
+Rules:
+- Use EXACT font names from the data — never generalise (e.g. never say "Apple font", say "-apple-system" or "SF Pro")
+- font_family: flag typeface mismatches
+- font_size: flag size differences > 2px
+- font_weight: flag weight mismatches
+- color: flag visually distinct color differences
 
-Be specific: state Figma value vs live value.
-Be thorough — real products almost always have discrepancies.
+For each discrepancy return:
+- "element": copy the EXACT text value from the TEXT NODES list above that best illustrates this issue
+- "label": a short human title, e.g. "Heading font family wrong" or "Body text color off"
+- "category": font_family | font_size | font_weight | color
+- "issue": "Figma: <exact value> — Live: <exact value>"
+- "severity": "high" | "medium" | "low"
 
-Return ONLY a JSON array. Each item must have:
-- "element": the EXACT text content from the Figma spec that best illustrates this issue (copy a short snippet verbatim, e.g. "We are sad to see you go.")
-- "category": the check category (font_family, font_size, etc.)
-- "issue": "Figma: X — Live: Y"
-- "severity": "high"|"medium"|"low"
-
-Example: { "element": "We are sad to see you go.", "category": "font_size", "issue": "Figma: 26px — Live: 20px", "severity": "high" }
-
-Do not include any text outside the JSON array.`,
+Return ONLY a valid JSON array. No text outside the array.`,
               },
               {
                 role: "user",
@@ -357,7 +352,7 @@ Do not include any text outside the JSON array.`,
         const aiData = await aiRes.json() as { choices: Array<{ message: { content: string } }> };
         const rawContent = aiData.choices[0]?.message?.content?.trim() ?? "[]";
 
-        let discrepancies: Array<{ element: string; category?: string; issue: string; severity: string }> = [];
+        let discrepancies: Array<{ element: string; label?: string; category?: string; issue: string; severity: string }> = [];
         try {
           const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
           if (!jsonMatch) {
@@ -389,43 +384,35 @@ Do not include any text outside the JSON array.`,
         send("step", { text: `Posting ${discrepancies.length} comments to Figma…` });
 
         const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
-        const total = discrepancies.length;
+        const usedNodeIds = new Set<string>();
 
-        for (let commentIndex = 0; commentIndex < discrepancies.length; commentIndex++) {
-          const d = discrepancies[commentIndex];
+        for (let i = 0; i < discrepancies.length; i++) {
+          const d = discrepancies[i];
 
-          // Match by actual text content the AI returned
+          // Find the best matching text node using exact text snippet from AI
           const needle = d.element.toLowerCase().trim();
-          const match = textNodes.find(n =>
-            n.characters.toLowerCase().includes(needle.slice(0, 20)) ||
-            needle.includes(n.characters.toLowerCase().slice(0, 20))
-          );
+          const match = textNodes.find(n => {
+            if (usedNodeIds.has(n.id)) return false;
+            const chars = n.characters.toLowerCase();
+            return chars.includes(needle.slice(0, 30)) || needle.slice(0, 30).includes(chars.slice(0, 20));
+          }) ?? textNodes.find(n => !usedNodeIds.has(n.id));
 
-          let offsetX: number;
-          let offsetY: number;
+          if (match) usedNodeIds.add(match.id);
 
-          if (match?.absoluteBoundingBox) {
-            const bbox = match.absoluteBoundingBox;
-            offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width  / 2);
-            offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
-          } else {
-            // Spread evenly down the frame with slight horizontal offset alternation
-            offsetX = fb.width * (commentIndex % 2 === 0 ? 0.25 : 0.75);
-            offsetY = (fb.height / (total + 1)) * (commentIndex + 1);
-          }
+          const bbox    = match?.absoluteBoundingBox ?? fb;
+          const offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width  / 2);
+          const offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
 
           const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
-          const message  = `${severity} ${d.element}\n${d.issue}`;
+          const label    = d.label ?? d.category ?? "Design mismatch";
+          const message  = `${severity} ${label}\n\n"${d.element.slice(0, 80)}"\n\n${d.issue}`;
 
           const commentRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
             method:  "POST",
             headers: { "X-Figma-Token": pat, "Content-Type": "application/json" },
             body: JSON.stringify({
               message,
-              client_meta: {
-                node_id:     frame.id,
-                node_offset: { x: offsetX, y: offsetY },
-              },
+              client_meta: { node_id: frame.id, node_offset: { x: offsetX, y: offsetY } },
             }),
           });
 
@@ -434,16 +421,24 @@ Do not include any text outside the JSON array.`,
             const cd = await commentRes.json() as { id?: string };
             commentId = cd.id;
           } else {
-            const errText = await commentRes.text().catch(() => "");
-            console.error(`Comment post failed ${commentRes.status}: ${errText}`);
+            console.error(`Comment failed ${commentRes.status}: ${await commentRes.text().catch(() => "")}`);
           }
 
-          table.push({ element: d.category ?? d.element, issue: `${d.element} — ${d.issue}`, commentId });
+          table.push({ element: d.label ?? d.category ?? d.element, issue: d.issue, commentId });
         }
 
         const posted = table.filter(r => r.commentId).length;
+        const byCategory = discrepancies.reduce((acc, d) => {
+          const cat = d.category ?? "other";
+          acc[cat] = (acc[cat] ?? 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        const summary = Object.entries(byCategory)
+          .map(([cat, count]) => `${count} ${cat.replace("_", " ")}`)
+          .join(", ");
+
         send("result", {
-          text: `Comparison complete — ${discrepancies.length} discrepancies found, ${posted} comments posted in Figma. Open the file to review.`,
+          text: `Found ${discrepancies.length} issues: ${summary}. ${posted} comments posted in Figma — open the file to review.`,
           table,
         });
 
