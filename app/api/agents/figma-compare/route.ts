@@ -340,16 +340,13 @@ export async function POST(req: NextRequest) {
         }
 
         const textNodes: TextNode[] = [];
-        const visualNodes: VisualNode[] = [];
         const frameRef = { frame: null as FrameInfo | null };
         extractTextNodes(rootDoc, null, textNodes, frameRef);
-        // Anchor to root node; fall back to first child frame if bbox missing
         const rootBbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
         const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootBbox };
-        extractVisualNodes(rootDoc, visualNodes, rootBbox);
 
         const frameName = rootDoc.name ?? "Unknown frame";
-        send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes, ${visualNodes.length} visual nodes.` });
+        send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes.` });
 
         if (textNodes.length === 0) {
           send("error", { text: `No text found in frame "${frameName}". Make sure you right-clicked the correct frame and used "Copy link to selection".` });
@@ -357,95 +354,26 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // ── Step 4: Build live context ────────────────────────────────────────
+        // ── Step 4: Build live context from extension styles ──────────────────
         let liveContext = "";
+        const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
+          ? liveStyles
+          : (liveData?.styles ?? []);
 
-        if (liveData) {
-          // New structured format from updated extension
-          const d = liveData;
-          const lines: string[] = [];
-
-          if (d.nav) {
-            lines.push("=== NAVIGATION ===");
-            lines.push(`Background: ${d.nav.styles?.backgroundColor ?? "unknown"}`);
-            if (d.nav.items?.length) {
-              lines.push("Nav items:");
-              d.nav.items.slice(0, 10).forEach((item: any) => {
-                lines.push(`  "${item.text}" — font: ${item.styles.fontFamily} ${item.styles.fontSize} weight:${item.styles.fontWeight} color:${item.styles.color}`);
-              });
-            }
-          }
-
-          if (d.footer) {
-            lines.push("=== FOOTER ===");
-            lines.push(`Background: ${d.footer.styles?.backgroundColor ?? "unknown"}, color: ${d.footer.styles?.color ?? "unknown"}`);
-            if (d.footer.items?.length) {
-              lines.push("Footer items:");
-              d.footer.items.slice(0, 10).forEach((item: any) => {
-                lines.push(`  "${item.text}" — font: ${item.styles.fontFamily} ${item.styles.fontSize} color:${item.styles.color}`);
-              });
-            }
-          }
-
-          if (d.buttons?.length) {
-            lines.push("=== CTA BUTTONS ===");
-            d.buttons.forEach((btn: any) => {
-              const s = btn.styles;
-              lines.push(`  "${btn.text}" — font: ${s.fontFamily} ${s.fontSize} weight:${s.fontWeight} color:${s.color} bg:${s.backgroundColor} radius:${s.borderRadius} shadow:${s.boxShadow ?? "none"} padding:${s.paddingTop} ${s.paddingRight} ${s.paddingBottom} ${s.paddingLeft}`);
-            });
-          }
-
-          if (d.typography?.length) {
-            lines.push("=== TYPOGRAPHY ===");
-            d.typography.slice(0, 40).forEach((t: any) => {
-              lines.push(`  "${t.text}" — ${t.fontFamily} ${t.fontSize} weight:${t.fontWeight} color:${t.color}`);
-            });
-          }
-
-          if (d.colors?.length) {
-            lines.push(`=== COLORS ===\n  ${d.colors.join(", ")}`);
-          }
-
-          liveContext = lines.join("\n");
-          const btnCount = d.buttons?.length ?? 0;
-          const typoCount = d.typography?.length ?? 0;
-          send("step", { text: `Extracted ${typoCount} text elements, ${btnCount} buttons, nav, footer from live site.` });
-
-        } else if (Array.isArray(liveStyles) && liveStyles.length > 0) {
-          // Legacy flat styles array from old extension
-          const fonts   = Array.from(new Set(liveStyles.map((s: any) => s.fontFamily).filter(Boolean)));
-          const sizes   = Array.from(new Set(liveStyles.map((s: any) => s.fontSize).filter(Boolean)));
-          const weights = Array.from(new Set(liveStyles.map((s: any) => s.fontWeight).filter(Boolean)));
-          const colors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 10);
-          // Deduplicate by font combo, keep max 12 unique entries
+        if (rawStyles.length > 0) {
           const seenLive = new Set<string>();
-          const typoLines: string[] = [];
-          for (const s of liveStyles) {
+          const lines: string[] = [];
+          for (const s of rawStyles) {
             const key = `${s.fontFamily}|${s.fontSize}|${s.fontWeight}|${s.color}`;
             if (seenLive.has(key)) continue;
             seenLive.add(key);
-            typoLines.push(`  "${String(s.text ?? "").slice(0, 30)}" ${s.fontFamily} ${s.fontSize} w:${s.fontWeight} ${s.color}`);
-            if (typoLines.length >= 12) break;
+            lines.push(`"${String(s.text ?? "").slice(0, 40)}" ${s.fontFamily} ${s.fontSize} w:${s.fontWeight} ${s.color}`);
+            if (lines.length >= 20) break;
           }
-          liveContext = `Fonts:${fonts.join(",")} Sizes:${sizes.join(",")} Weights:${weights.join(",")} Colors:${colors.join(",")}\n${typoLines.join("\n")}`;
-          send("step", { text: `Using ${liveStyles.length} computed styles from extension.` });
-
+          liveContext = lines.join("\n");
+          send("step", { text: `Using ${rawStyles.length} live text styles from extension.` });
         } else {
-          // Fallback: server-side CSS scraping only
-          send("step", { text: `No extension data — scraping CSS from ${liveUrl}…` });
-          try {
-            const scrapeRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/scrape-styles`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: liveUrl }),
-              signal: AbortSignal.timeout(20_000),
-            });
-            if (scrapeRes.ok) {
-              const s = await scrapeRes.json() as any;
-              liveContext = `Font families: ${s.fonts?.join(", ")}\nFont sizes: ${s.sizes?.join(", ")}\nColors: ${s.colors?.join(", ")}`;
-              send("step", { text: "CSS scraped (limited — install extension for full data)." });
-            }
-          } catch {}
+          send("step", { text: "No extension data — install and reload the Loupe extension for accurate results." });
         }
 
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
@@ -456,35 +384,22 @@ export async function POST(req: NextRequest) {
         const figmaWeights = Array.from(new Set(textNodes.map(n => n.fontWeight).filter(Boolean)));
         const figmaColors  = Array.from(new Set(textNodes.map(n => n.color).filter(Boolean)));
 
-        // Deduplicate text nodes by unique font+size+weight combo — keeps prompt small
         const seenFontCombos = new Set<string>();
         const nodeDetails: string[] = [];
         for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize)) {
           const key = `${n.fontFamily}|${n.fontSize}|${n.fontWeight}|${n.color}`;
           if (seenFontCombos.has(key)) continue;
           seenFontCombos.add(key);
-          nodeDetails.push(`"${n.characters.slice(0, 30)}" ${n.fontFamily} ${n.fontSize}px w:${n.fontWeight} ${n.color}`);
-          if (nodeDetails.length >= 10) break;
+          nodeDetails.push(`"${n.characters.slice(0, 40)}" ${n.fontFamily} ${n.fontSize}px w:${n.fontWeight} ${n.color}`);
+          if (nodeDetails.length >= 12) break;
         }
 
-        // Visual nodes: buttons, nav, footer
-        const figmaButtons    = visualNodes.filter(n => n.role === "button").slice(0, 5);
-        const figmaNavNodes   = visualNodes.filter(n => n.role === "nav").slice(0, 2);
-        const figmaFooterNodes = visualNodes.filter(n => n.role === "footer").slice(0, 2);
-
-        const visualDetail = (nodes: VisualNode[]) => nodes.map(n =>
-          `  bg:${n.backgroundColor ?? "none"} radius:${n.borderRadius ?? 0}px shadow:${n.shadow ?? "none"} padding:${n.paddingTop ?? 0}/${n.paddingRight ?? 0}/${n.paddingBottom ?? 0}/${n.paddingLeft ?? 0}px`
-        ).join("\n");
-
-        // Trim live context to cap total prompt size
-        const trimmedLiveContext = liveContext.split("\n").slice(0, 50).join("\n");
-
-        const figmaSummary = `FONTS:${figmaFonts.join(",")} SIZES:${figmaSizes.slice(0,8).join(",")}px WEIGHTS:${figmaWeights.join(",")} COLORS:${figmaColors.slice(0,8).join(",")}
-NODES:
-${nodeDetails.join("\n")}
-NAV:${figmaNavNodes.length ? visualDetail(figmaNavNodes) : "none"}
-FOOTER:${figmaFooterNodes.length ? visualDetail(figmaFooterNodes) : "none"}
-BUTTONS:${figmaButtons.length ? visualDetail(figmaButtons) : "none"}`;
+        const figmaSummary = `FIGMA FONTS: ${figmaFonts.join(", ")}
+FIGMA SIZES: ${figmaSizes.slice(0, 10).join(", ")}px
+FIGMA WEIGHTS: ${figmaWeights.join(", ")}
+FIGMA COLORS: ${figmaColors.slice(0, 10).join(", ")}
+FIGMA TEXT NODES:
+${nodeDetails.join("\n")}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
@@ -502,40 +417,28 @@ BUTTONS:${figmaButtons.length ? visualDetail(figmaButtons) : "none"}`;
             messages: [
               {
                 role: "system",
-                content: `You are a design QA engineer. Compare a Figma design spec against real computed CSS styles from a live website.
-
-The Figma spec and live page may be different pages of the same product — do NOT require text content to match exactly.
-
-Only check the categories the user selected: ${(checks && checks.length > 0 ? checks : ["font_family","font_size","font_weight","color"]).join(", ")}
-
-Category rules:
-- font_family: flag typeface mismatches. Use EXACT names from the data.
-- font_size: flag size differences > 2px only
-- font_weight: flag weight mismatches
-- color: flag visually distinct color differences (ignore minor shade variations)
-- menu: compare nav/navigation background, font, item colors between FIGMA NAVIGATION and live === NAVIGATION ===
-- footer: compare footer background, font, link colors between FIGMA FOOTER and live === FOOTER ===
-- buttons: compare button background, border-radius, shadow, font, padding between FIGMA BUTTONS and live === CTA BUTTONS ===
-- spacing: compare padding values on buttons/nav/footer
+                content: `You are a design QA engineer comparing a Figma spec against live website computed styles.
 
 Rules:
-- ONLY flag real differences — if Figma value equals Live value, skip it
-- Do not flag if values differ by less than 2px for sizes
-- Use EXACT values from the data in the "issue" field
+- Only check: font_family, font_size, font_weight, color
+- font_family: flag mismatches using EXACT font names from the data
+- font_size: only flag if difference > 2px
+- font_weight: flag mismatches
+- color: flag visually distinct differences only (skip near-identical shades)
+- NEVER flag if Figma value equals Live value
+- Match text between Figma and live by approximate text content
 
-For each discrepancy return:
-- "element": the element name or text that has the issue (e.g. "Primary Button", "Nav background", or copy exact text from TEXT NODES)
-- "label": short human title e.g. "Button border radius wrong"
-- "category": font_family | font_size | font_weight | color | menu | footer | buttons | spacing
+For each discrepancy return JSON:
+- "element": exact text from FIGMA TEXT NODES
+- "category": font_family | font_size | font_weight | color
+- "issue": "Figma: <value> — Live: <value>"
 - "severity": high | medium | low
-- "issue": "Figma: <exact value> — Live: <exact value>"
-- "severity": "high" | "medium" | "low"
 
-Return ONLY a valid JSON array. No text outside the array.`,
+Return ONLY a valid JSON array. No explanation outside the array.`,
               },
               {
                 role: "user",
-                content: `FIGMA SPEC:\n${figmaSummary}\n\nLIVE SITE COMPUTED STYLES from ${liveUrl}:\n${trimmedLiveContext}\n\nFind all discrepancies for the selected checks.`,
+                content: `FIGMA:\n${figmaSummary}\n\nLIVE SITE (${liveUrl}):\n${liveContext}\n\nList all font and color discrepancies.`,
               },
             ],
           }),
