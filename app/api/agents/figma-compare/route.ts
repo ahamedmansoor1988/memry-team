@@ -471,12 +471,16 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
           return;
         }
 
-        // Remove false positives (same value on both sides) and deduplicate by issue text
+        // Remove false positives and duplicates
         const seenIssues = new Set<string>();
         discrepancies = discrepancies.filter(d => {
           const parts = d.issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
-          if (parts && parts[1].trim() === parts[2].trim()) return false; // same value
-          if (seenIssues.has(d.issue)) return false; // duplicate
+          if (parts) {
+            // Normalize: strip trailing notes like "(visually distinct)", take first token
+            const normalize = (v: string) => v.trim().split(/\s+/)[0].toLowerCase().replace(/['"]/g, "");
+            if (normalize(parts[1]) === normalize(parts[2])) return false;
+          }
+          if (seenIssues.has(d.issue)) return false;
           seenIssues.add(d.issue);
           return true;
         });
