@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ScanSearch, LogOut, Plus } from "lucide-react";
+import { ScanSearch, LogOut, Plus, MessageSquare } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const AGENTS = [
@@ -11,6 +11,12 @@ const AGENTS = [
     label: "Figma vs Live",
     icon: ScanSearch,
     description: "Compare Figma frames against live websites",
+  },
+  {
+    id: "comment-watcher",
+    label: "Comment Clarity",
+    icon: MessageSquare,
+    description: "Detect vague Figma comments and ask for clarification",
   },
 ];
 
