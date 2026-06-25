@@ -158,6 +158,27 @@ export default function FigmaComparePage() {
       let styleNameMap: Record<string, string> = {};
       if (cached && !forceRefresh) { const p = JSON.parse(cached); figmaNodes = p.figmaNodes; styleNameMap = p.styleNameMap ?? {}; }
 
+      // Pre-fetch Figma nodes in the browser so rate limits surface immediately
+      if (!figmaNodes) {
+        addRun({ type: "step", text: "Fetching Figma frame data…" });
+        const figmaRes = await fetch(
+          `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
+          { headers: { "X-Figma-Token": pat.trim() } }
+        );
+        if (figmaRes.status === 429) {
+          addRun({ type: "error", text: "Figma rate limit hit. Please wait 1–2 minutes and try again — Figma limits API requests per minute." });
+          setRunning(false);
+          return;
+        }
+        if (!figmaRes.ok) {
+          addRun({ type: "error", text: `Figma API error ${figmaRes.status}. Check your token and Figma URL.` });
+          setRunning(false);
+          return;
+        }
+        figmaNodes = await figmaRes.json();
+        try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes, styleNameMap })); } catch {}
+      }
+
       const res = await fetch("/api/agents/figma-compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
