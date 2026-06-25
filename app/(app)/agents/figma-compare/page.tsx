@@ -91,7 +91,7 @@ export default function FigmaComparePage() {
     setMessages(prev => [...prev, { ...msg, id: crypto.randomUUID() }]);
   }
 
-  async function run() {
+  async function run(forceRefresh = false) {
     if (!figmaUrl.trim() || !liveUrl.trim() || !pat.trim()) {
       setConfigOpen(true);
       return;
@@ -130,11 +130,14 @@ export default function FigmaComparePage() {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({
-          figmaNodes, styleNameMap, fileKey, nodeId,
+          figmaNodes: forceRefresh ? null : figmaNodes,
+          styleNameMap: forceRefresh ? {} : styleNameMap,
+          fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
           liveStyles: liveStylesRef.current ?? null,
           pat:        pat.trim(),
           checks:     Array.from(checks),
+          forceRefresh,
         }),
       });
 
@@ -275,10 +278,16 @@ export default function FigmaComparePage() {
                 <span key={c.id} className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#5b5b66]">{c.label}</span>
               ))}
             </div>
-            <button onClick={run} disabled={!canRun}
-              className="ml-auto flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
-              {running ? <><Loader2 size={12} className="animate-spin" />Running…</> : <><ArrowUp size={12} />Run again</>}
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={() => run(true)} disabled={!canRun}
+                className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-2 text-[12px] font-medium text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
+                {running ? <Loader2 size={12} className="animate-spin" /> : <><ArrowUp size={12} />Force refresh</>}
+              </button>
+              <button onClick={() => run(false)} disabled={!canRun}
+                className="flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
+                {running ? <><Loader2 size={12} className="animate-spin" />Running…</> : <><ArrowUp size={12} />Run again</>}
+              </button>
+            </div>
           </div>
         </div>
       )}

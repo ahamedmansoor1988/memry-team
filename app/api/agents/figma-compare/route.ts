@@ -118,9 +118,9 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
-  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat, checks } = await req.json() as {
+  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat, checks, forceRefresh } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
-    liveUrl: string; liveStyles: any[] | null; pat: string; checks?: string[];
+    liveUrl: string; liveStyles: any[] | null; pat: string; checks?: string[]; forceRefresh?: boolean;
   };
 
   const encoder = new TextEncoder();
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         {
           const db = supabaseAdmin();
 
-          // ── Load Supabase cache first ───────────────────────────
+          // ── Load Supabase cache ─────────────────────────────────
           const { data: cached } = await db
             .from("figma_node_cache")
             .select("figma_nodes, style_map, cached_at")
@@ -146,35 +146,14 @@ export async function POST(req: NextRequest) {
             .eq("node_id", nodeId)
             .maybeSingle();
 
-          // Use prefetched (localStorage) or Supabase cache first — skip Figma API
           if (figmaNodes) {
             send("step", { text: "Using Figma data from local cache." });
-          } else if (cached) {
-            // Check lastModified only when we have a Supabase cache to compare against
-            send("step", { text: "Checking if Figma file has changed…" });
-            let figmaLastModified: string | null = null;
-            try {
-              const metaRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=1`, {
-                headers: { "X-Figma-Token": pat },
-                signal: AbortSignal.timeout(8_000),
-              });
-              if (metaRes.ok) {
-                const meta = await metaRes.json() as { lastModified?: string };
-                figmaLastModified = meta.lastModified ?? null;
-              }
-            } catch { /* rate limited or timeout — use cache */ }
-
-            const fileChanged = figmaLastModified
-              ? new Date(figmaLastModified) > new Date(cached.cached_at)
-              : false; // can't confirm change → use cache
-
-            if (!fileChanged) {
-              figmaNodes   = cached.figma_nodes;
-              styleNameMap = (cached.style_map as Record<string, string>) ?? {};
-              send("step", { text: `Using cached Figma data (saved ${new Date(cached.cached_at).toLocaleDateString()}).` });
-            } else {
-              send("step", { text: "Figma file was updated — re-fetching latest nodes…" });
-            }
+          } else if (cached && !forceRefresh) {
+            figmaNodes   = cached.figma_nodes;
+            styleNameMap = (cached.style_map as Record<string, string>) ?? {};
+            send("step", { text: `Using cached Figma data (saved ${new Date(cached.cached_at).toLocaleDateString()}).` });
+          } else if (forceRefresh && cached) {
+            send("step", { text: "Force refresh — fetching latest nodes from Figma…" });
           }
 
           if (!figmaNodes) {
