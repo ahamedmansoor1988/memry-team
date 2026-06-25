@@ -86,6 +86,80 @@ interface FrameInfo {
   absoluteBoundingBox: { x: number; y: number; width: number; height: number };
 }
 
+interface VisualNode {
+  id: string;
+  name: string;
+  type: string;
+  role: "button" | "nav" | "footer" | "card" | "other";
+  backgroundColor: string | null;
+  borderRadius: number | null;
+  borderColor: string | null;
+  borderWidth: number | null;
+  shadow: string | null;
+  paddingTop: number | null;
+  paddingRight: number | null;
+  paddingBottom: number | null;
+  paddingLeft: number | null;
+  width: number;
+  height: number;
+}
+
+const BTN_NAMES  = /button|btn|cta|call.to.action|primary|secondary/i;
+const NAV_NAMES  = /nav|navbar|header|menu/i;
+const FOOT_NAMES = /footer|foot/i;
+
+function extractVisualNodes(node: any, results: VisualNode[], depth = 0) {
+  if (depth > 8) return;
+  const name = node.name ?? "";
+
+  const isFrame = ["FRAME", "COMPONENT", "INSTANCE", "RECTANGLE", "GROUP"].includes(node.type);
+  if (isFrame) {
+    const fill = node.fills?.find((f: any) => f.type === "SOLID" && f.visible !== false);
+    const bgColor = fill?.color ? rgbToHex(fill.color.r, fill.color.g, fill.color.b) : null;
+
+    const stroke = node.strokes?.find((s: any) => s.type === "SOLID");
+    const borderColor = stroke?.color ? rgbToHex(stroke.color.r, stroke.color.g, stroke.color.b) : null;
+    const borderWidth = node.strokeWeight ?? null;
+
+    // Drop shadow
+    const shadowEffect = node.effects?.find((e: any) => e.type === "DROP_SHADOW" && e.visible !== false);
+    const shadow = shadowEffect
+      ? `${shadowEffect.offset?.x ?? 0}px ${shadowEffect.offset?.y ?? 0}px ${shadowEffect.radius ?? 0}px rgba(${Math.round((shadowEffect.color?.r ?? 0) * 255)},${Math.round((shadowEffect.color?.g ?? 0) * 255)},${Math.round((shadowEffect.color?.b ?? 0) * 255)},${(shadowEffect.color?.a ?? 1).toFixed(2)})`
+      : null;
+
+    const bbox = node.absoluteBoundingBox ?? { width: 0, height: 0 };
+
+    let role: VisualNode["role"] = "other";
+    if (BTN_NAMES.test(name))  role = "button";
+    else if (NAV_NAMES.test(name))  role = "nav";
+    else if (FOOT_NAMES.test(name)) role = "footer";
+
+    if (role !== "other" || bgColor || shadow || (node.cornerRadius ?? 0) > 0) {
+      results.push({
+        id:              node.id,
+        name,
+        type:            node.type,
+        role,
+        backgroundColor: bgColor,
+        borderRadius:    node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? null,
+        borderColor,
+        borderWidth,
+        shadow,
+        paddingTop:      node.paddingTop    ?? null,
+        paddingRight:    node.paddingRight  ?? null,
+        paddingBottom:   node.paddingBottom ?? null,
+        paddingLeft:     node.paddingLeft   ?? null,
+        width:           bbox.width,
+        height:          bbox.height,
+      });
+    }
+  }
+
+  for (const child of node.children ?? []) {
+    extractVisualNodes(child, results, depth + 1);
+  }
+}
+
 function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[], frameRef: { frame: FrameInfo | null }) {
   if (node.type === "FRAME" && !frameRef.frame) {
     frameRef.frame = { id: node.id, absoluteBoundingBox: node.absoluteBoundingBox };
@@ -239,14 +313,16 @@ export async function POST(req: NextRequest) {
         }
 
         const textNodes: TextNode[] = [];
+        const visualNodes: VisualNode[] = [];
         const frameRef = { frame: null as FrameInfo | null };
         extractTextNodes(rootDoc, null, textNodes, frameRef);
+        extractVisualNodes(rootDoc, visualNodes);
         // Anchor to root node; fall back to first child frame if bbox missing
         const rootBbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
         const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootBbox };
 
         const frameName = rootDoc.name ?? "Unknown frame";
-        send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes.` });
+        send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes, ${visualNodes.length} visual nodes.` });
 
         if (textNodes.length === 0) {
           send("error", { text: `No text found in frame "${frameName}". Make sure you right-clicked the correct frame and used "Copy link to selection".` });
@@ -356,14 +432,32 @@ export async function POST(req: NextRequest) {
           ...textNodes.filter(n => n.fontSize < 24 && n.fontSize >= 14).slice(0, 10),
         ].map(n => `text="${n.characters.slice(0, 60)}" font="${n.fontFamily}" size=${n.fontSize}px weight=${n.fontWeight} color=${n.color}`);
 
-        const figmaSummary = `DESIGN SYSTEM:
+        // Visual nodes: buttons, nav, footer with border-radius, shadow, colors
+        const figmaButtons = visualNodes.filter(n => n.role === "button").slice(0, 8);
+        const figmaNavNodes = visualNodes.filter(n => n.role === "nav").slice(0, 3);
+        const figmaFooterNodes = visualNodes.filter(n => n.role === "footer").slice(0, 3);
+
+        const visualDetail = (nodes: VisualNode[]) => nodes.map(n =>
+          `  "${n.name}" bg:${n.backgroundColor ?? "none"} radius:${n.borderRadius ?? 0}px shadow:${n.shadow ?? "none"} border:${n.borderColor ? `${n.borderWidth}px ${n.borderColor}` : "none"} padding:${n.paddingTop ?? 0}px ${n.paddingRight ?? 0}px ${n.paddingBottom ?? 0}px ${n.paddingLeft ?? 0}px`
+        ).join("\n");
+
+        const figmaSummary = `=== FIGMA TYPOGRAPHY ===
 Font families: ${figmaFonts.join(", ")}
 Font sizes: ${figmaSizes.join(", ")}px
 Font weights: ${figmaWeights.join(", ")}
 Colors: ${figmaColors.slice(0, 15).join(", ")}
 
 TEXT NODES (use exact text value for "element" field):
-${nodeDetails.join("\n")}`;
+${nodeDetails.join("\n")}
+
+=== FIGMA NAVIGATION ===
+${figmaNavNodes.length ? visualDetail(figmaNavNodes) : "  (no nav nodes found — check node names)"}
+
+=== FIGMA FOOTER ===
+${figmaFooterNodes.length ? visualDetail(figmaFooterNodes) : "  (no footer nodes found)"}
+
+=== FIGMA BUTTONS / CTA ===
+${figmaButtons.length ? visualDetail(figmaButtons) : "  (no button nodes found — check node names include 'button', 'btn', or 'cta')"}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
@@ -383,21 +477,30 @@ ${nodeDetails.join("\n")}`;
                 role: "system",
                 content: `You are a design QA engineer. Compare a Figma design spec against real computed CSS styles from a live website.
 
-The Figma spec and live page may be different pages of the same product — do NOT require text content to match.
+The Figma spec and live page may be different pages of the same product — do NOT require text content to match exactly.
 
-Only check: ${(checks && checks.length > 0 ? checks : ["font_family","font_size","font_weight","color"]).join(", ")}
+Only check the categories the user selected: ${(checks && checks.length > 0 ? checks : ["font_family","font_size","font_weight","color"]).join(", ")}
+
+Category rules:
+- font_family: flag typeface mismatches. Use EXACT names from the data.
+- font_size: flag size differences > 2px only
+- font_weight: flag weight mismatches
+- color: flag visually distinct color differences (ignore minor shade variations)
+- menu: compare nav/navigation background, font, item colors between FIGMA NAVIGATION and live === NAVIGATION ===
+- footer: compare footer background, font, link colors between FIGMA FOOTER and live === FOOTER ===
+- buttons: compare button background, border-radius, shadow, font, padding between FIGMA BUTTONS and live === CTA BUTTONS ===
+- spacing: compare padding values on buttons/nav/footer
 
 Rules:
-- Use EXACT font names from the data — never generalise (e.g. never say "Apple font", say "-apple-system" or "SF Pro")
-- font_family: flag typeface mismatches
-- font_size: flag size differences > 2px
-- font_weight: flag weight mismatches
-- color: flag visually distinct color differences
+- ONLY flag real differences — if Figma value equals Live value, skip it
+- Do not flag if values differ by less than 2px for sizes
+- Use EXACT values from the data in the "issue" field
 
 For each discrepancy return:
-- "element": copy the EXACT text value from the TEXT NODES list above that best illustrates this issue
-- "label": a short human title, e.g. "Heading font family wrong" or "Body text color off"
-- "category": font_family | font_size | font_weight | color
+- "element": the element name or text that has the issue (e.g. "Primary Button", "Nav background", or copy exact text from TEXT NODES)
+- "label": short human title e.g. "Button border radius wrong"
+- "category": font_family | font_size | font_weight | color | menu | footer | buttons | spacing
+- "severity": high | medium | low
 - "issue": "Figma: <exact value> — Live: <exact value>"
 - "severity": "high" | "medium" | "low"
 
