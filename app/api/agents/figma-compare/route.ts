@@ -438,28 +438,10 @@ Return ONLY a valid JSON array. No text outside the array.`,
         for (let i = 0; i < categories.length; i++) {
           const [cat, items] = categories[i];
 
-          // Find a text node that best matches ANY item in this category
-          let match = null;
-          for (const d of items) {
-            const needle = d.element.toLowerCase().trim();
-            match = textNodes.find(n => {
-              const chars = n.characters.toLowerCase();
-              // Must match at least 10 chars to be meaningful
-              return needle.length >= 10 && chars.startsWith(needle.slice(0, 15));
-            });
-            if (match) break;
-          }
-
-          // Fallback: spread evenly down the frame
-          let offsetX: number, offsetY: number;
-          if (match?.absoluteBoundingBox) {
-            const bbox = match.absoluteBoundingBox;
-            offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width / 2);
-            offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
-          } else {
-            offsetX = fb.width * 0.5;
-            offsetY = (fb.height / (categories.length + 1)) * (i + 1);
-          }
+          // Place each category comment in a column along the left edge of the frame
+          // 40px apart vertically so they don't overlap
+          const offsetX = 20;
+          const offsetY = 20 + i * 40;
 
           const severity = items.some(d => d.severity === "high") ? "❌" : items.some(d => d.severity === "medium") ? "⚠️" : "ℹ️";
           const catLabel = cat.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
