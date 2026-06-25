@@ -1,0 +1,170 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { normalizeNodes } from "@/lib/figma-normalize";
+
+export const maxDuration = 120;
+
+function supabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+// Shared figmaFetch with Retry-After support and full instrumentation
+async function figmaFetch(pat: string, path: string): Promise<Response> {
+  const reqId = Math.random().toString(36).slice(2, 10);
+
+  async function doFetch(retried: boolean): Promise<Response> {
+    const t0  = Date.now();
+    const res = await fetch(`https://api.figma.com/v1${path}`, {
+      headers: { "X-Figma-Token": pat },
+    });
+    const ms = Date.now() - t0;
+    const ra = res.headers.get("Retry-After");
+    console.log(`[figma-sync] [${reqId}] GET ${path} → ${res.status} ${ms}ms${ra ? ` retry-after:${ra}s` : ""}`);
+
+    if (res.status === 429) {
+      if (retried) throw new Error(`Figma rate limit persists (Retry-After: ${ra ?? "unknown"}s). Please wait and try again.`);
+      const waitSec = ra !== null ? parseInt(ra, 10) : 65;
+      await new Promise(r => setTimeout(r, waitSec * 1_000));
+      return doFetch(true);
+    }
+    return res;
+  }
+
+  return doFetch(false);
+}
+
+function countTextNodes(node: any): number {
+  if (!node) return 0;
+  let n = node.type === "TEXT" && node.characters?.trim() ? 1 : 0;
+  for (const child of node.children ?? []) n += countTextNodes(child);
+  return n;
+}
+
+export async function POST(req: NextRequest) {
+  let fileKey: string, nodeId: string, pat: string;
+  try {
+    ({ fileKey, nodeId, pat } = await req.json() as { fileKey: string; nodeId: string; pat: string });
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!fileKey || !nodeId || !pat) {
+    return NextResponse.json({ error: "fileKey, nodeId, and pat are required" }, { status: 400 });
+  }
+
+  const db    = supabaseAdmin();
+  const t0    = Date.now();
+  let depthUsed = 5;
+
+  // Try depth=5 first; retry at depth=8 if fewer than 3 text nodes found
+  let figmaData: any;
+  try {
+    const r5 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=5`);
+    if (!r5.ok) {
+      const txt = await r5.text().catch(() => "");
+      return NextResponse.json({ error: `Figma API error ${r5.status}: ${txt.slice(0, 200)}` }, { status: r5.status >= 500 ? 502 : 422 });
+    }
+    figmaData = await r5.json();
+    const rootDoc5 = figmaData?.nodes?.[nodeId]?.document;
+    if (!rootDoc5) return NextResponse.json({ error: "Node not found in Figma response" }, { status: 404 });
+
+    if (countTextNodes(rootDoc5) < 3) {
+      // Retry with more depth
+      const r8 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=8`);
+      if (r8.ok) { figmaData = await r8.json(); depthUsed = 8; }
+    }
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message ?? String(e) }, { status: 503 });
+  }
+
+  const rootDoc = figmaData?.nodes?.[nodeId]?.document;
+  if (!rootDoc) return NextResponse.json({ error: "Frame not found" }, { status: 404 });
+
+  const normalized     = normalizeNodes(rootDoc);
+  const syncDurationMs = Date.now() - t0;
+
+  // Insert a new snapshot row (append-only for versioning)
+  const { data: snapRow, error: snapErr } = await db
+    .from("figma_snapshots")
+    .insert({
+      file_key:         fileKey,
+      node_id:          nodeId,
+      frame_name:       normalized.frame_name,
+      synced_at:        new Date().toISOString(),
+      is_stale:         false,
+      depth_used:       depthUsed,
+      raw_node_count:   normalized.raw_node_count,
+      text_node_count:  normalized.text_nodes.length,
+      color_node_count: normalized.color_nodes.length,
+      frame_bounds:     normalized.frame_bounds,
+      sync_duration_ms: syncDurationMs,
+    })
+    .select("id")
+    .single();
+
+  if (snapErr || !snapRow) {
+    return NextResponse.json({ error: snapErr?.message ?? "Failed to create snapshot" }, { status: 500 });
+  }
+
+  const snapshotId = snapRow.id as string;
+
+  // Bulk-insert normalized rows
+  if (normalized.text_nodes.length > 0) {
+    const { error: te } = await db.from("snapshot_text").insert(
+      normalized.text_nodes.map(n => ({ snapshot_id: snapshotId, ...n }))
+    );
+    if (te) console.error("[figma-sync] snapshot_text insert error:", te.message);
+  }
+
+  if (normalized.color_nodes.length > 0) {
+    const { error: ce } = await db.from("snapshot_colors").insert(
+      normalized.color_nodes.map(n => ({ snapshot_id: snapshotId, ...n }))
+    );
+    if (ce) console.error("[figma-sync] snapshot_colors insert error:", ce.message);
+  }
+
+  // Also upsert figma_node_cache for backward compatibility with existing scan fallback
+  await db.from("figma_node_cache").upsert({
+    file_key:    fileKey,
+    node_id:     nodeId,
+    figma_nodes: figmaData,
+    style_map:   {},
+    cached_at:   new Date().toISOString(),
+  }, { onConflict: "file_key,node_id" });
+
+  return NextResponse.json({
+    snapshotId,
+    frameName:       normalized.frame_name,
+    textNodeCount:   normalized.text_nodes.length,
+    colorNodeCount:  normalized.color_nodes.length,
+    rawNodeCount:    normalized.raw_node_count,
+    depthUsed,
+    syncDurationMs,
+  });
+}
+
+// GET: check if a valid snapshot exists without calling Figma
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const fileKey = searchParams.get("fileKey");
+  const nodeId  = searchParams.get("nodeId");
+  if (!fileKey || !nodeId) {
+    return NextResponse.json({ error: "fileKey and nodeId are required" }, { status: 400 });
+  }
+
+  const db = supabaseAdmin();
+  const { data } = await db
+    .from("figma_snapshots")
+    .select("id, frame_name, text_node_count, color_node_count, depth_used, synced_at, raw_node_count")
+    .eq("file_key", fileKey)
+    .eq("node_id", nodeId)
+    .eq("is_stale", false)
+    .order("synced_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return NextResponse.json({ snapshot: data ?? null });
+}

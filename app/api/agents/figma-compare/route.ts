@@ -258,9 +258,15 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
-  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, liveData, pat, checks, assignTo, forceRefresh } = await req.json() as {
+  const {
+    figmaNodes: prefetched, styleNameMap: prefetchedStyleMap,
+    fileKey, nodeId, liveUrl, liveStyles, liveData,
+    pat, checks, assignTo, forceRefresh, snapshotId: incomingSnapshotId,
+  } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
-    liveUrl: string; liveStyles: any[] | null; liveData?: any | null; pat: string; checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
+    liveUrl: string; liveStyles: any[] | null; liveData?: any | null; pat: string;
+    checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
+    snapshotId?: string | null;
   };
 
   const encoder = new TextEncoder();
@@ -297,12 +303,67 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // ── Fetch Figma nodes ─────────────────────────────────────────────────
+        // ── Stage 0: Snapshot cache (highest priority — zero Figma API calls) ──
+        let snapshotId: string | null = incomingSnapshotId ?? null;
+        let fromSnapshot = false;
+        const textNodes: TextNode[] = [];
+        const frameRef = { frame: null as FrameInfo | null };
+        let rootBbox = { x: 0, y: 0, width: 800, height: 600 };
+        let frameName = "";
+
+        {
+          const db0 = supabaseAdmin();
+          if (!snapshotId && !forceRefresh) {
+            const { data: latestSnap } = await db0
+              .from("figma_snapshots")
+              .select("id, frame_name, frame_bounds")
+              .eq("file_key", fileKey)
+              .eq("node_id", nodeId)
+              .eq("is_stale", false)
+              .order("synced_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            snapshotId = latestSnap?.id ?? null;
+            frameName  = latestSnap?.frame_name ?? "";
+            rootBbox   = (latestSnap?.frame_bounds as any) ?? rootBbox;
+          }
+
+          if (snapshotId) {
+            const { data: textRows } = await db0
+              .from("snapshot_text")
+              .select("node_id, node_name, content, font_family, font_size, font_weight, line_height_px, fill_color, style_id, fill_style_id, bounds")
+              .eq("snapshot_id", snapshotId);
+
+            if (textRows && textRows.length > 0) {
+              for (const r of textRows) {
+                textNodes.push({
+                  id:                  r.node_id ?? "",
+                  name:                r.node_name ?? "",
+                  characters:          r.content  ?? "",
+                  fontFamily:          r.font_family ?? "",
+                  fontSize:            r.font_size   ?? 0,
+                  fontWeight:          r.font_weight ?? 400,
+                  lineHeightPx:        r.line_height_px ?? 0,
+                  color:               r.fill_color ?? "#000000",
+                  absoluteBoundingBox: (r.bounds as any) ?? { x: 0, y: 0, width: 0, height: 0 },
+                  styleId:             r.style_id   ?? undefined,
+                  fillStyleId:         r.fill_style_id ?? undefined,
+                });
+              }
+              fromSnapshot = true;
+              send("step", { text: `Snapshot loaded — ${textNodes.length} nodes. Zero Figma API calls.` });
+            }
+          }
+        }
+
+        // ── Fetch Figma nodes (only when no valid snapshot) ───────────────────
         let figmaNodes = prefetched;
         let styleNameMap: Record<string, string> = prefetchedStyleMap ?? {};
 
-        {
-          const db = supabaseAdmin();
+        if (fromSnapshot) {
+          // Skip entire Figma fetch block — snapshot has everything we need
+        } else {
+        const db = supabaseAdmin();
 
           // ── Load Supabase cache ─────────────────────────────────
           const { data: cached } = await db
@@ -387,23 +448,28 @@ export async function POST(req: NextRequest) {
             send("cache", { figmaNodes, styleNameMap });
             } // end else (fetch succeeded)
           } // end if (!figmaNodes)
-        } // end block
+        } // end else (not fromSnapshot)
 
-        const rootDoc = (figmaNodes as { nodes: Record<string, { document: any }> }).nodes[nodeId]?.document;
+        // ── When NOT from snapshot: extract text nodes from raw Figma JSON ────
+        if (!fromSnapshot) {
+          const rootDoc = figmaNodes
+            ? (figmaNodes as { nodes: Record<string, { document: any }> }).nodes[nodeId]?.document
+            : null;
 
-        if (!rootDoc) {
-          send("error", { text: "Frame not found — make sure the node-id points to a frame or component." });
-          controller.close();
-          return;
+          if (!rootDoc) {
+            send("error", { text: "Frame not found — make sure the node-id points to a frame or component." });
+            controller.close();
+            return;
+          }
+
+          extractTextNodes(rootDoc, null, textNodes, frameRef);
+          const bbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
+          rootBbox  = bbox;
+          frameName = rootDoc.name ?? "Unknown frame";
         }
 
-        const textNodes: TextNode[] = [];
-        const frameRef = { frame: null as FrameInfo | null };
-        extractTextNodes(rootDoc, null, textNodes, frameRef);
-        const rootBbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
-        const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootBbox };
+        const frame: FrameInfo = { id: nodeId, absoluteBoundingBox: rootBbox };
 
-        const frameName = rootDoc.name ?? "Unknown frame";
         send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes.` });
 
         if (textNodes.length === 0) {
@@ -545,89 +611,40 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
 
         send("step", { text: `AI identified ${discrepancies.length} discrepancies.` });
 
-        // ── Step 6: Post comments to Figma ────────────────────────────────────
+        // ── Step 6: Save issues to internal database (zero Figma API calls) ────
         const table: Array<{ element: string; issue: string; commentId?: string }> = [];
 
         if (discrepancies.length === 0) {
           send("result", {
             text: "No discrepancies found. This can happen if:\n• The live URL doesn't match the Figma frame (e.g. wrong page)\n• The Loupe extension hasn't captured styles from the live site yet (visit the page first, then run again)\n• The design and live site genuinely match",
             table: [],
+            snapshotId: snapshotId ?? null,
           });
           controller.close();
           return;
         }
 
-        // Fetch existing comments to avoid duplicates
-        let existingMessages = new Set<string>();
-        try {
-          const existingRes = await figmaFetch(pat, `/files/${fileKey}/comments`, { onLog: logFigma });
-          if (existingRes.ok) {
-            const existingData = await existingRes.json() as { comments: Array<{ message: string }> };
-            existingMessages = new Set(existingData.comments.map(c => c.message));
-          }
-        } catch {}
+        // Persist issues to qa_issues — scanning never touches Figma comments
+        if (snapshotId) {
+          const issueRows = discrepancies.map(d => ({
+            snapshot_id: snapshotId,
+            file_key:    fileKey,
+            node_id:     nodeId,
+            element:     d.element,
+            category:    d.category ?? null,
+            issue:       d.issue,
+            severity:    d.severity ?? "medium",
+            live_url:    liveUrl,
+            scanned_at:  new Date().toISOString(),
+          }));
+          const { error: issueInsertErr } = await supabaseAdmin().from("qa_issues").insert(issueRows);
+          if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
+        }
 
-        // Group by element text — one comment per unique text element listing all its issues
-        const groupedByElement = new Map<string, typeof discrepancies>();
         for (const d of discrepancies) {
-          const key = d.element.slice(0, 60);
-          if (!groupedByElement.has(key)) groupedByElement.set(key, []);
-          groupedByElement.get(key)!.push(d);
+          table.push({ element: d.element, issue: `${(d.category ?? "").replace(/_/g, " ")}: ${d.issue}` });
         }
 
-        send("step", { text: `Posting ${groupedByElement.size} comments to Figma (one per element)…` });
-
-        const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
-        const elementGroups = Array.from(groupedByElement.entries());
-
-        for (let i = 0; i < elementGroups.length; i++) {
-          const [elementText, items] = elementGroups[i];
-
-          // Find matching text node in Figma
-          const matchNode = textNodes.find(n =>
-            n.characters.toLowerCase().startsWith(elementText.toLowerCase().slice(0, 20)) ||
-            elementText.toLowerCase().startsWith(n.characters.toLowerCase().slice(0, 20))
-          );
-
-          let offsetX = 20;
-          let offsetY = 20 + i * 40;
-          if (matchNode?.absoluteBoundingBox) {
-            const bbox = matchNode.absoluteBoundingBox;
-            offsetX = Math.max(0, bbox.x - fb.x);
-            offsetY = Math.max(0, bbox.y - fb.y);
-          }
-
-          const severity = items.some(d => d.severity === "high") ? "❌" : items.some(d => d.severity === "medium") ? "⚠️" : "ℹ️";
-          const issueLines = items.map(d => {
-            const catLabel = (d.category ?? "issue").replace(/_/g, " ");
-            return `• ${catLabel}: ${d.issue}`;
-          }).join("\n");
-          const message = `${severity} "${elementText}"\n\n${issueLines}`;
-
-          if (existingMessages.has(message)) {
-            for (const d of items) table.push({ element: elementText, issue: d.issue, commentId: "already posted" });
-            continue;
-          }
-
-          const commentRes = await figmaFetch(pat, `/files/${fileKey}/comments`, {
-            method: "POST",
-            body: JSON.stringify({ message, client_meta: { node_id: frame.id, node_offset: { x: offsetX, y: offsetY } } }),
-            onLog: logFigma,
-          }).catch(() => null);
-
-          let commentId: string | undefined;
-          if (commentRes?.ok) {
-            const cd = await commentRes.json() as { id?: string };
-            commentId = cd.id;
-          } else if (commentRes) {
-            console.error(`Comment failed ${commentRes.status}`);
-          }
-
-          for (const d of items) table.push({ element: elementText, issue: `${(d.category ?? "").replace(/_/g, " ")}: ${d.issue}`, commentId });
-          await new Promise(r => setTimeout(r, 400));
-        }
-
-        const posted = table.filter(r => r.commentId).length;
         const byCategory = discrepancies.reduce((acc, d) => {
           const cat = d.category ?? "other";
           acc[cat] = (acc[cat] ?? 0) + 1;
@@ -637,29 +654,10 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
           .map(([cat, count]) => `${count} ${cat.replace("_", " ")}`)
           .join(", ");
 
-        // ── Step 7: Post summary report comment ───────────────────────────────
-        send("step", { text: "Posting QA summary report to Figma…" });
-
-        const mentionLine = assignTo ? `\nAssigned to: @${assignTo}` : "";
-
-        const categoryLines = Object.entries(byCategory)
-          .map(([cat, count]) => `  • ${count}× ${cat.replace(/_/g, " ")}`)
-          .join("\n");
-
-        const reportDate = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-        const reportMessage = `📋 Loupe QA Report — ${reportDate}\n\n${discrepancies.length} issue${discrepancies.length !== 1 ? "s" : ""} found:\n${categoryLines}${mentionLine}\n\nSee individual comments on each element for details.`;
-
-        if (!existingMessages.has(reportMessage)) {
-          await figmaFetch(pat, `/files/${fileKey}/comments`, {
-            method: "POST",
-            body: JSON.stringify({ message: reportMessage, client_meta: { node_id: frame.id, node_offset: { x: 0, y: 0 } } }),
-            onLog: logFigma,
-          }).catch(() => {});
-        }
-
         send("result", {
-          text: `Found ${discrepancies.length} issues: ${summary}. ${posted} comments posted in Figma — open the file to review.`,
+          text: `Found ${discrepancies.length} issues: ${summary}. Use "Publish to Figma" to post comments when ready.`,
           table,
+          snapshotId: snapshotId ?? null,
           figmaApiReport: {
             totalCalls: figmaLogs.length,
             calls: figmaLogs.map(l => ({

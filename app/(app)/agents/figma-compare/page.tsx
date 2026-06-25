@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play, Loader2, ChevronRight, AlertCircle, CheckCircle2,
   Trash2, ArrowUp, FileCode2, Globe, KeyRound, Sparkles,
-  Check, Send, Bot,
+  Check, Send, Bot, RefreshCw, Upload, Database,
 } from "lucide-react";
 
 /* ── Types ───────────────────────────────────────────────────────── */
@@ -19,6 +19,10 @@ interface RunMessage {
 }
 interface DiscrepancyRow { element: string; issue: string; commentId?: string; }
 interface ChatMessage { id: string; role: "user" | "assistant"; text: string; }
+interface SnapshotMeta {
+  id: string; frameName: string; textNodeCount: number;
+  colorNodeCount: number; depthUsed: number; syncedAt: string;
+}
 
 const CHECK_OPTIONS = [
   { id: "font_family", label: "Font Family" },
@@ -61,6 +65,12 @@ export default function FigmaComparePage() {
   const [collaboratorsLoaded,  setCollaboratorsLoaded]  = useState(false);
   const [assignTo,             setAssignTo]             = useState<string>("");
 
+  // Snapshot
+  const [snapshot,   setSnapshot]   = useState<SnapshotMeta | null>(null);
+  const [syncing,    setSyncing]    = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
+
   // Chat
   const [chatMsgs,  setChatMsgs]  = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -75,18 +85,59 @@ export default function FigmaComparePage() {
     setCollaboratorsLoaded(false);
     setCollaborators([]);
     setAssignTo("");
+    setSnapshot(null); // reset snapshot status when URL changes
   }, []);
-  const setPat      = useCallback((v: string) => { setPatRaw(v);      localStorage.setItem("loupe_pat",       v); }, []);
+  const setPat = useCallback((v: string) => { setPatRaw(v); localStorage.setItem("loupe_pat", v); }, []);
+
+  // Parse fileKey / nodeId from the current Figma URL
+  function parseFigmaUrl(url: string) {
+    const fileKeyMatch = url.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
+    const nodeIdMatch  = url.match(/node-id=([^&]+)/);
+    if (!fileKeyMatch || !nodeIdMatch) return null;
+    return { fileKey: fileKeyMatch[1], nodeId: decodeURIComponent(nodeIdMatch[1]).replace("-", ":") };
+  }
+
+  // Check Supabase for an existing snapshot on mount / URL change
+  const checkSnapshot = useCallback(async (url: string) => {
+    const parsed = parseFigmaUrl(url);
+    if (!parsed) return;
+    // Also check localStorage for cached meta
+    const lsKey = `loupe_snap_meta_v1_${parsed.fileKey}_${parsed.nodeId}`;
+    const lsMeta = localStorage.getItem(lsKey);
+    if (lsMeta) { try { setSnapshot(JSON.parse(lsMeta)); } catch {} }
+    // Verify against Supabase
+    try {
+      const r = await fetch(`/api/figma-sync?fileKey=${parsed.fileKey}&nodeId=${encodeURIComponent(parsed.nodeId)}`);
+      const d = await r.json();
+      if (d.snapshot) {
+        const meta: SnapshotMeta = {
+          id:             d.snapshot.id,
+          frameName:      d.snapshot.frame_name ?? "Unknown",
+          textNodeCount:  d.snapshot.text_node_count ?? 0,
+          colorNodeCount: d.snapshot.color_node_count ?? 0,
+          depthUsed:      d.snapshot.depth_used ?? 5,
+          syncedAt:       d.snapshot.synced_at,
+        };
+        setSnapshot(meta);
+        localStorage.setItem(lsKey, JSON.stringify(meta));
+      } else {
+        setSnapshot(null);
+        localStorage.removeItem(lsKey);
+      }
+    } catch {}
+  }, []);
 
   function toggleCheck(id: string) {
     setChecks(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   }
 
   useEffect(() => {
-    setFigmaUrlRaw(localStorage.getItem("loupe_figma_url") ?? "");
-    setLiveUrlRaw(localStorage.getItem("loupe_live_url")   ?? "");
-    setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
-  }, []);
+    const savedUrl = localStorage.getItem("loupe_figma_url") ?? "";
+    setFigmaUrlRaw(savedUrl);
+    setLiveUrlRaw(localStorage.getItem("loupe_live_url") ?? "");
+    setPatRaw(localStorage.getItem("loupe_pat")          ?? "");
+    if (savedUrl) checkSnapshot(savedUrl);
+  }, [checkSnapshot]);
 
   // Lazy collaborator load — only fires when user explicitly requests it
   const loadCollaborators = useCallback(async () => {
@@ -149,6 +200,67 @@ export default function FigmaComparePage() {
     setRunMsgs(prev => [...prev, { ...msg, id: crypto.randomUUID() }]);
   }
 
+  async function syncDesign() {
+    const parsed = parseFigmaUrl(figmaUrl);
+    if (!parsed || !pat.trim()) { setConfigOpen(true); return; }
+    setSyncing(true);
+    addRun({ type: "step", text: "Syncing design from Figma…" });
+    try {
+      const r = await fetch("/api/figma-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey: parsed.fileKey, nodeId: parsed.nodeId, pat: pat.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) {
+        addRun({ type: "error", text: d.error ?? `Sync failed (${r.status})` });
+        return;
+      }
+      const meta: SnapshotMeta = {
+        id:             d.snapshotId,
+        frameName:      d.frameName,
+        textNodeCount:  d.textNodeCount,
+        colorNodeCount: d.colorNodeCount,
+        depthUsed:      d.depthUsed,
+        syncedAt:       new Date().toISOString(),
+      };
+      setSnapshot(meta);
+      const lsKey = `loupe_snap_meta_v1_${parsed.fileKey}_${parsed.nodeId}`;
+      localStorage.setItem(lsKey, JSON.stringify(meta));
+      addRun({ type: "step", text: `Design synced — "${d.frameName}" · ${d.textNodeCount} text nodes · depth=${d.depthUsed} · ${d.syncDurationMs}ms. Scans will use this snapshot.` });
+    } catch (e) {
+      addRun({ type: "error", text: `Sync error: ${String(e)}` });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function publishComments() {
+    const parsed = parseFigmaUrl(figmaUrl);
+    if (!parsed || !pat.trim() || !lastSnapshotId) return;
+    setPublishing(true);
+    try {
+      const r = await fetch("/api/figma-publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          snapshotId: lastSnapshotId,
+          fileKey:    parsed.fileKey,
+          nodeId:     parsed.nodeId,
+          pat:        pat.trim(),
+          assignTo:   assignTo || undefined,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { addRun({ type: "error", text: d.error ?? "Publish failed" }); return; }
+      addRun({ type: "step", text: `Published ${d.posted} comments to Figma. ${d.skipped} already existed.` });
+    } catch (e) {
+      addRun({ type: "error", text: `Publish error: ${String(e)}` });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   async function run(forceRefresh = false) {
     if (scanGuardRef.current) return; // prevent concurrent scans
     if (!figmaUrl.trim() || !liveUrl.trim() || !pat.trim()) { setConfigOpen(true); return; }
@@ -161,22 +273,28 @@ export default function FigmaComparePage() {
     addRun({ type: "user", text: `Check ${checkLabels} — Figma vs ${liveUrl.trim()}` });
 
     try {
-      const fileKeyMatch = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
-      const nodeIdMatch  = figmaUrl.match(/node-id=([^&]+)/);
-      if (!fileKeyMatch) { addRun({ type: "error", text: "Invalid Figma URL." }); setRunning(false); return; }
-      if (!nodeIdMatch)  { addRun({ type: "error", text: "Figma URL must include node-id." }); setRunning(false); return; }
+      const parsed = parseFigmaUrl(figmaUrl);
+      if (!parsed) { addRun({ type: "error", text: "Invalid Figma URL." }); setRunning(false); return; }
+      const { fileKey, nodeId } = parsed;
 
-      const fileKey  = fileKeyMatch[1];
-      const nodeId   = decodeURIComponent(nodeIdMatch[1]).replace("-", ":");
+      // ── Browser cache (speed only) ───────────────────────────────────────────
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
       const cached   = localStorage.getItem(cacheKey);
       let figmaNodes: any = null;
       let styleNameMap: Record<string, string> = {};
-      if (cached && !forceRefresh) { const p = JSON.parse(cached); figmaNodes = p.figmaNodes; styleNameMap = p.styleNameMap ?? {}; }
 
-      // Pre-fetch Figma nodes in the browser so rate limits surface immediately
-      if (!figmaNodes) {
-        addRun({ type: "step", text: "Fetching Figma frame data…" });
+      // Only use browser cache if no snapshot exists and not force-refreshing
+      const hasSnapshot = !forceRefresh && (snapshot !== null);
+      if (!hasSnapshot && cached && !forceRefresh) {
+        const p = JSON.parse(cached);
+        figmaNodes   = p.figmaNodes;
+        styleNameMap = p.styleNameMap ?? {};
+      }
+
+      // ── If no snapshot and no browser cache: browser pre-fetch from Figma ───
+      // (Skipped entirely when a snapshot exists — zero Figma API calls)
+      if (!hasSnapshot && !figmaNodes) {
+        addRun({ type: "step", text: "No snapshot — fetching from Figma (sync first to avoid this)…" });
         const figmaRes = await fetch(
           `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
           { headers: { "X-Figma-Token": pat.trim() } }
@@ -203,7 +321,7 @@ export default function FigmaComparePage() {
           return;
         }
         if (!figmaRes.ok) {
-          addRun({ type: "error", text: `Figma API error ${figmaRes.status}. Check your token and Figma URL.` });
+          addRun({ type: "error", text: `Figma API error ${figmaRes.status}. Sync design first to avoid Figma API calls.` });
           setRunning(false);
           return;
         }
@@ -215,8 +333,11 @@ export default function FigmaComparePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          figmaNodes: forceRefresh ? null : figmaNodes,
-          styleNameMap: forceRefresh ? {} : styleNameMap,
+          // Pass snapshot ID if we have one — compare route reads from Supabase
+          snapshotId:   hasSnapshot ? snapshot!.id : null,
+          // Browser cache (fallback, only when no snapshot)
+          figmaNodes:   hasSnapshot ? null : (forceRefresh ? null : figmaNodes),
+          styleNameMap: hasSnapshot ? {} : (forceRefresh ? {} : styleNameMap),
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
           liveData:   liveDataRef.current ?? null,
@@ -243,7 +364,10 @@ export default function FigmaComparePage() {
             if (data.type === "step")      addRun({ type: "step",      text: data.text });
             if (data.type === "error")     addRun({ type: "error",     text: data.text });
             if (data.type === "figma-log") addRun({ type: "figma-log", text: `${data.method} ${data.path} → ${data.status} (${data.durationMs}ms${data.kb != null ? ` · ${data.kb}KB` : ""})${data.retried ? " [retried]" : ""}` });
-            if (data.type === "result")    addRun({ type: "result",    text: data.text, table: data.table, figmaApiReport: data.figmaApiReport });
+            if (data.type === "result") {
+              addRun({ type: "result", text: data.text, table: data.table, figmaApiReport: data.figmaApiReport });
+              if (data.snapshotId) setLastSnapshotId(data.snapshotId);
+            }
             if (data.type === "cache") {
               try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes: data.figmaNodes, styleNameMap: data.styleNameMap })); } catch {}
             }
@@ -266,11 +390,21 @@ export default function FigmaComparePage() {
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", text };
     setChatMsgs(prev => [...prev, userMsg]);
 
+    // Build context from the latest completed scan result
+    const latestResult = [...runMsgs].reverse().find(m => m.type === "result");
+    const scanContext = {
+      figmaUrl: figmaUrl || undefined,
+      liveUrl:  liveUrl  || undefined,
+      checks:   Array.from(checks),
+      discrepancies: latestResult?.table ?? [],
+      summary:  latestResult?.text ?? undefined,
+    };
+
     try {
       const res = await fetch("/api/agents/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history: chatMsgs.slice(-10) }),
+        body: JSON.stringify({ message: text, history: chatMsgs.slice(-10), context: scanContext }),
       });
       const data = await res.json();
       setChatMsgs(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", text: data.reply ?? "Sorry, I couldn't respond." }]);
@@ -296,8 +430,28 @@ export default function FigmaComparePage() {
             <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#9a9aa5]">Design QA</span>
           </div>
           <div className="flex items-center gap-2">
-            {scrapeStatus === "fetching" && (
+            {/* Snapshot status */}
+            {snapshot ? (
+              <span className="flex items-center gap-1.5 rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">
+                <Database size={10} />
+                {snapshot.textNodeCount} nodes · depth={snapshot.depthUsed}
+              </span>
+            ) : (
               <span className="flex items-center gap-1.5 rounded-full bg-[#fff8e6] px-2.5 py-1 text-[11px] font-medium text-[#b07d00]">
+                No snapshot
+              </span>
+            )}
+            {/* Sync Design button */}
+            {figmaUrl.trim() && pat.trim() && (
+              <button onClick={syncDesign} disabled={syncing}
+                className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
+                {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                {syncing ? "Syncing…" : snapshot ? "Re-sync" : "Sync Design"}
+              </button>
+            )}
+            {/* Live styles status */}
+            {scrapeStatus === "fetching" && (
+              <span className="flex items-center gap-1.5 rounded-full bg-[#f0f0f0] px-2.5 py-1 text-[11px] font-medium text-[#9a9aa5]">
                 <Loader2 size={10} className="animate-spin" />Fetching styles…
               </span>
             )}
@@ -402,9 +556,16 @@ export default function FigmaComparePage() {
                 ))}
               </div>
               <div className="ml-auto flex items-center gap-2">
+                {lastSnapshotId && (
+                  <button onClick={publishComments} disabled={publishing || running}
+                    className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
+                    {publishing ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+                    {publishing ? "Publishing…" : "Publish to Figma"}
+                  </button>
+                )}
                 <button onClick={() => run(true)} disabled={!canRun}
                   className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
-                  <ArrowUp size={11} />Force refresh
+                  <ArrowUp size={11} />Refresh Design
                 </button>
                 <button onClick={() => run(false)} disabled={!canRun}
                   className="flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
@@ -429,15 +590,36 @@ export default function FigmaComparePage() {
               <div className="h-9 w-9 rounded-xl bg-[#0f0f0f] flex items-center justify-center">
                 <Bot size={15} className="text-white" />
               </div>
-              <p className="text-[12px] text-[#9a9aa5]">Ask anything about design, Figma, or the results.</p>
-              <div className="space-y-1.5 w-full">
-                {["What is font weight?", "Why does font family matter?", "How to fix color mismatch?"].map(q => (
-                  <button key={q} onClick={() => { setChatInput(q); }}
-                    className="w-full rounded-lg border border-[#e8e8ec] bg-white px-3 py-2 text-left text-[11px] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">
-                    {q}
-                  </button>
-                ))}
-              </div>
+              {(() => {
+                const latestResult = [...runMsgs].reverse().find(m => m.type === "result");
+                const hasResults = !!latestResult?.table?.length;
+                const suggestions = hasResults
+                  ? [
+                      "Summarize the issues found",
+                      "How do I fix the font mismatches?",
+                      "Which issues are most critical?",
+                    ]
+                  : [
+                      "What checks does Loupe perform?",
+                      "How do I get my Figma node ID?",
+                      "Why might colors look different on the live site?",
+                    ];
+                return (
+                  <>
+                    <p className="text-[12px] text-[#9a9aa5]">
+                      {hasResults ? "Scan complete. Ask about the results." : "Ask anything about design or this tool."}
+                    </p>
+                    <div className="space-y-1.5 w-full">
+                      {suggestions.map(q => (
+                        <button key={q} onClick={() => { setChatInput(q); }}
+                          className="w-full rounded-lg border border-[#e8e8ec] bg-white px-3 py-2 text-left text-[11px] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
           {chatMsgs.map(msg => (
@@ -447,7 +629,7 @@ export default function FigmaComparePage() {
                   ? "bg-[#0f0f0f] text-white rounded-tr-sm"
                   : "bg-white border border-[#f0f0f0] text-[#17171c] rounded-tl-sm"
               }`}>
-                {msg.text}
+                {msg.role === "assistant" ? <MdText text={msg.text} /> : msg.text}
               </div>
             </div>
           ))}
@@ -479,6 +661,50 @@ export default function FigmaComparePage() {
       </div>
     </div>
   );
+}
+
+/* ── MdText: lightweight markdown renderer ───────────────────────── */
+function MdText({ text }: { text: string }) {
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1">
+      {lines.map((line, i) => {
+        if (!line.trim()) return <div key={i} className="h-1" />;
+        const isBullet   = /^[\-\*\•]\s/.test(line);
+        const numMatch   = line.match(/^(\d+)\.\s(.*)/);
+        const isNumbered = !!numMatch;
+        const marker     = isNumbered ? numMatch![1] + "." : "•";
+        const content    = isBullet   ? line.replace(/^[\-\*\•]\s/, "")
+                         : isNumbered ? numMatch![2]
+                         : line;
+        const isList = isBullet || isNumbered;
+        return (
+          <div key={i} className={isList ? "flex gap-1.5" : ""}>
+            {isList && <span className="mt-0.5 shrink-0 text-[#9a9aa5]">{marker}</span>}
+            <span className={isList ? "flex-1" : ""}>{renderInline(content)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function renderInline(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const re = /(`[^`]+`|\*\*[^*]+\*\*)/g;
+  let last = 0, m: RegExpExecArray | null;
+  let key = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) parts.push(text.slice(last, m.index));
+    const raw = m[0];
+    if (raw.startsWith("`"))
+      parts.push(<code key={key++} className="rounded bg-[#f0f0f0] px-1 font-mono text-[11px] text-[#17171c]">{raw.slice(1, -1)}</code>);
+    else
+      parts.push(<strong key={key++} className="font-semibold">{raw.slice(2, -2)}</strong>);
+    last = m.index + raw.length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts.length === 1 ? parts[0] : <>{parts}</>;
 }
 
 /* ── Sub-components ──────────────────────────────────────────────── */
