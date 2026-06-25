@@ -138,14 +138,20 @@ export async function POST(req: NextRequest) {
         {
           const db = supabaseAdmin();
 
-          // ── Check Figma lastModified (lightweight call) ─────────
+          // ── Check Figma lastModified (single attempt, no retry) ─
           send("step", { text: "Checking if Figma file has changed…" });
-          const metaRes = await figmaFetch(pat, `/files/${fileKey}?depth=1`);
           let figmaLastModified: string | null = null;
-          if (metaRes.ok) {
-            const meta = await metaRes.json() as { lastModified?: string };
-            figmaLastModified = meta.lastModified ?? null;
-          }
+          try {
+            const metaRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=1`, {
+              headers: { "X-Figma-Token": pat },
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (metaRes.ok) {
+              const meta = await metaRes.json() as { lastModified?: string };
+              figmaLastModified = meta.lastModified ?? null;
+            }
+            // If 429, figmaLastModified stays null → we'll use cache if available
+          } catch { /* timeout or network — fall through to cache */ }
 
           // ── Load Supabase cache ─────────────────────────────────
           const { data: cached } = await db
