@@ -127,8 +127,9 @@ export async function POST(req: NextRequest) {
         const textNodes: TextNode[] = [];
         const frameRef = { frame: null as FrameInfo | null };
         extractTextNodes(rootDoc, null, textNodes, frameRef);
-        // Always anchor to the root document node the user selected
-        const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootDoc.absoluteBoundingBox };
+        // Anchor to root node; fall back to first child frame if bbox missing
+        const rootBbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
+        const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootBbox };
 
         send("step", { text: `Found ${textNodes.length} text nodes in frame.` });
 
@@ -247,10 +248,10 @@ Do not include any text outside the JSON array.`,
             d.element.toLowerCase().includes(n.name.toLowerCase())
           ) ?? textNodes[commentIndex % textNodes.length];
 
-          const bbox    = match?.absoluteBoundingBox ?? frameBbox;
-          // Offset is relative to the frame's top-left corner
-          const offsetX = (bbox.x - frameBbox.x) + bbox.width / 2;
-          const offsetY = (bbox.y - frameBbox.y) + bbox.height / 2;
+          const bbox    = match?.absoluteBoundingBox ?? frameBbox ?? { x: 0, y: 0, width: 100, height: 100 };
+          const fb      = frameBbox ?? { x: 0, y: 0, width: 100, height: 100 };
+          const offsetX = (bbox.x - fb.x) + bbox.width / 2;
+          const offsetY = (bbox.y - fb.y) + bbox.height / 2;
 
           const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
           const message  = `${severity} DESIGN MISMATCH\n\n${d.element}\n\n${d.issue}`;

@@ -416,7 +416,7 @@ function Canvas() {
       const fileKey = fileKeyMatch[1];
       const nodeId  = decodeURIComponent(nodeIdMatch[1]).replace("-", ":");
 
-      const cacheKey = `loupe_nodes_${fileKey}_${nodeId}`;
+      const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
       const cached   = localStorage.getItem(cacheKey);
       let figmaNodes: any;
       let styleNameMap: Record<string, string> = {};
