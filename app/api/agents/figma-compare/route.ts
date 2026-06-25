@@ -131,29 +131,14 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        // ── Fetch Figma nodes server-side if not pre-fetched ─────────────────
+        // ── Fetch Figma nodes ─────────────────────────────────────────────────
         let figmaNodes = prefetched;
         let styleNameMap: Record<string, string> = prefetchedStyleMap ?? {};
 
         {
           const db = supabaseAdmin();
 
-          // ── Check Figma lastModified (single attempt, no retry) ─
-          send("step", { text: "Checking if Figma file has changed…" });
-          let figmaLastModified: string | null = null;
-          try {
-            const metaRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=1`, {
-              headers: { "X-Figma-Token": pat },
-              signal: AbortSignal.timeout(10_000),
-            });
-            if (metaRes.ok) {
-              const meta = await metaRes.json() as { lastModified?: string };
-              figmaLastModified = meta.lastModified ?? null;
-            }
-            // If 429, figmaLastModified stays null → we'll use cache if available
-          } catch { /* timeout or network — fall through to cache */ }
-
-          // ── Load Supabase cache ─────────────────────────────────
+          // ── Load Supabase cache first ───────────────────────────
           const { data: cached } = await db
             .from("figma_node_cache")
             .select("figma_nodes, style_map, cached_at")
@@ -161,20 +146,39 @@ export async function POST(req: NextRequest) {
             .eq("node_id", nodeId)
             .maybeSingle();
 
-          const cacheIsValid = cached && figmaLastModified
-            ? new Date(cached.cached_at) >= new Date(figmaLastModified)
-            : !!cached;
+          // Use prefetched (localStorage) or Supabase cache first — skip Figma API
+          if (figmaNodes) {
+            send("step", { text: "Using Figma data from local cache." });
+          } else if (cached) {
+            // Check lastModified only when we have a Supabase cache to compare against
+            send("step", { text: "Checking if Figma file has changed…" });
+            let figmaLastModified: string | null = null;
+            try {
+              const metaRes = await fetch(`https://api.figma.com/v1/files/${fileKey}?depth=1`, {
+                headers: { "X-Figma-Token": pat },
+                signal: AbortSignal.timeout(8_000),
+              });
+              if (metaRes.ok) {
+                const meta = await metaRes.json() as { lastModified?: string };
+                figmaLastModified = meta.lastModified ?? null;
+              }
+            } catch { /* rate limited or timeout — use cache */ }
 
-          if (cacheIsValid && !prefetched) {
-            figmaNodes   = cached!.figma_nodes;
-            styleNameMap = (cached!.style_map as Record<string, string>) ?? {};
-            send("step", { text: `Using cached Figma data (file unchanged since ${new Date(cached!.cached_at).toLocaleDateString()}).` });
-          } else {
-            if (cached && !cacheIsValid) {
-              send("step", { text: "Figma file was updated — re-fetching latest nodes…" });
+            const fileChanged = figmaLastModified
+              ? new Date(figmaLastModified) > new Date(cached.cached_at)
+              : false; // can't confirm change → use cache
+
+            if (!fileChanged) {
+              figmaNodes   = cached.figma_nodes;
+              styleNameMap = (cached.style_map as Record<string, string>) ?? {};
+              send("step", { text: `Using cached Figma data (saved ${new Date(cached.cached_at).toLocaleDateString()}).` });
             } else {
-              send("step", { text: "Fetching Figma node tree…" });
+              send("step", { text: "Figma file was updated — re-fetching latest nodes…" });
             }
+          }
+
+          if (!figmaNodes) {
+            if (!cached) send("step", { text: "Fetching Figma nodes for the first time…" });
 
             const figmaRes = await figmaFetch(
               pat,
@@ -212,8 +216,8 @@ export async function POST(req: NextRequest) {
             }, { onConflict: "file_key,node_id" });
 
             send("cache", { figmaNodes, styleNameMap });
-          }
-        }
+          } // end if (!figmaNodes)
+        } // end block
 
         const rootDoc = (figmaNodes as { nodes: Record<string, { document: any }> }).nodes[nodeId]?.document;
 
