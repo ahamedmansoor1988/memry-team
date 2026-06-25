@@ -367,6 +367,16 @@ Return ONLY a valid JSON array. No text outside the array.`,
           return;
         }
 
+        // Remove false positives (same value on both sides) and deduplicate by issue text
+        const seenIssues = new Set<string>();
+        discrepancies = discrepancies.filter(d => {
+          const parts = d.issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
+          if (parts && parts[1].trim() === parts[2].trim()) return false; // same value
+          if (seenIssues.has(d.issue)) return false; // duplicate
+          seenIssues.add(d.issue);
+          return true;
+        });
+
         send("step", { text: `AI identified ${discrepancies.length} discrepancies.` });
 
         // ── Step 6: Post comments to Figma ────────────────────────────────────
@@ -442,6 +452,7 @@ Return ONLY a valid JSON array. No text outside the array.`,
           }
 
           table.push({ element: d.label ?? d.category ?? d.element, issue: d.issue, commentId });
+          await new Promise(r => setTimeout(r, 300)); // avoid Figma comment rate limit
         }
 
         const posted = table.filter(r => r.commentId).length;
