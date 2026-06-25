@@ -135,9 +135,19 @@ export async function POST(req: NextRequest) {
         let figmaNodes = prefetched;
         let styleNameMap: Record<string, string> = prefetchedStyleMap ?? {};
 
-        if (!figmaNodes) {
-          // ── Check Supabase cache ────────────────────────────────
+        {
           const db = supabaseAdmin();
+
+          // ── Check Figma lastModified (lightweight call) ─────────
+          send("step", { text: "Checking if Figma file has changed…" });
+          const metaRes = await figmaFetch(pat, `/files/${fileKey}?depth=1`);
+          let figmaLastModified: string | null = null;
+          if (metaRes.ok) {
+            const meta = await metaRes.json() as { lastModified?: string };
+            figmaLastModified = meta.lastModified ?? null;
+          }
+
+          // ── Load Supabase cache ─────────────────────────────────
           const { data: cached } = await db
             .from("figma_node_cache")
             .select("figma_nodes, style_map, cached_at")
@@ -145,53 +155,57 @@ export async function POST(req: NextRequest) {
             .eq("node_id", nodeId)
             .maybeSingle();
 
-          if (cached) {
-            figmaNodes   = cached.figma_nodes;
-            styleNameMap = (cached.style_map as Record<string, string>) ?? {};
-            send("step", { text: `Figma nodes loaded from database cache (saved ${new Date(cached.cached_at).toLocaleDateString()}).` });
-          } else {
-            send("step", { text: "Fetching Figma node tree via server…" });
-            const figmaRes = await figmaFetch(
-            pat,
-            `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
-            (secs) => send("step", { text: `Figma rate limit — waiting ${secs}s…` }),
-          );
-          if (!figmaRes.ok) {
-            const txt = await figmaRes.text();
-            send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
-            controller.close();
-            return;
-          }
-          figmaNodes = await figmaRes.json();
+          const cacheIsValid = cached && figmaLastModified
+            ? new Date(cached.cached_at) >= new Date(figmaLastModified)
+            : !!cached;
 
-          // Resolve named styles
-          const rootDocTmp = figmaNodes?.nodes?.[nodeId]?.document;
-          const styleIds = extractStyleIdsFromNode(rootDocTmp);
-          if (styleIds.length) {
-            const stylesRes = await figmaFetch(
+          if (cacheIsValid && !prefetched) {
+            figmaNodes   = cached!.figma_nodes;
+            styleNameMap = (cached!.style_map as Record<string, string>) ?? {};
+            send("step", { text: `Using cached Figma data (file unchanged since ${new Date(cached!.cached_at).toLocaleDateString()}).` });
+          } else {
+            if (cached && !cacheIsValid) {
+              send("step", { text: "Figma file was updated — re-fetching latest nodes…" });
+            } else {
+              send("step", { text: "Fetching Figma node tree…" });
+            }
+
+            const figmaRes = await figmaFetch(
               pat,
-              `/files/${fileKey}/nodes?ids=${styleIds.map(encodeURIComponent).join(",")}`,
+              `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
+              (secs) => send("step", { text: `Figma rate limit — waiting ${secs}s…` }),
             );
-            if (stylesRes.ok) {
-              const stylesData = await stylesRes.json() as { nodes: Record<string, { document: any }> };
-              for (const [id, node] of Object.entries(stylesData.nodes ?? {})) {
-                if ((node as any)?.document?.name) styleNameMap[id] = (node as any).document.name;
+            if (!figmaRes.ok) {
+              const txt = await figmaRes.text();
+              send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
+              controller.close();
+              return;
+            }
+            figmaNodes = await figmaRes.json();
+
+            // Resolve named styles
+            const rootDocTmp = figmaNodes?.nodes?.[nodeId]?.document;
+            const styleIds = extractStyleIdsFromNode(rootDocTmp);
+            if (styleIds.length) {
+              const stylesRes = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${styleIds.map(encodeURIComponent).join(",")}`);
+              if (stylesRes.ok) {
+                const stylesData = await stylesRes.json() as { nodes: Record<string, { document: any }> };
+                for (const [id, node] of Object.entries(stylesData.nodes ?? {})) {
+                  if ((node as any)?.document?.name) styleNameMap[id] = (node as any).document.name;
+                }
               }
             }
-          }
 
-          // ── Save to Supabase cache ────────────────────────────
-          send("step", { text: "Saving Figma nodes to database cache…" });
-          await db.from("figma_node_cache").upsert({
-            file_key:    fileKey,
-            node_id:     nodeId,
-            figma_nodes: figmaNodes,
-            style_map:   styleNameMap,
-            cached_at:   new Date().toISOString(),
-          }, { onConflict: "file_key,node_id" });
+            // Save fresh data to Supabase
+            await db.from("figma_node_cache").upsert({
+              file_key:    fileKey,
+              node_id:     nodeId,
+              figma_nodes: figmaNodes,
+              style_map:   styleNameMap,
+              cached_at:   new Date().toISOString(),
+            }, { onConflict: "file_key,node_id" });
 
-          // Also send to client localStorage as secondary cache
-          send("cache", { figmaNodes, styleNameMap });
+            send("cache", { figmaNodes, styleNameMap });
           }
         }
 
