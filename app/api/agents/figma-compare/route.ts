@@ -18,19 +18,23 @@ async function figmaFetch(
   pat: string,
   path: string,
   onWait?: (secs: number) => void,
-  retries = 4,
 ): Promise<Response> {
-  const delays = [10_000, 20_000, 30_000, 40_000];
-  for (let i = 0; i < retries; i++) {
-    const res = await fetch(`https://api.figma.com/v1${path}`, {
-      headers: { "X-Figma-Token": pat },
-    });
-    if (res.status !== 429) return res;
-    const wait = delays[i] ?? 40_000;
-    onWait?.(wait / 1000);
-    await new Promise(r => setTimeout(r, wait));
-  }
-  throw new Error("Figma rate limit persists — please wait 1 minute and try again.");
+  // First attempt
+  let res = await fetch(`https://api.figma.com/v1${path}`, {
+    headers: { "X-Figma-Token": pat },
+  });
+  if (res.status !== 429) return res;
+
+  // Rate limited — wait 65s and retry once
+  onWait?.(65);
+  await new Promise(r => setTimeout(r, 65_000));
+
+  res = await fetch(`https://api.figma.com/v1${path}`, {
+    headers: { "X-Figma-Token": pat },
+  });
+  if (res.status !== 429) return res;
+
+  throw new Error("Figma rate limit persists — please wait a moment and try again.");
 }
 
 function parseFileKey(url: string): string | null {
