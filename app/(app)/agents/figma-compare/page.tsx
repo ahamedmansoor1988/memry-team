@@ -49,6 +49,10 @@ export default function FigmaComparePage() {
   const liveStylesRef = useRef<any[] | null>(null);
   liveStylesRef.current = liveStyles;
 
+  // Collaborators
+  const [collaborators, setCollaborators] = useState<Array<{ id: string; handle: string; img_url: string }>>([]);
+  const [assignTo,      setAssignTo]      = useState<string>("");
+
   // Chat
   const [chatMsgs,  setChatMsgs]  = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -68,6 +72,23 @@ export default function FigmaComparePage() {
     setLiveUrlRaw(localStorage.getItem("loupe_live_url")   ?? "");
     setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
   }, []);
+
+  // Fetch collaborators when Figma URL + PAT are ready
+  useEffect(() => {
+    const fileKeyMatch = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
+    if (!fileKeyMatch || !pat.trim()) { setCollaborators([]); return; }
+    const fileKey = fileKeyMatch[1];
+    let cancelled = false;
+    fetch("/api/figma-collaborators", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileKey, pat: pat.trim() }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setCollaborators(d.users ?? []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [figmaUrl, pat]);
 
   // When user sets a live URL, ask the extension to scrape it
   const setLiveUrl = useCallback((v: string) => {
@@ -147,6 +168,7 @@ export default function FigmaComparePage() {
           })),
           pat: pat.trim(),
           checks: Array.from(checks),
+          assignTo: assignTo || null,
           forceRefresh,
         }),
       });
@@ -248,6 +270,18 @@ export default function FigmaComparePage() {
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+                {collaborators.length > 0 && (
+                  <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 flex items-center gap-3">
+                    <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
+                    <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
+                      className="flex-1 rounded-lg border border-[#e8e8ec] bg-white px-2 py-1.5 text-[12px] text-[#17171c] focus:outline-none focus:border-[#0f0f0f]">
+                      <option value="">No assignment</option>
+                      {collaborators.map(u => (
+                        <option key={u.id} value={u.handle}>@{u.handle}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
                   <ChecklistPanel checks={checks} onToggle={toggleCheck} />
                 </div>
@@ -274,6 +308,18 @@ export default function FigmaComparePage() {
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+                {collaborators.length > 0 && (
+                  <div className="flex items-center gap-3 px-1">
+                    <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
+                    <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
+                      className="flex-1 rounded-lg border border-[#e8e8ec] bg-white px-2 py-1.5 text-[12px] text-[#17171c] focus:outline-none focus:border-[#0f0f0f]">
+                      <option value="">No assignment</option>
+                      {collaborators.map(u => (
+                        <option key={u.id} value={u.handle}>@{u.handle}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
             )}

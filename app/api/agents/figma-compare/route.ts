@@ -118,9 +118,9 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
-  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat, checks, forceRefresh } = await req.json() as {
+  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat, checks, assignTo, forceRefresh } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
-    liveUrl: string; liveStyles: any[] | null; pat: string; checks?: string[]; forceRefresh?: boolean;
+    liveUrl: string; liveStyles: any[] | null; pat: string; checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
   };
 
   const encoder = new TextEncoder();
@@ -510,20 +510,7 @@ Return ONLY a valid JSON array. No text outside the array.`,
         // ── Step 7: Post summary report comment ───────────────────────────────
         send("step", { text: "Posting QA summary report to Figma…" });
 
-        // Fetch last editor from version history
-        let mentionLine = "";
-        try {
-          const versionsRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/versions`, {
-            headers: { "X-Figma-Token": pat },
-          });
-          if (versionsRes.ok) {
-            const versionsData = await versionsRes.json() as { versions: Array<{ user: { handle: string; id: string } }> };
-            const lastEditor = versionsData.versions?.[0]?.user;
-            if (lastEditor?.handle) {
-              mentionLine = `\nLast edited by: @${lastEditor.handle}`;
-            }
-          }
-        } catch {}
+        const mentionLine = assignTo ? `\nAssigned to: @${assignTo}` : "";
 
         const categoryLines = Object.entries(byCategory)
           .map(([cat, count]) => `  • ${count}× ${cat.replace(/_/g, " ")}`)
