@@ -186,19 +186,32 @@ export async function POST(req: NextRequest) {
             messages: [
               {
                 role: "system",
-                content: `You are a design QA engineer. Given a list of text nodes from a Figma frame and the HTML of a live webpage, identify discrepancies in font-family, font-size, font-weight, and color.
+                content: `You are a design QA engineer comparing a Figma design spec against a live website implementation.
 
-Return ONLY a JSON array of discrepancy objects with these fields:
-- element: short element description (e.g. "Hero headline", "CTA button text")
-- issue: description of the mismatch (e.g. "Font: 24px in Figma vs 20px live" or "Color: #FFFFFF Figma vs #F0F0F0 live")
-- severity: "high" | "medium" | "low"
+Your job: identify ALL discrepancies in typography and color between what the designer specified and what shipped.
 
-If there are no discrepancies, return an empty array [].
+Compare these properties:
+- font-family: does the live site use the same typeface as Figma?
+- font-size: are sizes consistent (e.g. Figma says 24px but live is 16px)?
+- font-weight: does bold/regular/medium match?
+- color: do hex colors match?
+
+Rules:
+- Match Figma text nodes to live elements by their text content or role (heading, body, label, button, etc.)
+- If the live site uses a completely different font family than Figma, that is a HIGH severity issue
+- If sizes differ by more than 2px, that is a discrepancy
+- If colors differ visually (not just #000000 vs #000001), that is a discrepancy
+- Be thorough — flag every real difference you see
+- Do NOT return an empty array unless the design and live site genuinely match on all properties
+
+Return ONLY a JSON array of discrepancy objects:
+[{ "element": "...", "issue": "...", "severity": "high"|"medium"|"low" }]
+
 Do not include any text outside the JSON array.`,
               },
               {
                 role: "user",
-                content: `FIGMA TEXT NODES:\n${figmaSummary}\n\nLIVE SITE ${liveStyles ? "COMPUTED STYLES" : "HTML"}:\n${liveContext}`,
+                content: `FIGMA TEXT NODES (designer spec):\n${figmaSummary}\n\nLIVE SITE ${liveStyles ? "COMPUTED STYLES (real browser values)" : "HTML"}:\n${liveContext}\n\nFind every typography or color discrepancy between the Figma spec and the live site.`,
               },
             ],
           }),
@@ -229,7 +242,7 @@ Do not include any text outside the JSON array.`,
 
         if (discrepancies.length === 0) {
           send("result", {
-            text: "No discrepancies found — the live site matches the Figma frame.",
+            text: "No discrepancies found — the live site appears to match the Figma frame. Try switching to the live site tab so the extension can re-capture fresh styles, then run again.",
             table: [],
           });
           controller.close();

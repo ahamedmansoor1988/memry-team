@@ -645,11 +645,12 @@ function ChatBubble({ msg }: { msg: ChatMessage }) {
   }
 
   if (msg.type === "result") {
+    const isMatch = !msg.table || msg.table.length === 0;
     return (
       <div className="space-y-2">
-        <div className="flex items-start gap-2 rounded-lg border border-[#e8f6ee] bg-[#e8f6ee] px-3 py-2">
-          <CheckCircle2 size={12} className="text-[#1a9457] mt-0.5 shrink-0" />
-          <p className="text-[11px] text-[#1a9457] leading-[16px]">{msg.text}</p>
+        <div className={`flex items-start gap-2 rounded-lg border px-3 py-2 ${isMatch ? "border-[#e8e8ec] bg-[#f7f7f8]" : "border-[#e8f6ee] bg-[#e8f6ee]"}`}>
+          <CheckCircle2 size={12} className={`mt-0.5 shrink-0 ${isMatch ? "text-[#9a9aa5]" : "text-[#1a9457]"}`} />
+          <p className={`text-[11px] leading-[16px] ${isMatch ? "text-[#5b5b66]" : "text-[#1a9457]"}`}>{msg.text}</p>
         </div>
         {msg.table && msg.table.length > 0 && (
           <div className="rounded-lg border border-[#e8e8ec] overflow-hidden">
