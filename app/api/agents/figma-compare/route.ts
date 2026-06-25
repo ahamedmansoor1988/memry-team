@@ -104,60 +104,87 @@ interface VisualNode {
   height: number;
 }
 
-const BTN_NAMES  = /button|btn|cta|call.to.action|primary|secondary/i;
-const NAV_NAMES  = /nav|navbar|header|menu/i;
-const FOOT_NAMES = /footer|foot/i;
+function getNodeVisualProps(node: any) {
+  const fill = node.fills?.find((f: any) => f.type === "SOLID" && f.visible !== false);
+  const bgColor = fill?.color ? rgbToHex(fill.color.r, fill.color.g, fill.color.b) : null;
+  const stroke = node.strokes?.find((s: any) => s.type === "SOLID");
+  const borderColor = stroke?.color ? rgbToHex(stroke.color.r, stroke.color.g, stroke.color.b) : null;
+  const shadowEffect = node.effects?.find((e: any) => e.type === "DROP_SHADOW" && e.visible !== false);
+  const shadow = shadowEffect
+    ? `${shadowEffect.offset?.x ?? 0}px ${shadowEffect.offset?.y ?? 0}px ${shadowEffect.radius ?? 0}px rgba(${Math.round((shadowEffect.color?.r ?? 0) * 255)},${Math.round((shadowEffect.color?.g ?? 0) * 255)},${Math.round((shadowEffect.color?.b ?? 0) * 255)},${(shadowEffect.color?.a ?? 1).toFixed(2)})`
+    : null;
+  const bbox = node.absoluteBoundingBox ?? { x: 0, y: 0, width: 0, height: 0 };
+  return { bgColor, borderColor, borderWidth: node.strokeWeight ?? null, shadow, bbox,
+    borderRadius: node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? null,
+    paddingTop: node.paddingTop ?? null, paddingRight: node.paddingRight ?? null,
+    paddingBottom: node.paddingBottom ?? null, paddingLeft: node.paddingLeft ?? null };
+}
 
-function extractVisualNodes(node: any, results: VisualNode[], depth = 0) {
-  if (depth > 8) return;
-  const name = node.name ?? "";
-
-  const isFrame = ["FRAME", "COMPONENT", "INSTANCE", "RECTANGLE", "GROUP"].includes(node.type);
-  if (isFrame) {
-    const fill = node.fills?.find((f: any) => f.type === "SOLID" && f.visible !== false);
-    const bgColor = fill?.color ? rgbToHex(fill.color.r, fill.color.g, fill.color.b) : null;
-
-    const stroke = node.strokes?.find((s: any) => s.type === "SOLID");
-    const borderColor = stroke?.color ? rgbToHex(stroke.color.r, stroke.color.g, stroke.color.b) : null;
-    const borderWidth = node.strokeWeight ?? null;
-
-    // Drop shadow
-    const shadowEffect = node.effects?.find((e: any) => e.type === "DROP_SHADOW" && e.visible !== false);
-    const shadow = shadowEffect
-      ? `${shadowEffect.offset?.x ?? 0}px ${shadowEffect.offset?.y ?? 0}px ${shadowEffect.radius ?? 0}px rgba(${Math.round((shadowEffect.color?.r ?? 0) * 255)},${Math.round((shadowEffect.color?.g ?? 0) * 255)},${Math.round((shadowEffect.color?.b ?? 0) * 255)},${(shadowEffect.color?.a ?? 1).toFixed(2)})`
-      : null;
-
-    const bbox = node.absoluteBoundingBox ?? { width: 0, height: 0 };
-
-    let role: VisualNode["role"] = "other";
-    if (BTN_NAMES.test(name))  role = "button";
-    else if (NAV_NAMES.test(name))  role = "nav";
-    else if (FOOT_NAMES.test(name)) role = "footer";
-
-    if (role !== "other" || bgColor || shadow || (node.cornerRadius ?? 0) > 0) {
-      results.push({
-        id:              node.id,
-        name,
-        type:            node.type,
-        role,
-        backgroundColor: bgColor,
-        borderRadius:    node.cornerRadius ?? node.rectangleCornerRadii?.[0] ?? null,
-        borderColor,
-        borderWidth,
-        shadow,
-        paddingTop:      node.paddingTop    ?? null,
-        paddingRight:    node.paddingRight  ?? null,
-        paddingBottom:   node.paddingBottom ?? null,
-        paddingLeft:     node.paddingLeft   ?? null,
-        width:           bbox.width,
-        height:          bbox.height,
-      });
-    }
-  }
-
+function countTextChildren(node: any): number {
+  let count = 0;
   for (const child of node.children ?? []) {
-    extractVisualNodes(child, results, depth + 1);
+    if (child.type === "TEXT") count++;
+    else count += countTextChildren(child);
   }
+  return count;
+}
+
+function extractVisualNodes(rootNode: any, results: VisualNode[], frameBbox: { x: number; y: number; width: number; height: number }) {
+  const frameTop    = frameBbox.y;
+  const frameBottom = frameBbox.y + frameBbox.height;
+  const frameWidth  = frameBbox.width;
+
+  function walk(node: any, depth: number) {
+    if (depth > 10) return;
+    const isFrame = ["FRAME", "COMPONENT", "INSTANCE", "RECTANGLE", "GROUP"].includes(node.type);
+
+    if (isFrame) {
+      const p = getNodeVisualProps(node);
+      const { bbox } = p;
+      const nodeWidth  = bbox.width  ?? 0;
+      const nodeHeight = bbox.height ?? 0;
+      const nodeTop    = bbox.y ?? 0;
+      const nodeBottom = (bbox.y ?? 0) + nodeHeight;
+
+      // Detect role by position + shape — not by name
+      let role: VisualNode["role"] = "other";
+
+      // Nav: spans ≥70% of frame width AND sits in top 15% of frame
+      if (nodeWidth >= frameWidth * 0.7 && nodeTop <= frameTop + frameBbox.height * 0.15) {
+        role = "nav";
+      }
+      // Footer: spans ≥70% of frame width AND sits in bottom 20% of frame
+      else if (nodeWidth >= frameWidth * 0.7 && nodeBottom >= frameBottom - frameBbox.height * 0.2) {
+        role = "footer";
+      }
+      // Button: small, has fill, has corner radius OR stroke, contains 1 text child
+      else if (
+        nodeWidth > 40 && nodeWidth < 350 &&
+        nodeHeight > 20 && nodeHeight < 80 &&
+        (p.bgColor || p.borderColor) &&
+        ((p.borderRadius ?? 0) > 0 || p.borderColor) &&
+        countTextChildren(node) >= 1
+      ) {
+        role = "button";
+      }
+
+      if (role !== "other" || p.shadow || (p.borderRadius ?? 0) > 0) {
+        results.push({
+          id: node.id, name: node.name ?? "", type: node.type, role,
+          backgroundColor: p.bgColor, borderRadius: p.borderRadius,
+          borderColor: p.borderColor, borderWidth: p.borderWidth,
+          shadow: p.shadow,
+          paddingTop: p.paddingTop, paddingRight: p.paddingRight,
+          paddingBottom: p.paddingBottom, paddingLeft: p.paddingLeft,
+          width: nodeWidth, height: nodeHeight,
+        });
+      }
+    }
+
+    for (const child of node.children ?? []) walk(child, depth + 1);
+  }
+
+  walk(rootNode, 0);
 }
 
 function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[], frameRef: { frame: FrameInfo | null }) {
@@ -316,10 +343,10 @@ export async function POST(req: NextRequest) {
         const visualNodes: VisualNode[] = [];
         const frameRef = { frame: null as FrameInfo | null };
         extractTextNodes(rootDoc, null, textNodes, frameRef);
-        extractVisualNodes(rootDoc, visualNodes);
         // Anchor to root node; fall back to first child frame if bbox missing
         const rootBbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
         const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootBbox };
+        extractVisualNodes(rootDoc, visualNodes, rootBbox);
 
         const frameName = rootDoc.name ?? "Unknown frame";
         send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes, ${visualNodes.length} visual nodes.` });
