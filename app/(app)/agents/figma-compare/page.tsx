@@ -43,6 +43,12 @@ export default function FigmaComparePage() {
   const [running,   setRunning]   = useState(false);
   const [runMsgs,   setRunMsgs]   = useState<RunMessage[]>([]);
 
+  // Extension bridge
+  const [liveStyles,     setLiveStyles]     = useState<any[] | null>(null);
+  const [scrapeStatus,   setScrapeStatus]   = useState<"idle"|"fetching"|"ready">("idle");
+  const liveStylesRef = useRef<any[] | null>(null);
+  liveStylesRef.current = liveStyles;
+
   // Chat
   const [chatMsgs,  setChatMsgs]  = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
@@ -50,8 +56,7 @@ export default function FigmaComparePage() {
 
   const runBottomRef  = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage.setItem("loupe_figma_url", v); }, []);
-  const setLiveUrl  = useCallback((v: string) => { setLiveUrlRaw(v);  localStorage.setItem("loupe_live_url",  v); }, []);
+  const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage.setItem("loupe_figma_url", v); }, []);
   const setPat      = useCallback((v: string) => { setPatRaw(v);      localStorage.setItem("loupe_pat",       v); }, []);
 
   function toggleCheck(id: string) {
@@ -64,7 +69,41 @@ const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage
     setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
   }, []);
 
-useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
+  // When user sets a live URL, ask the extension to scrape it
+  const setLiveUrl = useCallback((v: string) => {
+    setLiveUrlRaw(v);
+    localStorage.setItem("loupe_live_url", v);
+    if (v.trim().startsWith("http")) {
+      setScrapeStatus("fetching");
+      localStorage.setItem("loupe_scrape_request", JSON.stringify({ url: v.trim(), timestamp: Date.now() }));
+    } else {
+      setScrapeStatus("idle");
+    }
+  }, []);
+
+  // Poll for styles written back by the extension bridge
+  useEffect(() => {
+    const id = setInterval(() => {
+      try {
+        // Sync styles
+        const raw = localStorage.getItem("loupe_bridge_styles");
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (d?.styles?.length) setLiveStyles(d.styles);
+        }
+        // Sync status
+        const statusRaw = localStorage.getItem("loupe_scrape_status");
+        if (statusRaw) {
+          const s = JSON.parse(statusRaw);
+          if (s?.status === "ready") setScrapeStatus("ready");
+          else if (s?.status === "fetching") setScrapeStatus("fetching");
+        }
+      } catch {}
+    }, 800);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
 
   function addRun(msg: Omit<RunMessage, "id">) {
@@ -102,6 +141,10 @@ useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); 
           styleNameMap: forceRefresh ? {} : styleNameMap,
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
+          liveStyles: (liveStylesRef.current ?? []).map((s: any) => ({
+            text: s.text, fontFamily: s.fontFamily,
+            fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
+          })),
           pat: pat.trim(),
           checks: Array.from(checks),
           forceRefresh,
@@ -171,6 +214,17 @@ useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); 
             <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#9a9aa5]">Design QA</span>
           </div>
           <div className="flex items-center gap-2">
+            {scrapeStatus === "fetching" && (
+              <span className="flex items-center gap-1.5 rounded-full bg-[#fff8e6] px-2.5 py-1 text-[11px] font-medium text-[#b07d00]">
+                <Loader2 size={10} className="animate-spin" />Fetching styles…
+              </span>
+            )}
+            {scrapeStatus === "ready" && liveStyles && (
+              <span className="flex items-center gap-1.5 rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#1a9457]" />
+                {liveStyles.length} styles ready
+              </span>
+            )}
             {runMsgs.length > 0 && (
               <button onClick={() => setRunMsgs([])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-[#9a9aa5] hover:bg-[#f7f7f8] hover:text-[#17171c] transition-colors">
                 <Trash2 size={12} />Clear

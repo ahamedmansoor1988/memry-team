@@ -257,8 +257,12 @@ export async function POST(req: NextRequest) {
         // ── Step 4: Get live page styles ─────────────────────────────────────
         let liveContext = "";
 
-        // Always scrape live styles server-side — extension no longer needed
-        send("step", { text: `Scraping styles from ${liveUrl}…` });
+        const hasExtensionStyles = Array.isArray(liveStyles) && liveStyles.length > 0;
+        if (!hasExtensionStyles) {
+          send("step", { text: `Scraping styles from ${liveUrl}…` });
+        } else {
+          send("step", { text: `Using ${liveStyles.length} computed styles from extension + scraping for fonts…` });
+        }
         let scrapedStyles: { fonts: string[]; sizes: string[]; weights: string[]; colors: string[]; googleFonts: string[] } | null = null;
         try {
           const scrapeRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/scrape-styles`, {
