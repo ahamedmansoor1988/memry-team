@@ -216,11 +216,13 @@ export async function POST(req: NextRequest) {
         let liveContext = "";
 
         if (liveStyles && liveStyles.length > 0) {
-          // Use real computed styles from the Chrome extension
+          // Use real computed styles from the Chrome extension — aggregate only, no per-element text
           send("step", { text: `Using ${liveStyles.length} computed styles from Loupe extension.` });
-          liveContext = liveStyles.slice(0, 100).map((s: any) =>
-            `"${s.text}" — ${s.fontFamily} ${s.fontSize}/${s.fontWeight} ${s.color ?? "no color"}`
-          ).join("\n");
+          const liveFonts   = Array.from(new Set(liveStyles.map((s: any) => s.fontFamily).filter(Boolean)));
+          const liveSizes   = Array.from(new Set(liveStyles.map((s: any) => s.fontSize).filter(Boolean))).sort((a: any, b: any) => parseFloat(b) - parseFloat(a));
+          const liveWeights = Array.from(new Set(liveStyles.map((s: any) => s.fontWeight).filter(Boolean)));
+          const liveColors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 20);
+          liveContext = `Font families: ${liveFonts.join(", ")}\nFont sizes: ${liveSizes.slice(0, 15).join(", ")}\nFont weights: ${liveWeights.join(", ")}\nColors: ${liveColors.join(", ")}`;
         } else {
           // Fallback: fetch raw HTML
           send("step", { text: `Fetching live page HTML from ${liveUrl}…` });
@@ -254,17 +256,10 @@ export async function POST(req: NextRequest) {
         const headingNodes = textNodes.filter(n => n.fontSize >= 24).slice(0, 10);
         const bodyNodes    = textNodes.filter(n => n.fontSize < 24).slice(0, 15);
 
-        const figmaSummary = `DESIGN SYSTEM:
-Font families: ${figmaFonts.join(", ")}
+        const figmaSummary = `Font families: ${figmaFonts.join(", ")}
 Font sizes: ${figmaSizes.join(", ")}px
 Font weights: ${figmaWeights.join(", ")}
-Colors: ${figmaColors.join(", ")}
-
-HEADINGS:
-${headingNodes.map(n => `"${n.characters.slice(0, 50)}" — ${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color}`).join("\n")}
-
-BODY TEXT:
-${bodyNodes.map(n => `"${n.characters.slice(0, 50)}" — ${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color}`).join("\n")}`;
+Colors: ${figmaColors.slice(0, 20).join(", ")}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
