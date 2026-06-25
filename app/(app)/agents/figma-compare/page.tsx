@@ -14,7 +14,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   Eye, EyeOff, Play, Loader2, CheckCircle2, AlertCircle,
-  Globe, KeyRound, ScanSearch, FileCode2, Zap,
+  Globe, KeyRound, ScanSearch, FileCode2, Zap, ChevronRight, Info,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,13 @@ interface DiscrepancyRow {
 }
 
 type RunStatus = "idle" | "running" | "done" | "error";
+
+interface ChatMessage {
+  id: string;
+  type: "info" | "step" | "result" | "error";
+  text: string;
+  table?: DiscrepancyRow[];
+}
 
 interface SharedState {
   figmaUrl: string;
@@ -330,6 +337,11 @@ function Canvas() {
   const [log,          setLog]          = useState<string[]>([]);
   const [results,      setResults]      = useState<DiscrepancyRow[]>([]);
   const [resultText,   setResultText]   = useState("");
+  const [messages,     setMessages]     = useState<ChatMessage[]>([{
+    id: "welcome", type: "info",
+    text: "Configure the nodes on the right, then hit Run comparison. I'll check every text element for font and color discrepancies and annotate them directly in Figma.",
+  }]);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const liveStylesRef = useRef<any[] | null>(null);
   liveStylesRef.current = liveStyles;
@@ -374,6 +386,14 @@ function Canvas() {
     setLog(prev => [...prev, line]);
   }, []);
 
+  const addMsg = useCallback((msg: Omit<ChatMessage, "id">) => {
+    setMessages(prev => [...prev, { ...msg, id: crypto.randomUUID() }]);
+  }, []);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   const run = useCallback(async () => {
     const figmaUrlVal = localStorage.getItem("loupe_figma_url") ?? "";
     const liveUrlVal  = localStorage.getItem("loupe_live_url") ?? "";
@@ -385,6 +405,7 @@ function Canvas() {
     setLog([]);
     setResults([]);
     setResultText("");
+    addMsg({ type: "info", text: `Running comparison against ${liveUrlVal.trim()}…` });
 
     try {
       const fileKeyMatch = figmaUrlVal.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
@@ -464,12 +485,13 @@ function Canvas() {
         for (const line of lines) {
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.type === "step")  addLog(data.text);
-            if (data.type === "error") { addLog(data.text); setStatus("error"); }
+            if (data.type === "step")  { addLog(data.text); }
+            if (data.type === "error") { addLog(data.text); setStatus("error"); addMsg({ type: "error", text: data.text }); }
             if (data.type === "result") {
               setResultText(data.text);
               setResults(data.table ?? []);
               setStatus("done");
+              addMsg({ type: "result", text: data.text, table: data.table ?? [] });
             }
           } catch {}
         }
@@ -478,9 +500,10 @@ function Canvas() {
       setStatus(prev => prev === "running" ? "done" : prev);
     } catch (err) {
       addLog(`Connection error: ${String(err)}`);
+      addMsg({ type: "error", text: `Connection error: ${String(err)}` });
       setStatus("error");
     }
-  }, [addLog]);
+  }, [addLog, addMsg]);
 
   const clearStyles = useCallback(() => {
     setLiveStyles(null);
@@ -511,7 +534,23 @@ function Canvas() {
   }));
 
   return (
-    <div className="h-screen w-full bg-[#fafafa]">
+    <div className="flex h-screen w-full overflow-hidden">
+      {/* ── Chat panel ───────────────────────────────────────────── */}
+      <div className="flex w-[300px] shrink-0 flex-col border-r border-[#e8e8ec] bg-white">
+        <div className="flex items-center gap-2 border-b border-[#e8e8ec] px-4 py-3">
+          <ScanSearch size={13} className="text-[#9a9aa5]" />
+          <span className="text-[12px] font-semibold text-[#17171c]">Agent log</span>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          {messages.map(msg => (
+            <ChatBubble key={msg.id} msg={msg} />
+          ))}
+          <div ref={chatBottomRef} />
+        </div>
+      </div>
+
+      {/* ── Node canvas ──────────────────────────────────────────── */}
+      <div className="flex-1 bg-[#fafafa]">
       <style>{`
         .node-card {
           background: white;
@@ -588,6 +627,69 @@ function Canvas() {
       >
         <Background color="#e8e8ec" gap={20} size={1} />
       </ReactFlow>
+      </div>
+    </div>
+  );
+}
+
+// ── Chat bubble ───────────────────────────────────────────────────────────────
+
+function ChatBubble({ msg }: { msg: ChatMessage }) {
+  if (msg.type === "error") {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-[#fdecec] bg-[#fdecec] px-3 py-2">
+        <AlertCircle size={12} className="text-[#d4373e] mt-0.5 shrink-0" />
+        <p className="text-[11px] text-[#d4373e] leading-[16px]">{msg.text}</p>
+      </div>
+    );
+  }
+
+  if (msg.type === "result") {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-start gap-2 rounded-lg border border-[#e8f6ee] bg-[#e8f6ee] px-3 py-2">
+          <CheckCircle2 size={12} className="text-[#1a9457] mt-0.5 shrink-0" />
+          <p className="text-[11px] text-[#1a9457] leading-[16px]">{msg.text}</p>
+        </div>
+        {msg.table && msg.table.length > 0 && (
+          <div className="rounded-lg border border-[#e8e8ec] overflow-hidden">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="border-b border-[#e8e8ec] bg-[#f7f7f8]">
+                  <th className="px-2 py-1.5 text-left font-medium text-[#9a9aa5]">Element</th>
+                  <th className="px-2 py-1.5 text-left font-medium text-[#9a9aa5]">Issue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {msg.table.map((row, i) => (
+                  <tr key={i} className="border-b border-[#f1f1f4] last:border-0">
+                    <td className="px-2 py-1.5 font-medium text-[#17171c] max-w-[90px] truncate">{row.element}</td>
+                    <td className="px-2 py-1.5 text-[#5b5b66]">{row.issue}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (msg.type === "info") {
+    return (
+      <div className="flex items-start gap-2">
+        <div className="mt-0.5 h-4 w-4 shrink-0 rounded-full bg-[#f1f1f4] flex items-center justify-center">
+          <span className="text-[8px] font-bold text-[#17171c]">L</span>
+        </div>
+        <p className="text-[11px] text-[#5b5b66] leading-[16px]">{msg.text}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-[#9a9aa5]">
+      <ChevronRight size={10} className="shrink-0" />
+      {msg.text}
     </div>
   );
 }
