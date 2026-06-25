@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const maxDuration = 120;
+
+function supabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
 
 function sse(type: string, payload: object) {
   return `data: ${JSON.stringify({ type, ...payload })}\n\n`;
@@ -128,8 +136,22 @@ export async function POST(req: NextRequest) {
         let styleNameMap: Record<string, string> = prefetchedStyleMap ?? {};
 
         if (!figmaNodes) {
-          send("step", { text: "Fetching Figma node tree via server…" });
-          const figmaRes = await figmaFetch(
+          // ── Check Supabase cache ────────────────────────────────
+          const db = supabaseAdmin();
+          const { data: cached } = await db
+            .from("figma_node_cache")
+            .select("figma_nodes, style_map, cached_at")
+            .eq("file_key", fileKey)
+            .eq("node_id", nodeId)
+            .maybeSingle();
+
+          if (cached) {
+            figmaNodes   = cached.figma_nodes;
+            styleNameMap = (cached.style_map as Record<string, string>) ?? {};
+            send("step", { text: `Figma nodes loaded from database cache (saved ${new Date(cached.cached_at).toLocaleDateString()}).` });
+          } else {
+            send("step", { text: "Fetching Figma node tree via server…" });
+            const figmaRes = await figmaFetch(
             pat,
             `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
             (secs) => send("step", { text: `Figma rate limit — waiting ${secs}s…` }),
@@ -157,11 +179,20 @@ export async function POST(req: NextRequest) {
               }
             }
           }
-        }
 
-        // Send nodes to client for caching
-        if (!prefetched) {
+          // ── Save to Supabase cache ────────────────────────────
+          send("step", { text: "Saving Figma nodes to database cache…" });
+          await db.from("figma_node_cache").upsert({
+            file_key:    fileKey,
+            node_id:     nodeId,
+            figma_nodes: figmaNodes,
+            style_map:   styleNameMap,
+            cached_at:   new Date().toISOString(),
+          }, { onConflict: "file_key,node_id" });
+
+          // Also send to client localStorage as secondary cache
           send("cache", { figmaNodes, styleNameMap });
+          }
         }
 
         const rootDoc = (figmaNodes as { nodes: Record<string, { document: any }> }).nodes[nodeId]?.document;
