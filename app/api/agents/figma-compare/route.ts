@@ -166,11 +166,26 @@ export async function POST(req: NextRequest) {
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
-        const figmaSummary = textNodes.slice(0, 40).map((n, i) =>
-          `${i + 1}. "${n.characters.slice(0, 60)}" — ${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color}` +
-          (n.styleId && styleNameMap[n.styleId] ? ` [style: ${styleNameMap[n.styleId]}]` : "") +
-          (n.fillStyleId && styleNameMap[n.fillStyleId] ? ` [fill: ${styleNameMap[n.fillStyleId]}]` : "")
-        ).join("\n");
+        // Build design-system-level summary instead of per-element text matching
+        const figmaFonts   = [...new Set(textNodes.map(n => n.fontFamily).filter(Boolean))];
+        const figmaSizes   = [...new Set(textNodes.map(n => n.fontSize).filter(Boolean))].sort((a, b) => b - a);
+        const figmaWeights = [...new Set(textNodes.map(n => n.fontWeight).filter(Boolean))];
+        const figmaColors  = [...new Set(textNodes.map(n => n.color).filter(Boolean))];
+
+        const headingNodes = textNodes.filter(n => n.fontSize >= 24).slice(0, 10);
+        const bodyNodes    = textNodes.filter(n => n.fontSize < 24).slice(0, 15);
+
+        const figmaSummary = `DESIGN SYSTEM:
+Font families: ${figmaFonts.join(", ")}
+Font sizes: ${figmaSizes.join(", ")}px
+Font weights: ${figmaWeights.join(", ")}
+Colors: ${figmaColors.join(", ")}
+
+HEADINGS:
+${headingNodes.map(n => `"${n.characters.slice(0, 50)}" — ${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color}`).join("\n")}
+
+BODY TEXT:
+${bodyNodes.map(n => `"${n.characters.slice(0, 50)}" — ${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color}`).join("\n")}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
@@ -188,32 +203,26 @@ export async function POST(req: NextRequest) {
             messages: [
               {
                 role: "system",
-                content: `You are a design QA engineer comparing a Figma design spec against a live website implementation.
+                content: `You are a design QA engineer. Compare a Figma design spec against real computed CSS styles from a live website.
 
-Your job: identify ALL discrepancies in typography and color between what the designer specified and what shipped.
+The Figma spec and live page may be different pages of the same product — do NOT require text content to match. Compare design system properties:
 
-Compare these properties:
-- font-family: does the live site use the same typeface as Figma?
-- font-size: are sizes consistent (e.g. Figma says 24px but live is 16px)?
-- font-weight: does bold/regular/medium match?
-- color: do hex colors match?
+1. FONT FAMILIES — does the live site use the same typefaces? Flag any mismatch (e.g. Figma: Inter, Live: Arial).
+2. FONT SIZES — compare the size scale. Flag if heading sizes differ by more than 2px.
+3. FONT WEIGHTS — if Figma uses 700 but live renders 400, flag it.
+4. COLORS — compare the palettes. Flag color differences that are visually distinct.
 
-Rules:
-- Match Figma text nodes to live elements by their text content or role (heading, body, label, button, etc.)
-- If the live site uses a completely different font family than Figma, that is a HIGH severity issue
-- If sizes differ by more than 2px, that is a discrepancy
-- If colors differ visually (not just #000000 vs #000001), that is a discrepancy
-- Be thorough — flag every real difference you see
-- Do NOT return an empty array unless the design and live site genuinely match on all properties
+Be specific with your findings: state the Figma value vs the live value.
+Be thorough — real products almost always have at least some discrepancies.
 
-Return ONLY a JSON array of discrepancy objects:
-[{ "element": "...", "issue": "...", "severity": "high"|"medium"|"low" }]
+Return ONLY a JSON array:
+[{ "element": "description", "issue": "Figma: X — Live: Y", "severity": "high"|"medium"|"low" }]
 
 Do not include any text outside the JSON array.`,
               },
               {
                 role: "user",
-                content: `FIGMA TEXT NODES (designer spec):\n${figmaSummary}\n\nLIVE SITE ${liveStyles ? "COMPUTED STYLES (real browser values)" : "HTML"}:\n${liveContext}\n\nFind every typography or color discrepancy between the Figma spec and the live site.`,
+                content: `FIGMA SPEC:\n${figmaSummary}\n\nLIVE SITE COMPUTED STYLES from ${liveUrl}:\n${liveContext}\n\nFind all typography and color discrepancies.`,
               },
             ],
           }),
