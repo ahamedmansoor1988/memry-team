@@ -422,34 +422,52 @@ Return ONLY a valid JSON array. No text outside the array.`,
           }
         } catch {}
 
-        send("step", { text: `Posting ${discrepancies.length} comments to Figma…` });
+        // Group discrepancies by category — one comment per category, placed on a relevant node
+        const byCategory = new Map<string, typeof discrepancies>();
+        for (const d of discrepancies) {
+          const cat = d.category ?? "other";
+          if (!byCategory.has(cat)) byCategory.set(cat, []);
+          byCategory.get(cat)!.push(d);
+        }
+
+        send("step", { text: `Posting ${byCategory.size} comments to Figma (one per category)…` });
 
         const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
-        const usedNodeIds = new Set<string>();
+        const categories = Array.from(byCategory.entries());
 
-        for (let i = 0; i < discrepancies.length; i++) {
-          const d = discrepancies[i];
+        for (let i = 0; i < categories.length; i++) {
+          const [cat, items] = categories[i];
 
-          // Find the best matching text node using exact text snippet from AI
-          const needle = d.element.toLowerCase().trim();
-          const match = textNodes.find(n => {
-            if (usedNodeIds.has(n.id)) return false;
-            const chars = n.characters.toLowerCase();
-            return chars.includes(needle.slice(0, 30)) || needle.slice(0, 30).includes(chars.slice(0, 20));
-          }) ?? textNodes.find(n => !usedNodeIds.has(n.id));
+          // Find a text node that best matches ANY item in this category
+          let match = null;
+          for (const d of items) {
+            const needle = d.element.toLowerCase().trim();
+            match = textNodes.find(n => {
+              const chars = n.characters.toLowerCase();
+              // Must match at least 10 chars to be meaningful
+              return needle.length >= 10 && chars.startsWith(needle.slice(0, 15));
+            });
+            if (match) break;
+          }
 
-          if (match) usedNodeIds.add(match.id);
+          // Fallback: spread evenly down the frame
+          let offsetX: number, offsetY: number;
+          if (match?.absoluteBoundingBox) {
+            const bbox = match.absoluteBoundingBox;
+            offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width / 2);
+            offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
+          } else {
+            offsetX = fb.width * 0.5;
+            offsetY = (fb.height / (categories.length + 1)) * (i + 1);
+          }
 
-          const bbox    = match?.absoluteBoundingBox ?? fb;
-          const offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width  / 2);
-          const offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
-
-          const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
-          const label    = d.label ?? d.category ?? "Design mismatch";
-          const message  = `${severity} ${label}\n\n"${d.element.slice(0, 80)}"\n\n${d.issue}`;
+          const severity = items.some(d => d.severity === "high") ? "❌" : items.some(d => d.severity === "medium") ? "⚠️" : "ℹ️";
+          const catLabel = cat.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+          const issueLines = items.map(d => `• ${d.issue}`).join("\n");
+          const message = `${severity} ${catLabel} mismatch\n\n${issueLines}`;
 
           if (existingMessages.has(message)) {
-            table.push({ element: d.label ?? d.category ?? d.element, issue: d.issue, commentId: "already posted" });
+            for (const d of items) table.push({ element: catLabel, issue: d.issue, commentId: "already posted" });
             continue;
           }
 
@@ -470,8 +488,8 @@ Return ONLY a valid JSON array. No text outside the array.`,
             console.error(`Comment failed ${commentRes.status}: ${await commentRes.text().catch(() => "")}`);
           }
 
-          table.push({ element: d.label ?? d.category ?? d.element, issue: d.issue, commentId });
-          await new Promise(r => setTimeout(r, 300)); // avoid Figma comment rate limit
+          for (const d of items) table.push({ element: catLabel, issue: d.issue, commentId });
+          await new Promise(r => setTimeout(r, 400));
         }
 
         const posted = table.filter(r => r.commentId).length;
