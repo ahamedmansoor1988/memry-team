@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ScanSearch, LogOut, MessageSquare } from "lucide-react";
+import { ScanSearch, LogOut, MessageSquare, Palette } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const AGENTS = [
@@ -15,6 +15,11 @@ const AGENTS = [
     id: "comment-watcher",
     label: "Comment Clarity",
     icon: MessageSquare,
+  },
+  {
+    id: "brand-handoff",
+    label: "Brand & Handoff",
+    icon: Palette,
   },
 ];
 
