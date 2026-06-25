@@ -416,11 +416,18 @@ export async function POST(req: NextRequest) {
           const fonts   = Array.from(new Set(liveStyles.map((s: any) => s.fontFamily).filter(Boolean)));
           const sizes   = Array.from(new Set(liveStyles.map((s: any) => s.fontSize).filter(Boolean)));
           const weights = Array.from(new Set(liveStyles.map((s: any) => s.fontWeight).filter(Boolean)));
-          const colors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 25);
-          const typoLines = liveStyles.slice(0, 40).map((s: any) =>
-            `  "${s.text}" — ${s.fontFamily} ${s.fontSize} weight:${s.fontWeight} color:${s.color}`
-          );
-          liveContext = `=== TYPOGRAPHY ===\n${typoLines.join("\n")}\n\nFont families: ${fonts.join(", ")}\nFont sizes: ${sizes.join(", ")}\nFont weights: ${weights.join(", ")}\nColors: ${colors.join(", ")}`;
+          const colors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 10);
+          // Deduplicate by font combo, keep max 12 unique entries
+          const seenLive = new Set<string>();
+          const typoLines: string[] = [];
+          for (const s of liveStyles) {
+            const key = `${s.fontFamily}|${s.fontSize}|${s.fontWeight}|${s.color}`;
+            if (seenLive.has(key)) continue;
+            seenLive.add(key);
+            typoLines.push(`  "${String(s.text ?? "").slice(0, 30)}" ${s.fontFamily} ${s.fontSize} w:${s.fontWeight} ${s.color}`);
+            if (typoLines.length >= 12) break;
+          }
+          liveContext = `Fonts:${fonts.join(",")} Sizes:${sizes.join(",")} Weights:${weights.join(",")} Colors:${colors.join(",")}\n${typoLines.join("\n")}`;
           send("step", { text: `Using ${liveStyles.length} computed styles from extension.` });
 
         } else {
@@ -456,8 +463,8 @@ export async function POST(req: NextRequest) {
           const key = `${n.fontFamily}|${n.fontSize}|${n.fontWeight}|${n.color}`;
           if (seenFontCombos.has(key)) continue;
           seenFontCombos.add(key);
-          nodeDetails.push(`text="${n.characters.slice(0, 50)}" font="${n.fontFamily}" size=${n.fontSize}px weight=${n.fontWeight} color=${n.color}`);
-          if (nodeDetails.length >= 15) break;
+          nodeDetails.push(`"${n.characters.slice(0, 30)}" ${n.fontFamily} ${n.fontSize}px w:${n.fontWeight} ${n.color}`);
+          if (nodeDetails.length >= 10) break;
         }
 
         // Visual nodes: buttons, nav, footer
@@ -470,22 +477,14 @@ export async function POST(req: NextRequest) {
         ).join("\n");
 
         // Trim live context to cap total prompt size
-        const trimmedLiveContext = liveContext.split("\n").slice(0, 80).join("\n");
+        const trimmedLiveContext = liveContext.split("\n").slice(0, 50).join("\n");
 
-        const figmaSummary = `=== FIGMA TYPOGRAPHY ===
-Fonts: ${figmaFonts.join(", ")} | Sizes: ${figmaSizes.slice(0, 10).join(", ")}px | Weights: ${figmaWeights.join(", ")} | Colors: ${figmaColors.slice(0, 10).join(", ")}
-
-TEXT NODES:
+        const figmaSummary = `FONTS:${figmaFonts.join(",")} SIZES:${figmaSizes.slice(0,8).join(",")}px WEIGHTS:${figmaWeights.join(",")} COLORS:${figmaColors.slice(0,8).join(",")}
+NODES:
 ${nodeDetails.join("\n")}
-
-=== FIGMA NAV ===
-${figmaNavNodes.length ? visualDetail(figmaNavNodes) : "  none detected"}
-
-=== FIGMA FOOTER ===
-${figmaFooterNodes.length ? visualDetail(figmaFooterNodes) : "  none detected"}
-
-=== FIGMA BUTTONS ===
-${figmaButtons.length ? visualDetail(figmaButtons) : "  none detected"}`;
+NAV:${figmaNavNodes.length ? visualDetail(figmaNavNodes) : "none"}
+FOOTER:${figmaFooterNodes.length ? visualDetail(figmaFooterNodes) : "none"}
+BUTTONS:${figmaButtons.length ? visualDetail(figmaButtons) : "none"}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
