@@ -279,28 +279,35 @@ export async function POST(req: NextRequest) {
           if (!figmaNodes) {
             if (!cached) send("step", { text: "Fetching Figma nodes for the first time…" });
 
-            // Single attempt — no retries to avoid long waits
+            const nodesPath = `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`;
             let figmaRes: Response | null = null;
             try {
-              figmaRes = await fetch(
-                `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
-                { headers: { "X-Figma-Token": pat }, signal: AbortSignal.timeout(15_000) }
-              );
-            } catch {
-              // timeout or network error
-            }
-
-            if (!figmaRes || figmaRes.status === 429) {
+              figmaRes = await figmaFetch(pat, nodesPath, (secs) => {
+                send("step", { text: `Figma rate limited — waiting ${secs}s then retrying automatically…` });
+              });
+            } catch (e) {
               if (cached) {
                 figmaNodes   = cached.figma_nodes;
                 styleNameMap = (cached.style_map as Record<string, string>) ?? {};
-                send("step", { text: "Figma rate limited — using cached data. Wait 1 minute before Force refresh." });
+                send("step", { text: "Figma rate limited — using cached data." });
               } else {
-                send("error", { text: "Figma rate limited and no cache available. Wait 1 minute and try again." });
+                send("error", { text: String(e) });
                 controller.close();
                 return;
               }
-            } else if (!figmaRes.ok) {
+            }
+
+            if (figmaRes && figmaRes.status === 429) {
+              if (cached) {
+                figmaNodes   = cached.figma_nodes;
+                styleNameMap = (cached.style_map as Record<string, string>) ?? {};
+                send("step", { text: "Figma rate limited — using cached data." });
+              } else {
+                send("error", { text: "Figma rate limited and no cache available. Please wait a moment and try again." });
+                controller.close();
+                return;
+              }
+            } else if (figmaRes && !figmaRes.ok) {
               const txt = await figmaRes.text().catch(() => "");
               send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
               controller.close();
