@@ -14,27 +14,62 @@ function sse(type: string, payload: object) {
   return `data: ${JSON.stringify({ type, ...payload })}\n\n`;
 }
 
+interface FigmaRequestLog {
+  reqId: string; method: string; path: string; startedAt: string;
+  durationMs: number; status: number; retryAfterSec: number | null;
+  payloadBytes: number | null; retried: boolean;
+}
+interface FigmaFetchOptions {
+  method?: string; body?: string;
+  onWait?: (secs: number) => void;
+  onLog?: (log: FigmaRequestLog) => void;
+}
+
 async function figmaFetch(
   pat: string,
   path: string,
-  onWait?: (secs: number) => void,
+  onWaitOrOpts?: ((secs: number) => void) | FigmaFetchOptions,
 ): Promise<Response> {
-  // First attempt
-  let res = await fetch(`https://api.figma.com/v1${path}`, {
-    headers: { "X-Figma-Token": pat },
-  });
-  if (res.status !== 429) return res;
+  const opts: FigmaFetchOptions =
+    typeof onWaitOrOpts === "function" ? { onWait: onWaitOrOpts } : (onWaitOrOpts ?? {});
+  const { method = "GET", body, onWait, onLog } = opts;
+  const reqId = Math.random().toString(36).slice(2, 10);
 
-  // Rate limited — wait 65s and retry once
-  onWait?.(65);
-  await new Promise(r => setTimeout(r, 65_000));
+  async function doFetch(retried: boolean): Promise<Response> {
+    const startedAt = new Date().toISOString();
+    const t0 = Date.now();
+    const res = await fetch(`https://api.figma.com/v1${path}`, {
+      method,
+      headers: { "X-Figma-Token": pat, ...(body ? { "Content-Type": "application/json" } : {}) },
+      ...(body ? { body } : {}),
+    });
+    const durationMs    = Date.now() - t0;
+    const raHeader      = res.headers.get("Retry-After");
+    const retryAfterSec = raHeader !== null ? parseInt(raHeader, 10) : null;
+    const clHeader      = res.headers.get("Content-Length");
+    const payloadBytes  = clHeader !== null ? parseInt(clHeader, 10) : null;
+    const logEntry: FigmaRequestLog = {
+      reqId, method, path, startedAt, durationMs,
+      status: res.status, retryAfterSec, payloadBytes, retried,
+    };
+    onLog?.(logEntry);
+    console.log(
+      `[figma] [${reqId}] ${method} ${path} → ${res.status} ${durationMs}ms` +
+      (retryAfterSec !== null ? ` retry-after:${retryAfterSec}s` : "") +
+      (payloadBytes !== null ? ` ${(payloadBytes / 1024).toFixed(1)}KB` : ""),
+    );
 
-  res = await fetch(`https://api.figma.com/v1${path}`, {
-    headers: { "X-Figma-Token": pat },
-  });
-  if (res.status !== 429) return res;
+    if (res.status === 429) {
+      if (retried) throw new Error("Figma rate limit persists — please wait a moment and try again.");
+      const waitSec = retryAfterSec ?? 65;
+      onWait?.(waitSec);
+      await new Promise(r => setTimeout(r, waitSec * 1_000));
+      return doFetch(true);
+    }
+    return res;
+  }
 
-  throw new Error("Figma rate limit persists — please wait a moment and try again.");
+  return doFetch(false);
 }
 
 function parseFileKey(url: string): string | null {
@@ -235,6 +270,17 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(sse(type, payload)));
       }
 
+      const figmaLogs: FigmaRequestLog[] = [];
+      function logFigma(l: FigmaRequestLog) {
+        figmaLogs.push(l);
+        send("figma-log", {
+          reqId: l.reqId, method: l.method, path: l.path,
+          status: l.status, durationMs: l.durationMs,
+          retryAfterSec: l.retryAfterSec, payloadBytes: l.payloadBytes,
+          retried: l.retried,
+        });
+      }
+
       try {
         // ── Validate live URL ─────────────────────────────────────────────────
         const blockedDomains = ["chatgpt.com", "youtube.com", "youtu.be", "twitter.com", "x.com", "facebook.com", "instagram.com", "localhost"];
@@ -282,8 +328,9 @@ export async function POST(req: NextRequest) {
             const nodesPath = `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`;
             let figmaRes: Response | null = null;
             try {
-              figmaRes = await figmaFetch(pat, nodesPath, (secs) => {
-                send("step", { text: `Figma rate limited — waiting ${secs}s then retrying automatically…` });
+              figmaRes = await figmaFetch(pat, nodesPath, {
+                onWait: (secs) => send("step", { text: `Figma rate limited — waiting ${secs}s then retrying automatically…` }),
+                onLog: logFigma,
               });
             } catch (e) {
               if (cached) {
@@ -312,14 +359,14 @@ export async function POST(req: NextRequest) {
               send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
               controller.close();
               return;
-            } else {
+            } else if (figmaRes) {
             figmaNodes = await figmaRes.json();
 
             // Resolve named styles
             const rootDocTmp = figmaNodes?.nodes?.[nodeId]?.document;
             const styleIds = extractStyleIdsFromNode(rootDocTmp);
             if (styleIds.length) {
-              const stylesRes = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${styleIds.map(encodeURIComponent).join(",")}`);
+              const stylesRes = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${styleIds.map(encodeURIComponent).join(",")}`, { onLog: logFigma });
               if (stylesRes.ok) {
                 const stylesData = await stylesRes.json() as { nodes: Record<string, { document: any }> };
                 for (const [id, node] of Object.entries(stylesData.nodes ?? {})) {
@@ -513,9 +560,7 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
         // Fetch existing comments to avoid duplicates
         let existingMessages = new Set<string>();
         try {
-          const existingRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
-            headers: { "X-Figma-Token": pat },
-          });
+          const existingRes = await figmaFetch(pat, `/files/${fileKey}/comments`, { onLog: logFigma });
           if (existingRes.ok) {
             const existingData = await existingRes.json() as { comments: Array<{ message: string }> };
             existingMessages = new Set(existingData.comments.map(c => c.message));
@@ -564,21 +609,18 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
             continue;
           }
 
-          const commentRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
-            method:  "POST",
-            headers: { "X-Figma-Token": pat, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message,
-              client_meta: { node_id: frame.id, node_offset: { x: offsetX, y: offsetY } },
-            }),
-          });
+          const commentRes = await figmaFetch(pat, `/files/${fileKey}/comments`, {
+            method: "POST",
+            body: JSON.stringify({ message, client_meta: { node_id: frame.id, node_offset: { x: offsetX, y: offsetY } } }),
+            onLog: logFigma,
+          }).catch(() => null);
 
           let commentId: string | undefined;
-          if (commentRes.ok) {
+          if (commentRes?.ok) {
             const cd = await commentRes.json() as { id?: string };
             commentId = cd.id;
-          } else {
-            console.error(`Comment failed ${commentRes.status}: ${await commentRes.text().catch(() => "")}`);
+          } else if (commentRes) {
+            console.error(`Comment failed ${commentRes.status}`);
           }
 
           for (const d of items) table.push({ element: elementText, issue: `${(d.category ?? "").replace(/_/g, " ")}: ${d.issue}`, commentId });
@@ -608,19 +650,27 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
         const reportMessage = `📋 Loupe QA Report — ${reportDate}\n\n${discrepancies.length} issue${discrepancies.length !== 1 ? "s" : ""} found:\n${categoryLines}${mentionLine}\n\nSee individual comments on each element for details.`;
 
         if (!existingMessages.has(reportMessage)) {
-          await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
-            method:  "POST",
-            headers: { "X-Figma-Token": pat, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: reportMessage,
-              client_meta: { node_id: frame.id, node_offset: { x: 0, y: 0 } },
-            }),
-          });
+          await figmaFetch(pat, `/files/${fileKey}/comments`, {
+            method: "POST",
+            body: JSON.stringify({ message: reportMessage, client_meta: { node_id: frame.id, node_offset: { x: 0, y: 0 } } }),
+            onLog: logFigma,
+          }).catch(() => {});
         }
 
         send("result", {
           text: `Found ${discrepancies.length} issues: ${summary}. ${posted} comments posted in Figma — open the file to review.`,
           table,
+          figmaApiReport: {
+            totalCalls: figmaLogs.length,
+            calls: figmaLogs.map(l => ({
+              method: l.method,
+              path:   l.path,
+              status: l.status,
+              ms:     l.durationMs,
+              kb:     l.payloadBytes !== null ? Math.round(l.payloadBytes / 1024) : null,
+              retried: l.retried,
+            })),
+          },
         });
 
       } catch (err) {

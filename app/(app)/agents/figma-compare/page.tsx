@@ -8,11 +8,14 @@ import {
 } from "lucide-react";
 
 /* ── Types ───────────────────────────────────────────────────────── */
+interface ApiCallEntry { method: string; path: string; status: number; ms: number; kb: number | null; retried: boolean; }
+interface ApiReport    { totalCalls: number; calls: ApiCallEntry[]; }
 interface RunMessage {
   id: string;
-  type: "user" | "step" | "result" | "error";
+  type: "user" | "step" | "figma-log" | "result" | "error";
   text: string;
   table?: DiscrepancyRow[];
+  figmaApiReport?: ApiReport;
 }
 interface DiscrepancyRow { element: string; issue: string; commentId?: string; }
 interface ChatMessage { id: string; role: "user" | "assistant"; text: string; }
@@ -52,9 +55,11 @@ export default function FigmaComparePage() {
   liveStylesRef.current = liveStyles;
   liveDataRef.current   = liveData;
 
-  // Collaborators
-  const [collaborators, setCollaborators] = useState<Array<{ id: string; handle: string; img_url: string }>>([]);
-  const [assignTo,      setAssignTo]      = useState<string>("");
+  // Collaborators — lazy loaded, never automatic
+  const [collaborators,       setCollaborators]       = useState<Array<{ id: string; handle: string; img_url: string }>>([]);
+  const [collaboratorsLoading, setCollaboratorsLoading] = useState(false);
+  const [collaboratorsLoaded,  setCollaboratorsLoaded]  = useState(false);
+  const [assignTo,             setAssignTo]             = useState<string>("");
 
   // Chat
   const [chatMsgs,  setChatMsgs]  = useState<ChatMessage[]>([]);
@@ -63,7 +68,14 @@ export default function FigmaComparePage() {
 
   const runBottomRef  = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage.setItem("loupe_figma_url", v); }, []);
+  const scanGuardRef  = useRef(false);
+  const setFigmaUrl = useCallback((v: string) => {
+    setFigmaUrlRaw(v);
+    localStorage.setItem("loupe_figma_url", v);
+    setCollaboratorsLoaded(false);
+    setCollaborators([]);
+    setAssignTo("");
+  }, []);
   const setPat      = useCallback((v: string) => { setPatRaw(v);      localStorage.setItem("loupe_pat",       v); }, []);
 
   function toggleCheck(id: string) {
@@ -76,22 +88,24 @@ export default function FigmaComparePage() {
     setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
   }, []);
 
-  // Fetch collaborators when Figma URL + PAT are ready
-  useEffect(() => {
-    const fileKeyMatch = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
-    if (!fileKeyMatch || !pat.trim()) { setCollaborators([]); return; }
-    const fileKey = fileKeyMatch[1];
-    let cancelled = false;
-    fetch("/api/figma-collaborators", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileKey, pat: pat.trim() }),
-    })
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setCollaborators(d.users ?? []); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [figmaUrl, pat]);
+  // Lazy collaborator load — only fires when user explicitly requests it
+  const loadCollaborators = useCallback(async () => {
+    if (collaboratorsLoading || collaboratorsLoaded) return;
+    const m = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
+    if (!m || !pat.trim()) return;
+    setCollaboratorsLoading(true);
+    try {
+      const r = await fetch("/api/figma-collaborators", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey: m[1], pat: pat.trim() }),
+      });
+      const d = await r.json();
+      setCollaborators(d.users ?? []);
+      setCollaboratorsLoaded(true);
+    } catch {}
+    setCollaboratorsLoading(false);
+  }, [figmaUrl, pat, collaboratorsLoading, collaboratorsLoaded]);
 
   // When user sets a live URL, ask the extension to scrape it
   const setLiveUrl = useCallback((v: string) => {
@@ -136,9 +150,11 @@ export default function FigmaComparePage() {
   }
 
   async function run(forceRefresh = false) {
+    if (scanGuardRef.current) return; // prevent concurrent scans
     if (!figmaUrl.trim() || !liveUrl.trim() || !pat.trim()) { setConfigOpen(true); return; }
     if (checks.size === 0) { addRun({ type: "error", text: "Select at least one check." }); return; }
 
+    scanGuardRef.current = true;
     setRunning(true);
     setConfigOpen(false);
     const checkLabels = CHECK_OPTIONS.filter(c => checks.has(c.id)).map(c => c.label).join(", ");
@@ -208,9 +224,10 @@ export default function FigmaComparePage() {
         for (const line of decoder.decode(value).split("\n").filter(l => l.startsWith("data: "))) {
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.type === "step")   addRun({ type: "step",   text: data.text });
-            if (data.type === "error")  addRun({ type: "error",  text: data.text });
-            if (data.type === "result") addRun({ type: "result", text: data.text, table: data.table });
+            if (data.type === "step")      addRun({ type: "step",      text: data.text });
+            if (data.type === "error")     addRun({ type: "error",     text: data.text });
+            if (data.type === "figma-log") addRun({ type: "figma-log", text: `${data.method} ${data.path} → ${data.status} (${data.durationMs}ms${data.kb != null ? ` · ${data.kb}KB` : ""})${data.retried ? " [retried]" : ""}` });
+            if (data.type === "result")    addRun({ type: "result",    text: data.text, table: data.table, figmaApiReport: data.figmaApiReport });
             if (data.type === "cache") {
               try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes: data.figmaNodes, styleNameMap: data.styleNameMap })); } catch {}
             }
@@ -221,6 +238,7 @@ export default function FigmaComparePage() {
       addRun({ type: "error", text: `Connection error: ${String(err)}` });
     } finally {
       setRunning(false);
+      scanGuardRef.current = false;
     }
   }
 
@@ -296,9 +314,14 @@ export default function FigmaComparePage() {
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-                {collaborators.length > 0 && (
-                  <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 flex items-center gap-3">
-                    <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
+                <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 flex items-center gap-3">
+                  <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
+                  {!collaboratorsLoaded ? (
+                    <button onClick={loadCollaborators} disabled={collaboratorsLoading || !figmaUrl.trim() || !pat.trim()}
+                      className="text-[11px] text-[#9a9aa5] hover:text-[#0f0f0f] disabled:opacity-40 transition-colors">
+                      {collaboratorsLoading ? "Loading…" : "Load collaborators"}
+                    </button>
+                  ) : (
                     <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
                       className="flex-1 rounded-lg border border-[#e8e8ec] bg-white px-2 py-1.5 text-[12px] text-[#17171c] focus:outline-none focus:border-[#0f0f0f]">
                       <option value="">No assignment</option>
@@ -306,8 +329,8 @@ export default function FigmaComparePage() {
                         <option key={u.id} value={u.handle}>@{u.handle}</option>
                       ))}
                     </select>
-                  </div>
-                )}
+                  )}
+                </div>
                 <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
                   <ChecklistPanel checks={checks} onToggle={toggleCheck} />
                 </div>
@@ -334,18 +357,21 @@ export default function FigmaComparePage() {
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-                {collaborators.length > 0 && (
-                  <div className="flex items-center gap-3 px-1">
-                    <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
+                <div className="flex items-center gap-3 px-1">
+                  <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
+                  {!collaboratorsLoaded ? (
+                    <button onClick={loadCollaborators} disabled={collaboratorsLoading || !figmaUrl.trim() || !pat.trim()}
+                      className="text-[11px] text-[#9a9aa5] hover:text-[#0f0f0f] disabled:opacity-40 transition-colors">
+                      {collaboratorsLoading ? "Loading…" : "Load collaborators"}
+                    </button>
+                  ) : (
                     <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
                       className="flex-1 rounded-lg border border-[#e8e8ec] bg-white px-2 py-1.5 text-[12px] text-[#17171c] focus:outline-none focus:border-[#0f0f0f]">
                       <option value="">No assignment</option>
-                      {collaborators.map(u => (
-                        <option key={u.id} value={u.handle}>@{u.handle}</option>
-                      ))}
+                      {collaborators.map(u => <option key={u.id} value={u.handle}>@{u.handle}</option>)}
                     </select>
-                  </div>
-                )}
+                  )}
+                </div>
                 <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
             )}
@@ -492,6 +518,11 @@ function RunBubble({ msg }: { msg: RunMessage }) {
       <ChevronRight size={11} className="shrink-0" />{msg.text}
     </div>
   );
+  if (msg.type === "figma-log") return (
+    <div className="flex items-center gap-2 text-[10px] font-mono text-[#c8c8d0] pl-4">
+      <span className="shrink-0">↳</span>{msg.text}
+    </div>
+  );
   if (msg.type === "error") return (
     <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
       <AlertCircle size={13} className="text-red-500 mt-0.5 shrink-0" />
@@ -522,6 +553,38 @@ function RunBubble({ msg }: { msg: RunMessage }) {
                   <td className="px-3 py-2 font-medium text-[#17171c]">{row.element}</td>
                   <td className="px-3 py-2 text-[#5b5b66]">{row.issue}</td>
                   <td className="px-3 py-2 font-mono text-[10px] text-[#9a9aa5]">{row.commentId ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {msg.figmaApiReport && (
+        <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
+          <div className="bg-[#fafafa] px-3 py-2 border-b border-[#f0f0f0] flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-[#9a9aa5] uppercase tracking-wide">Figma API calls</span>
+            <span className="rounded-full bg-[#e8e8ec] px-1.5 py-0.5 text-[10px] font-medium text-[#5b5b66]">{msg.figmaApiReport.totalCalls} total</span>
+          </div>
+          <table className="w-full text-[10px] font-mono">
+            <thead>
+              <tr className="border-b border-[#f7f7f8] text-[#9a9aa5]">
+                <th className="px-3 py-1.5 text-left">#</th>
+                <th className="px-3 py-1.5 text-left">Method</th>
+                <th className="px-3 py-1.5 text-left">Path</th>
+                <th className="px-3 py-1.5 text-left">Status</th>
+                <th className="px-3 py-1.5 text-left">ms</th>
+                <th className="px-3 py-1.5 text-left">KB</th>
+              </tr>
+            </thead>
+            <tbody>
+              {msg.figmaApiReport.calls.map((c, i) => (
+                <tr key={i} className={`border-b border-[#f7f7f8] last:border-0 ${c.status === 429 ? "bg-red-50" : ""}`}>
+                  <td className="px-3 py-1 text-[#c8c8d0]">{i + 1}</td>
+                  <td className={`px-3 py-1 font-semibold ${c.method === "POST" ? "text-[#6366f1]" : "text-[#5b5b66]"}`}>{c.method}</td>
+                  <td className="px-3 py-1 text-[#5b5b66] max-w-[200px] truncate">{c.path}</td>
+                  <td className={`px-3 py-1 font-semibold ${c.status === 429 ? "text-red-500" : c.status < 300 ? "text-emerald-600" : "text-amber-600"}`}>{c.status}{c.retried ? " ↺" : ""}</td>
+                  <td className="px-3 py-1 text-[#9a9aa5]">{c.ms}</td>
+                  <td className="px-3 py-1 text-[#9a9aa5]">{c.kb ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
