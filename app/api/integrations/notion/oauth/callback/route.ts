@@ -16,8 +16,11 @@ export async function GET(req: NextRequest) {
   }
 
   let workspaceId: string;
+  let returnTo = "";
   try {
-    workspaceId = JSON.parse(Buffer.from(state, "base64url").toString("utf8")).wid;
+    const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
+    workspaceId = parsed.wid;
+    returnTo = parsed.rt ?? "";
   } catch {
     return NextResponse.redirect(`${integrationsUrl}?error=notion_state`);
   }
@@ -53,5 +56,6 @@ export async function GET(req: NextRequest) {
     notion_connected_at: new Date().toISOString(),
   }).eq("id", workspaceId);
 
-  return NextResponse.redirect(`${integrationsUrl}?connected=notion`);
+  const successUrl = returnTo ? `${origin}${returnTo}?connected=notion` : `${integrationsUrl}?connected=notion`;
+  return NextResponse.redirect(successUrl);
 }

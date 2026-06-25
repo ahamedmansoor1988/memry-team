@@ -16,8 +16,11 @@ export async function GET(req: NextRequest) {
   }
 
   let workspaceId: string;
+  let returnTo = "";
   try {
-    workspaceId = JSON.parse(Buffer.from(state, "base64url").toString("utf8")).wid;
+    const parsed = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
+    workspaceId = parsed.wid;
+    returnTo = parsed.rt ?? "";
   } catch {
     return NextResponse.redirect(`${integrationsUrl}?error=jira_state`);
   }
@@ -60,5 +63,6 @@ export async function GET(req: NextRequest) {
     jira_connected_at:  new Date().toISOString(),
   }).eq("id", workspaceId);
 
-  return NextResponse.redirect(`${integrationsUrl}?connected=jira`);
+  const successUrl = returnTo ? `${origin}${returnTo}?connected=jira` : `${integrationsUrl}?connected=jira`;
+  return NextResponse.redirect(successUrl);
 }

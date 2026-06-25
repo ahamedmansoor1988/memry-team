@@ -93,17 +93,39 @@ export default function SettingsPage() {
           {error && <p className="text-xs text-red mt-2">{error}</p>}
         </div>
 
+        {/* Events API — critical for real-time Slack capture */}
+        <div className="bg-surface border border-border rounded-xl p-5 border-amber/40">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-xs font-semibold text-text-3 uppercase tracking-wider">Slack Events API</p>
+            <span className="text-2xs bg-amber-soft text-amber px-1.5 py-0.5 rounded-full font-medium">Required for real-time</span>
+          </div>
+          <p className="text-xs text-text-2 mb-3">
+            Without this, new Slack messages are <strong>not captured in real time</strong>. Set it up in your Slack app dashboard:
+          </p>
+          <ol className="text-xs text-text-3 space-y-1 mb-3 list-decimal list-inside">
+            <li>Go to <strong>api.slack.com/apps</strong> → your Memry app</li>
+            <li>Click <strong>Event Subscriptions</strong> → toggle <strong>Enable Events</strong> ON</li>
+            <li>Paste this URL in the <strong>Request URL</strong> field:</li>
+          </ol>
+          <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2 mb-3">
+            https://memry-team-opal.vercel.app/api/slack/events
+          </code>
+          <p className="text-xs text-text-3">
+            4. Under <strong>Subscribe to bot events</strong> → add <code className="bg-border-2 px-1 rounded">message.channels</code> → Save Changes.
+          </p>
+        </div>
+
         {/* Slack commands */}
         <div className="bg-surface border border-border rounded-xl p-5">
           <p className="text-xs font-semibold text-text-3 uppercase tracking-wider mb-3">Slack slash command</p>
           <p className="text-xs text-text-2 mb-2">
             Use <code className="bg-border-2 px-1 rounded">/memry ask &lt;question&gt;</code> in any Slack channel to search captured decisions.
           </p>
-          <p className="text-xs text-text-3">
-            Register the slash command in your Slack app: <strong>Slash Commands</strong> → command <code className="bg-border-2 px-1 rounded">/memry</code> → request URL:
+          <p className="text-xs text-text-3 mb-2">
+            In your Slack app: <strong>Slash Commands</strong> → create command <code className="bg-border-2 px-1 rounded">/memry</code> → request URL:
           </p>
-          <code className="block mt-2 text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
-            {process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/slack/commands
+          <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
+            https://memry-team-opal.vercel.app/api/slack/commands
           </code>
         </div>
 
@@ -111,10 +133,10 @@ export default function SettingsPage() {
         <div className="bg-surface border border-border rounded-xl p-5">
           <p className="text-xs font-semibold text-text-3 uppercase tracking-wider mb-3">Slack interactivity</p>
           <p className="text-xs text-text-3 mb-2">
-            Enable interactive buttons (e.g. "Mark as clear") in your Slack app: <strong>Interactivity & Shortcuts</strong> → toggle on → request URL:
+            In your Slack app: <strong>Interactivity & Shortcuts</strong> → toggle ON → request URL:
           </p>
           <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
-            {process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/slack/interactions
+            https://memry-team-opal.vercel.app/api/slack/interactions
           </code>
         </div>
       </div>

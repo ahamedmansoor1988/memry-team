@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
 
   const origin      = new URL(req.url).origin;
   const redirectUri = `${origin}/api/integrations/jira/oauth/callback`;
-  const state       = Buffer.from(JSON.stringify({ wid: ctx.workspace.id, n: Math.random() })).toString("base64url");
+  const returnTo    = new URL(req.url).searchParams.get("returnTo") ?? "";
+  const state       = Buffer.from(JSON.stringify({ wid: ctx.workspace.id, rt: returnTo, n: Math.random() })).toString("base64url");
 
   const url = new URL("https://auth.atlassian.com/authorize");
   url.searchParams.set("audience",      "api.atlassian.com");

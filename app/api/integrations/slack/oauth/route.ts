@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
   const ctx = await getWorkspace();
   if (!ctx) return NextResponse.redirect("/login");
 
-  const state = Buffer.from(ctx.workspace.id).toString("base64url");
+  const returnTo = new URL(req.url).searchParams.get("returnTo") ?? "";
+  const state = Buffer.from(JSON.stringify({ wid: ctx.workspace.id, rt: returnTo })).toString("base64url");
 
   // Derive redirect URI from the actual incoming request so it always matches
   // what's registered in Slack regardless of which domain the app is accessed from.

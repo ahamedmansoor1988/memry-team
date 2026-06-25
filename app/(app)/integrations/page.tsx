@@ -132,6 +132,11 @@ function NotionConnectForm({ onSuccess }: { onSuccess: () => void }) {
     const data = await res.json() as { error?: string };
     setLoading(false);
     if (!res.ok) { setError(data.error ?? "Failed to connect"); return; }
+    fetch("/api/integrations/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "notion" }),
+    }).catch(() => {});
     onSuccess();
   }
 
@@ -190,6 +195,11 @@ function FigmaConnectForm({ onSuccess }: { onSuccess: () => void }) {
     const data = await res.json() as { error?: string };
     setLoading(false);
     if (!res.ok) { setError(data.error ?? "Failed to connect"); return; }
+    fetch("/api/integrations/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "figma" }),
+    }).catch(() => {});
     onSuccess();
   }
 
@@ -206,16 +216,16 @@ function FigmaConnectForm({ onSuccess }: { onSuccess: () => void }) {
         />
       </div>
       <div>
-        <label className="block text-xs text-text-3 mb-1">Team ID</label>
-        <input
-          type="text"
+        <label className="block text-xs text-text-3 mb-1">Figma File URL(s)</label>
+        <textarea
           value={teamId}
           onChange={e => setTeamId(e.target.value)}
-          placeholder="123456789"
-          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-3 outline-none focus:border-accent-border transition-colors"
+          placeholder={"https://www.figma.com/file/abc123/My-Design\nhttps://www.figma.com/design/xyz456/Another"}
+          rows={3}
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-3 outline-none focus:border-accent-border transition-colors resize-none"
         />
         <p className="text-2xs text-text-3 mt-1">
-          Find it in Figma → Team URL: figma.com/files/team/<strong>TEAM_ID</strong>
+          Paste one or more Figma file URLs (one per line). Open a file in Figma → copy the URL from the browser.
         </p>
       </div>
       {error && (
@@ -257,12 +267,36 @@ function IntegrationCard({
   webhook, onConnect, onDisconnect, connectHref, isOAuth, customForm,
 }: CardProps) {
   const [disconnecting, setDisconnecting] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm]           = useState(false);
+  const [syncing, setSyncing]             = useState(false);
+  const [syncResult, setSyncResult]       = useState<string | null>(null);
 
   async function handleDisconnect() {
     setDisconnecting(true);
     await onDisconnect();
     setDisconnecting(false);
+  }
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res  = await fetch("/api/integrations/sync", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ source: tool }),
+      });
+      const data = await res.json() as { synced?: number; detail?: string; error?: string };
+      if (data.error) {
+        setSyncResult(`Error: ${data.error}`);
+      } else {
+        setSyncResult(`${data.synced ?? 0} items imported — ${data.detail ?? ""}`);
+      }
+    } catch (e) {
+      setSyncResult(`Sync failed: ${String(e)}`);
+    }
+    setSyncing(false);
+    setTimeout(() => setSyncResult(null), 10000);
   }
 
   return (
@@ -296,40 +330,54 @@ function IntegrationCard({
       )}
 
       {/* Actions */}
-      <div className="mt-auto">
+      <div className="mt-auto space-y-2">
         {connected ? (
-          <button
-            onClick={handleDisconnect}
-            disabled={disconnecting}
-            className="flex items-center gap-1.5 text-xs text-text-3 hover:text-red transition-colors disabled:opacity-50"
-          >
-            {disconnecting
-              ? <Loader2 size={12} className="animate-spin" />
-              : <Unplug size={12} />}
-            {disconnecting ? "Disconnecting…" : "Disconnect"}
-          </button>
-        ) : isOAuth ? (
-          <a
-            href={connectHref}
-            className="inline-flex items-center gap-1.5 bg-accent text-accent-ink text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
-          >
-            Connect {name}
-            <ExternalLink size={12} />
-          </a>
-        ) : (
-          <>
-            {!showForm ? (
-              <button
-                onClick={() => setShowForm(true)}
-                className="inline-flex items-center gap-1.5 bg-accent text-accent-ink text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Connect {name}
-              </button>
-            ) : customForm ? customForm(onConnect) : (
-              <FigmaConnectForm onSuccess={onConnect} />
-            )}
-          </>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="flex items-center gap-1.5 text-xs text-text-2 hover:text-accent-text transition-colors disabled:opacity-50"
+            >
+              {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+              {syncing ? "Syncing…" : "Sync history"}
+            </button>
+            <button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="flex items-center gap-1.5 text-xs text-text-3 hover:text-red transition-colors disabled:opacity-50"
+            >
+              {disconnecting ? <Loader2 size={12} className="animate-spin" /> : <Unplug size={12} />}
+              {disconnecting ? "Disconnecting…" : "Disconnect"}
+            </button>
+          </div>
+        ) : null}
+        {syncResult && (
+          <p className="text-xs text-text-3">{syncResult}</p>
         )}
+        {!connected ? (
+          isOAuth ? (
+            <a
+              href={connectHref}
+              className="inline-flex items-center gap-1.5 bg-accent text-accent-ink text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+            >
+              Connect {name}
+              <ExternalLink size={12} />
+            </a>
+          ) : (
+            <>
+              {!showForm ? (
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="inline-flex items-center gap-1.5 bg-accent text-accent-ink text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
+                >
+                  Connect {name}
+                </button>
+              ) : customForm ? customForm(onConnect) : (
+                <FigmaConnectForm onSuccess={onConnect} />
+              )}
+            </>
+          )
+        ) : null}
       </div>
     </div>
   );
@@ -353,13 +401,24 @@ export default function IntegrationsPage() {
     fetchSettings();
   }, [fetchSettings]);
 
-  // Show toast on OAuth redirect-back
+  // Show toast on OAuth redirect-back and trigger historical sync
   useEffect(() => {
     const connected = searchParams.get("connected");
     const error     = searchParams.get("error");
     if (connected) {
-      setToast(`${connected.charAt(0).toUpperCase() + connected.slice(1)} connected successfully`);
-      setTimeout(() => setToast(null), 4000);
+      const name = connected.charAt(0).toUpperCase() + connected.slice(1);
+      setToast(`${name} connected — syncing history…`);
+      fetch("/api/integrations/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: connected }),
+      }).then(r => r.json()).then((d: any) => {
+        setToast(`${name} synced — ${d.synced ?? 0} items imported`);
+        setTimeout(() => setToast(null), 5000);
+      }).catch(() => {
+        setToast(`${name} connected`);
+        setTimeout(() => setToast(null), 4000);
+      });
     } else if (error) {
       setToast(`Connection failed — ${error.replace(/_/g, " ")}`);
       setTimeout(() => setToast(null), 4000);

@@ -16,12 +16,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!member?.workspaces) redirect("/onboarding");
 
-  const workspace = member.workspaces as { id: string; name: string };
-
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar workspaceName={workspace.name} userEmail={user.email ?? ""} />
-      <main className="flex-1 overflow-auto">
+    <div className="flex h-screen overflow-hidden bg-white">
+      <Sidebar userEmail={user.email ?? ""} />
+      <main className="flex-1 overflow-hidden">
         {children}
       </main>
     </div>

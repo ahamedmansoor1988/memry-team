@@ -16,8 +16,17 @@ export async function GET(req: NextRequest) {
   }
 
   let workspaceId: string;
+  let returnTo = "";
   try {
-    workspaceId = Buffer.from(state, "base64url").toString("utf8");
+    const decoded = Buffer.from(state, "base64url").toString("utf8");
+    try {
+      const parsed = JSON.parse(decoded);
+      workspaceId = parsed.wid;
+      returnTo = parsed.rt ?? "";
+    } catch {
+      // legacy format — plain workspace ID
+      workspaceId = decoded;
+    }
   } catch {
     return NextResponse.redirect(`${integrationsUrl}?error=slack_state`);
   }
@@ -53,5 +62,6 @@ export async function GET(req: NextRequest) {
     slack_signing_secret: process.env.SLACK_SIGNING_SECRET ?? null,
   }).eq("id", workspaceId);
 
-  return NextResponse.redirect(`${integrationsUrl}?connected=slack`);
+  const successUrl = returnTo ? `${origin}${returnTo}?connected=slack` : `${integrationsUrl}?connected=slack`;
+  return NextResponse.redirect(successUrl);
 }

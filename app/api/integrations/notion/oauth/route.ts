@@ -7,7 +7,8 @@ export async function GET(req: NextRequest) {
 
   const origin      = new URL(req.url).origin;
   const redirectUri = `${origin}/api/integrations/notion/oauth/callback`;
-  const state       = Buffer.from(JSON.stringify({ wid: ctx.workspace.id, n: Math.random() })).toString("base64url");
+  const returnTo    = new URL(req.url).searchParams.get("returnTo") ?? "";
+  const state       = Buffer.from(JSON.stringify({ wid: ctx.workspace.id, rt: returnTo, n: Math.random() })).toString("base64url");
 
   const url = new URL("https://api.notion.com/v1/oauth/authorize");
   url.searchParams.set("client_id",     process.env.NOTION_CLIENT_ID!);

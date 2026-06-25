@@ -9,8 +9,8 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "memry.team",
-  description: "Ambient automation for designers",
+  title: "Loupe",
+  description: "AI agents for designers",
 };
 
 export default function RootLayout({

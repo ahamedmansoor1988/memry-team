@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     try {
       // Search issues updated in last 25h
       const jql         = "updated >= -25h ORDER BY updated DESC";
-      const searchUrl   = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search`;
+      const searchUrl   = `https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/search/jql`;
       let searchRes     = await fetch(`${searchUrl}?jql=${encodeURIComponent(jql)}&fields=summary,comment&maxResults=50`, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
