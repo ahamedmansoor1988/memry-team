@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play, Loader2, ChevronRight, AlertCircle, CheckCircle2,
-  MessageSquare, Bot, Trash2,
+  MessageSquare, Bot,
 } from "lucide-react";
 
 interface StepMessage {
@@ -25,20 +25,20 @@ interface CommentResult {
 function Badge({ classification }: { classification: CommentResult["classification"] }) {
   if (classification === "vague") {
     return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-200">
         Vague
       </span>
     );
   }
   if (classification === "specific") {
     return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-200">
         Specific
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-[#2a2a35] text-[#9a9aa5] border border-[#3a3a45]">
+    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-gray-50 text-gray-400 border border-gray-200">
       Skipped
     </span>
   );
@@ -52,8 +52,8 @@ export default function CommentWatcherPage() {
   const [comments, setComments]    = useState<CommentResult[]>([]);
   const [summary,  setSummary]     = useState("");
 
-  const guardRef   = useRef(false);
-  const bottomRef  = useRef<HTMLDivElement>(null);
+  const guardRef  = useRef(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const setPat = useCallback((v: string) => {
     setPatRaw(v);
@@ -67,7 +67,7 @@ export default function CommentWatcherPage() {
 
   useEffect(() => {
     setFigmaUrlRaw(localStorage.getItem("loupe_figma_url") ?? "");
-    setPatRaw(localStorage.getItem("loupe_pat")          ?? "");
+    setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
   }, []);
 
   useEffect(() => {
@@ -146,45 +146,45 @@ export default function CommentWatcherPage() {
   const repliedCount  = comments.filter(c => c.replied).length;
 
   return (
-    <div className="min-h-screen bg-[#0e0e13] text-[#e2e2e9] font-sans">
-      <div className="mx-auto max-w-4xl px-4 py-10 space-y-6">
+    <div className="min-h-screen bg-white text-[#0f0f0f] font-sans">
+      <div className="mx-auto max-w-3xl px-6 py-10 space-y-6">
 
         {/* Header */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-violet-400" />
-            <h1 className="text-lg font-semibold tracking-tight">Comment Clarity</h1>
+        <div className="flex items-center gap-3 pb-2 border-b border-black/[0.06]">
+          <MessageSquare className="h-5 w-5 text-[#0f0f0f]" strokeWidth={1.75} />
+          <div>
+            <h1 className="text-[15px] font-semibold tracking-tight">Comment Clarity</h1>
+            <p className="text-[12px] text-[#9ca3af] mt-0.5">
+              Detects vague Figma comments and posts clarifying questions automatically.
+            </p>
           </div>
-          <p className="text-sm text-[#9a9aa5]">
-            Detects vague Figma comments and posts clarifying questions automatically.
-          </p>
         </div>
 
         {/* Config */}
-        <div className="rounded-xl border border-[#2a2a35] bg-[#16161f] p-4 space-y-3">
+        <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-xs text-[#9a9aa5] font-medium">Figma File URL</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Figma File URL</label>
             <input
               value={figmaUrl}
               onChange={e => setFigmaUrl(e.target.value)}
               placeholder="https://www.figma.com/design/..."
-              className="w-full rounded-lg border border-[#2a2a35] bg-[#0e0e13] px-3 py-2 text-sm placeholder:text-[#555565] focus:outline-none focus:border-violet-500/60"
+              className="w-full rounded-xl border border-black/[0.1] bg-white px-3.5 py-2.5 text-sm placeholder:text-[#c4c4cc] focus:outline-none focus:border-black/30 transition-colors"
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs text-[#9a9aa5] font-medium">Personal Access Token</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Personal Access Token</label>
             <input
               type="password"
               value={pat}
               onChange={e => setPat(e.target.value)}
               placeholder="figd_..."
-              className="w-full rounded-lg border border-[#2a2a35] bg-[#0e0e13] px-3 py-2 text-sm placeholder:text-[#555565] focus:outline-none focus:border-violet-500/60"
+              className="w-full rounded-xl border border-black/[0.1] bg-white px-3.5 py-2.5 text-sm placeholder:text-[#c4c4cc] focus:outline-none focus:border-black/30 transition-colors"
             />
           </div>
           <button
             onClick={run}
             disabled={running}
-            className="flex items-center gap-2 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 px-4 py-2 text-sm font-medium transition-colors"
+            className="flex items-center gap-2 rounded-xl bg-[#0f0f0f] hover:bg-[#2a2a2a] disabled:opacity-40 px-5 py-2.5 text-sm font-medium text-white transition-colors"
           >
             {running
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Running…</>
@@ -195,14 +195,14 @@ export default function CommentWatcherPage() {
 
         {/* Step log */}
         {steps.length > 0 && (
-          <div className="rounded-xl border border-[#2a2a35] bg-[#16161f] p-4 space-y-1.5">
+          <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4 space-y-2">
             {steps.map(s => (
               <div key={s.id} className="flex items-start gap-2 text-sm">
                 {s.type === "error"
-                  ? <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-                  : <ChevronRight className="h-4 w-4 text-violet-400 mt-0.5 shrink-0" />
+                  ? <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                  : <ChevronRight className="h-4 w-4 text-[#9ca3af] mt-0.5 shrink-0" />
                 }
-                <span className={s.type === "error" ? "text-red-300" : "text-[#c8c8d4]"}>{s.text}</span>
+                <span className={s.type === "error" ? "text-red-600" : "text-[#374151]"}>{s.text}</span>
               </div>
             ))}
             <div ref={bottomRef} />
@@ -211,17 +211,17 @@ export default function CommentWatcherPage() {
 
         {/* Summary stats */}
         {summary && (
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-sm text-amber-300">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-700">
               <AlertCircle className="h-3.5 w-3.5" />
               {vagueCount} vague
             </div>
-            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-sm text-emerald-300">
+            <div className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {specificCount} specific
             </div>
             {repliedCount > 0 && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-sm text-violet-300">
+              <div className="flex items-center gap-1.5 rounded-lg border border-black/[0.1] bg-[#f5f5f5] px-3 py-1.5 text-sm text-[#374151]">
                 <Bot className="h-3.5 w-3.5" />
                 {repliedCount} replied
               </div>
@@ -231,35 +231,37 @@ export default function CommentWatcherPage() {
 
         {/* Results table */}
         {comments.length > 0 && (
-          <div className="rounded-xl border border-[#2a2a35] bg-[#16161f] overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#2a2a35] text-xs font-medium text-[#9a9aa5] grid grid-cols-[1fr_90px_1fr_80px] gap-3">
+          <div className="rounded-xl border border-black/[0.08] overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-black/[0.06] bg-[#fafafa] text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] grid grid-cols-[1fr_80px_1fr_80px] gap-3">
               <span>Comment</span>
               <span>Author</span>
               <span>Clarifying question</span>
               <span>Status</span>
             </div>
-            <div className="divide-y divide-[#2a2a35]">
+            <div className="divide-y divide-black/[0.05]">
               {comments.map(c => (
-                <div key={c.id} className="px-4 py-3 grid grid-cols-[1fr_90px_1fr_80px] gap-3 items-start text-sm">
-                  <div className="space-y-1">
+                <div key={c.id} className="px-4 py-3 grid grid-cols-[1fr_80px_1fr_80px] gap-3 items-start text-sm">
+                  <div className="space-y-1.5">
                     <Badge classification={c.classification} />
-                    <p className="text-[#c8c8d4] leading-relaxed">{c.text.slice(0, 120)}{c.text.length > 120 ? "…" : ""}</p>
+                    <p className="text-[#374151] leading-relaxed text-[13px]">
+                      {c.text.slice(0, 120)}{c.text.length > 120 ? "…" : ""}
+                    </p>
                   </div>
-                  <span className="text-[#9a9aa5] text-xs truncate pt-0.5">{c.author}</span>
-                  <p className="text-[#9a9aa5] text-xs leading-relaxed pt-0.5">
-                    {c.question ?? (c.classification === "specific" ? "—" : "—")}
+                  <span className="text-[#9ca3af] text-[12px] truncate pt-0.5">{c.author}</span>
+                  <p className="text-[#6b7280] text-[12px] leading-relaxed pt-0.5">
+                    {c.question ?? "—"}
                   </p>
                   <div className="pt-0.5">
                     {c.classification === "vague" && c.replied && (
-                      <span className="inline-flex items-center gap-1 text-xs text-violet-300">
+                      <span className="inline-flex items-center gap-1 text-[12px] text-emerald-600">
                         <CheckCircle2 className="h-3 w-3" /> Replied
                       </span>
                     )}
                     {c.classification === "vague" && !c.replied && (
-                      <span className="text-xs text-[#9a9aa5]">Pending</span>
+                      <span className="text-[12px] text-[#9ca3af]">Pending</span>
                     )}
                     {c.classification !== "vague" && (
-                      <span className="text-xs text-[#555565]">—</span>
+                      <span className="text-[12px] text-[#d1d5db]">—</span>
                     )}
                   </div>
                 </div>
@@ -270,11 +272,11 @@ export default function CommentWatcherPage() {
 
         {/* Empty state */}
         {!running && steps.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
-            <div className="h-12 w-12 rounded-full bg-violet-500/10 flex items-center justify-center">
-              <MessageSquare className="h-6 w-6 text-violet-400" />
+          <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+            <div className="h-12 w-12 rounded-full bg-black/[0.04] flex items-center justify-center">
+              <MessageSquare className="h-5 w-5 text-[#9ca3af]" strokeWidth={1.5} />
             </div>
-            <p className="text-sm text-[#9a9aa5] max-w-xs">
+            <p className="text-sm text-[#9ca3af] max-w-xs leading-relaxed">
               Paste your Figma file URL and run the agent. It will classify every comment and reply to vague ones asking for specifics.
             </p>
           </div>

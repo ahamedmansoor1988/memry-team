@@ -89,7 +89,10 @@ export async function POST(req: NextRequest) {
         const commentsRes = await figmaFetch(pat, `/files/${fileKey}/comments`);
         if (!commentsRes.ok) {
           const txt = await commentsRes.text().catch(() => "");
-          send("error", { text: `Figma API error ${commentsRes.status}: ${txt.slice(0, 200)}` });
+          const msg = commentsRes.status === 403
+            ? "Invalid Figma token (403). Your PAT may be expired or revoked — generate a new one in Figma → Settings → Personal access tokens."
+            : `Figma API error ${commentsRes.status}: ${txt.slice(0, 200)}`;
+          send("error", { text: msg });
           controller.close();
           return;
         }
