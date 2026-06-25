@@ -129,12 +129,21 @@ export default function FigmaComparePage() {
       const res = await fetch("/api/agents/figma-compare", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
+        // Strip any non-serializable DOM refs from live styles
+        const safeLiveStyles = (liveStylesRef.current ?? []).map((s: any) => ({
+          text:       s.text,
+          fontFamily: s.fontFamily,
+          fontSize:   s.fontSize,
+          fontWeight: s.fontWeight,
+          color:      s.color,
+        }));
+
         body:    JSON.stringify({
           figmaNodes: forceRefresh ? null : figmaNodes,
           styleNameMap: forceRefresh ? {} : styleNameMap,
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
-          liveStyles: liveStylesRef.current ?? null,
+          liveStyles: safeLiveStyles.length > 0 ? safeLiveStyles : null,
           pat:        pat.trim(),
           checks:     Array.from(checks),
           forceRefresh,

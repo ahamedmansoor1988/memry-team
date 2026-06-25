@@ -304,7 +304,7 @@ ${sampleTexts.join("\n")}`;
           body: JSON.stringify({
             model: "llama-3.1-8b-instant",
             temperature: 0,
-            max_tokens: 2000,
+            max_tokens: 4000,
             messages: [
               {
                 role: "system",
