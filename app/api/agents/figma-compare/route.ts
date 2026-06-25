@@ -381,6 +381,18 @@ Return ONLY a valid JSON array. No text outside the array.`,
           return;
         }
 
+        // Fetch existing comments to avoid duplicates
+        let existingMessages = new Set<string>();
+        try {
+          const existingRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
+            headers: { "X-Figma-Token": pat },
+          });
+          if (existingRes.ok) {
+            const existingData = await existingRes.json() as { comments: Array<{ message: string }> };
+            existingMessages = new Set(existingData.comments.map(c => c.message));
+          }
+        } catch {}
+
         send("step", { text: `Posting ${discrepancies.length} comments to Figma…` });
 
         const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
@@ -406,6 +418,11 @@ Return ONLY a valid JSON array. No text outside the array.`,
           const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
           const label    = d.label ?? d.category ?? "Design mismatch";
           const message  = `${severity} ${label}\n\n"${d.element.slice(0, 80)}"\n\n${d.issue}`;
+
+          if (existingMessages.has(message)) {
+            table.push({ element: d.label ?? d.category ?? d.element, issue: d.issue, commentId: "already posted" });
+            continue;
+          }
 
           const commentRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
             method:  "POST",
