@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  Play, Loader2, ChevronRight, Eye, EyeOff,
+  Play, Loader2, ChevronRight,
   AlertCircle, CheckCircle2, Trash2, ArrowUp,
   FileCode2, Globe, KeyRound, Sparkles,
 } from "lucide-react";
 
 interface Message {
   id: string;
-  type: "user" | "step" | "result" | "error" | "info";
+  type: "user" | "step" | "result" | "error";
   text: string;
   table?: DiscrepancyRow[];
 }
@@ -24,15 +24,13 @@ export default function FigmaComparePage() {
   const [figmaUrl,  setFigmaUrlRaw]  = useState("");
   const [liveUrl,   setLiveUrlRaw]   = useState("");
   const [pat,       setPatRaw]       = useState("");
-  const [showPat,   setShowPat]      = useState(false);
   const [running,   setRunning]      = useState(false);
-  const [retryIn,   setRetryIn]      = useState(0);
   const [liveStyles,    setLiveStyles]    = useState<any[] | null>(null);
   const [liveStylesUrl, setLiveStylesUrl] = useState("");
   const [messages,  setMessages]     = useState<Message[]>([]);
   const [configOpen, setConfigOpen]  = useState(false);
 
-  const bottomRef    = useRef<HTMLDivElement>(null);
+  const bottomRef     = useRef<HTMLDivElement>(null);
   const liveStylesRef = useRef<any[] | null>(null);
   liveStylesRef.current = liveStyles;
 
@@ -140,12 +138,11 @@ export default function FigmaComparePage() {
     }
   }
 
-  const canRun = !running && retryIn === 0 && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim();
-  const configured = !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim();
+  const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim();
 
   return (
     <div className="flex h-screen flex-col bg-white">
-      {/* ── Top bar ────────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-[#f0f0f0] px-6 py-3 shrink-0">
         <div className="flex items-center gap-2">
           <Sparkles size={14} className="text-[#9a9aa5]" />
@@ -156,7 +153,7 @@ export default function FigmaComparePage() {
           {liveStyles && (
             <span className="flex items-center gap-1.5 rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#1a9457]" />
-              {liveStyles.length} styles from {liveStylesUrl ? new URL(liveStylesUrl).hostname : "extension"}
+              {liveStyles.length} styles · {liveStylesUrl ? new URL(liveStylesUrl).hostname : "extension"}
             </span>
           )}
           {messages.length > 0 && (
@@ -168,7 +165,7 @@ export default function FigmaComparePage() {
         </div>
       </div>
 
-      {/* ── Chat area ──────────────────────────────────────────── */}
+      {/* ── Chat area ────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-6 px-6 py-12">
@@ -177,32 +174,25 @@ export default function FigmaComparePage() {
             </div>
             <div className="text-center">
               <p className="text-[16px] font-semibold text-[#17171c]">Figma vs Live comparison</p>
-              <p className="mt-1 text-[13px] text-[#9a9aa5]">Compare every text element for font and color discrepancies,<br />then annotate findings directly in Figma.</p>
+              <p className="mt-1 text-[13px] text-[#9a9aa5]">Compare your Figma design against the live site<br />and find design inconsistencies instantly.</p>
             </div>
-
-            {/* Quick config cards */}
             <div className="w-full max-w-lg space-y-2">
               <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
               <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl}
                 badge={liveStyles ? `✓ ${liveStyles.length} styles captured` : undefined} />
               <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+              <button onClick={run} disabled={!canRun}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
+                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+              </button>
             </div>
-
-            <button
-              onClick={run}
-              disabled={!canRun}
-              className="flex items-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-[#1a1a1a] disabled:opacity-40 transition-all"
-            >
-              {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
-            </button>
           </div>
         ) : (
           <div className="mx-auto max-w-2xl px-6 py-6 space-y-4">
             {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
             {running && (
               <div className="flex items-center gap-2 text-[12px] text-[#9a9aa5]">
-                <Loader2 size={12} className="animate-spin" />
-                Analyzing…
+                <Loader2 size={12} className="animate-spin" />Analyzing…
               </div>
             )}
             <div ref={bottomRef} />
@@ -210,10 +200,9 @@ export default function FigmaComparePage() {
         )}
       </div>
 
-      {/* ── Bottom input bar (shown after first run) ─────────────── */}
+      {/* ── Bottom bar (after first run) ─────────────────────────── */}
       {messages.length > 0 && (
         <div className="shrink-0 border-t border-[#f0f0f0] bg-white px-6 py-4">
-          {/* Config toggles */}
           {configOpen && (
             <div className="mb-3 rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-4 space-y-3">
               <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
@@ -223,20 +212,13 @@ export default function FigmaComparePage() {
             </div>
           )}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setConfigOpen(o => !o)}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}
-            >
+            <button onClick={() => setConfigOpen(o => !o)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}>
               Configure
             </button>
-            <button
-              onClick={run}
-              disabled={!canRun}
-              className="ml-auto flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all"
-            >
-              {running ? <><Loader2 size={12} className="animate-spin" />Running…</>
-                : retryIn > 0 ? `Rate limited — retry in ${retryIn}s`
-                : <><ArrowUp size={12} />Run again</>}
+            <button onClick={run} disabled={!canRun}
+              className="ml-auto flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
+              {running ? <><Loader2 size={12} className="animate-spin" />Running…</> : <><ArrowUp size={12} />Run again</>}
             </button>
           </div>
         </div>
@@ -245,13 +227,10 @@ export default function FigmaComparePage() {
   );
 }
 
-// ── Config card ───────────────────────────────────────────────────────────────
-
-function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, secret, badge }: {
+function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, badge, secret }: {
   icon: any; label: string; value: string; placeholder: string;
-  onChange: (v: string) => void; hint?: string; secret?: boolean; badge?: string;
+  onChange: (v: string) => void; hint?: string; badge?: string; secret?: boolean;
 }) {
-  const [show, setShow] = useState(false);
   return (
     <div className="flex items-start gap-3 rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
       <Icon size={14} className="mt-0.5 shrink-0 text-[#9a9aa5]" />
@@ -260,27 +239,13 @@ function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, sec
           <span className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-wide">{label}</span>
           {badge && <span className="rounded-full bg-[#e8f6ee] px-2 py-0.5 text-[10px] font-medium text-[#1a9457]">{badge}</span>}
         </div>
-        <div className="relative">
-          <input
-            type={secret && !show ? "password" : "text"}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="w-full bg-transparent text-[13px] text-[#17171c] placeholder:text-[#c8c8d0] outline-none pr-6 font-mono"
-          />
-          {secret && (
-            <button type="button" onClick={() => setShow(s => !s)} className="absolute right-0 top-0 text-[#c8c8d0] hover:text-[#9a9aa5]">
-              {show ? <EyeOff size={12} /> : <Eye size={12} />}
-            </button>
-          )}
-        </div>
+        <input type={secret ? "password" : "text"} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+          className="w-full bg-transparent text-[13px] text-[#17171c] placeholder:text-[#c8c8d0] outline-none" />
         {hint && <p className="mt-1 text-[10px] text-[#c8c8d0]">{hint}</p>}
       </div>
     </div>
   );
 }
-
-// ── Message bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg }: { msg: Message }) {
   if (msg.type === "user") return (
@@ -293,8 +258,7 @@ function MessageBubble({ msg }: { msg: Message }) {
 
   if (msg.type === "step") return (
     <div className="flex items-center gap-2 text-[12px] text-[#b0b0b8]">
-      <ChevronRight size={11} className="shrink-0" />
-      {msg.text}
+      <ChevronRight size={11} className="shrink-0" />{msg.text}
     </div>
   );
 
@@ -338,15 +302,5 @@ function MessageBubble({ msg }: { msg: Message }) {
     </div>
   );
 
-  // info
-  return (
-    <div className="flex items-start gap-3">
-      <div className="mt-0.5 h-6 w-6 shrink-0 rounded-full bg-[#0f0f0f] flex items-center justify-center">
-        <Sparkles size={10} className="text-white" />
-      </div>
-      <div className="flex-1 rounded-2xl rounded-tl-sm border border-[#f0f0f0] bg-white px-4 py-3">
-        <p className="text-[13px] text-[#5b5b66] leading-relaxed">{msg.text}</p>
-      </div>
-    </div>
-  );
+  return null;
 }
