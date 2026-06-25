@@ -30,6 +30,14 @@ function parseFileKey(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function extractStyleIdsFromNode(node: any, ids: Set<string> = new Set()): string[] {
+  if (!node) return [];
+  if (node.styles?.text) ids.add(node.styles.text);
+  if (node.styles?.fill) ids.add(node.styles.fill);
+  for (const child of node.children ?? []) extractStyleIdsFromNode(child, ids);
+  return Array.from(ids);
+}
+
 function parseNodeId(url: string): string | null {
   const m = url.match(/node-id=([^&]+)/);
   if (!m) return null;
@@ -102,7 +110,7 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
-  const { figmaNodes, styleNameMap, fileKey, nodeId, liveUrl, liveStyles, pat } = await req.json() as {
+  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
     liveUrl: string; liveStyles: any[] | null; pat: string;
   };
@@ -115,7 +123,47 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        // ── Use pre-fetched Figma nodes (fetched browser-side) ───────────────
+        // ── Fetch Figma nodes server-side if not pre-fetched ─────────────────
+        let figmaNodes = prefetched;
+        let styleNameMap: Record<string, string> = prefetchedStyleMap ?? {};
+
+        if (!figmaNodes) {
+          send("step", { text: "Fetching Figma node tree via server…" });
+          const figmaRes = await figmaFetch(
+            pat,
+            `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
+            (secs) => send("step", { text: `Figma rate limit — waiting ${secs}s…` }),
+          );
+          if (!figmaRes.ok) {
+            const txt = await figmaRes.text();
+            send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
+            controller.close();
+            return;
+          }
+          figmaNodes = await figmaRes.json();
+
+          // Resolve named styles
+          const rootDocTmp = figmaNodes?.nodes?.[nodeId]?.document;
+          const styleIds = extractStyleIdsFromNode(rootDocTmp);
+          if (styleIds.length) {
+            const stylesRes = await figmaFetch(
+              pat,
+              `/files/${fileKey}/nodes?ids=${styleIds.map(encodeURIComponent).join(",")}`,
+            );
+            if (stylesRes.ok) {
+              const stylesData = await stylesRes.json() as { nodes: Record<string, { document: any }> };
+              for (const [id, node] of Object.entries(stylesData.nodes ?? {})) {
+                if ((node as any)?.document?.name) styleNameMap[id] = (node as any).document.name;
+              }
+            }
+          }
+        }
+
+        // Send nodes to client for caching
+        if (!prefetched) {
+          send("cache", { figmaNodes, styleNameMap });
+        }
+
         const rootDoc = (figmaNodes as { nodes: Record<string, { document: any }> }).nodes[nodeId]?.document;
 
         if (!rootDoc) {

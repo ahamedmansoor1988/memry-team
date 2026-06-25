@@ -424,9 +424,10 @@ function Canvas() {
       const fileKey = fileKeyMatch[1];
       const nodeId  = decodeURIComponent(nodeIdMatch[1]).replace("-", ":");
 
+      // Check localStorage cache first — avoids any Figma API call
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
       const cached   = localStorage.getItem(cacheKey);
-      let figmaNodes: any;
+      let figmaNodes: any = null;
       let styleNameMap: Record<string, string> = {};
 
       if (cached) {
@@ -435,51 +436,7 @@ function Canvas() {
         styleNameMap = parsed.styleNameMap ?? {};
         addLog("Figma nodes loaded from cache.");
       } else {
-        addLog("Fetching Figma node tree…");
-        const figmaRes = await fetch(
-          `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
-          { headers: { "X-Figma-Token": patVal.trim() } },
-        );
-        if (figmaRes.status === 429) {
-          const waitSecs = 60;
-          addLog(`Figma rate limit hit — retrying in ${waitSecs}s…`);
-          addMsg({ type: "error", text: `Figma rate limit — auto-retrying in ${waitSecs} seconds.` });
-          setStatus("error");
-          setRetryIn(waitSecs);
-          let t = waitSecs;
-          const tick = setInterval(() => {
-            t--;
-            setRetryIn(t);
-            if (t <= 0) { clearInterval(tick); setRetryIn(0); setStatus("idle"); }
-          }, 1000);
-          return;
-        }
-        if (!figmaRes.ok) {
-          const txt = await figmaRes.text();
-          addLog(`Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}`);
-          addMsg({ type: "error", text: `Figma API error ${figmaRes.status}` });
-          setStatus("error");
-          return;
-        }
-        figmaNodes = await figmaRes.json();
-
-        const rootDoc  = figmaNodes?.nodes?.[nodeId]?.document;
-        const styleIds = extractStyleIds(rootDoc);
-        if (styleIds.length) {
-          addLog(`Resolving ${styleIds.length} named styles…`);
-          const stylesRes = await fetch(
-            `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${styleIds.map(encodeURIComponent).join(",")}`,
-            { headers: { "X-Figma-Token": patVal.trim() } },
-          );
-          if (stylesRes.ok) {
-            const stylesData = await stylesRes.json() as { nodes: Record<string, { document: any }> };
-            for (const [id, node] of Object.entries(stylesData.nodes ?? {})) {
-              if ((node as any)?.document?.name) styleNameMap[id] = (node as any).document.name;
-            }
-          }
-        }
-        localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes, styleNameMap }));
-        addLog("Figma nodes fetched and cached.");
+        addLog("No cache — server will fetch Figma nodes…");
       }
 
       addLog("Running AI comparison…");
@@ -510,6 +467,10 @@ function Canvas() {
             const data = JSON.parse(line.slice(6));
             if (data.type === "step")  { addLog(data.text); }
             if (data.type === "error") { addLog(data.text); setStatus("error"); addMsg({ type: "error", text: data.text }); }
+            if (data.type === "cache") {
+              // Server fetched Figma nodes — save to localStorage cache
+              try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes: data.figmaNodes, styleNameMap: data.styleNameMap })); } catch {}
+            }
             if (data.type === "result") {
               setResultText(data.text);
               setResults(data.table ?? []);
