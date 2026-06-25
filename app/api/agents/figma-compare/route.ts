@@ -358,7 +358,12 @@ Do not include any text outside the JSON array.`,
         let discrepancies: Array<{ element: string; category?: string; issue: string; severity: string }> = [];
         try {
           const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
-          discrepancies = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          if (!jsonMatch) {
+            send("error", { text: `AI returned an unexpected response: ${rawContent.slice(0, 300)}` });
+            controller.close();
+            return;
+          }
+          discrepancies = JSON.parse(jsonMatch[0]);
         } catch {
           send("error", { text: `Could not parse AI response: ${rawContent.slice(0, 300)}` });
           controller.close();
@@ -372,7 +377,7 @@ Do not include any text outside the JSON array.`,
 
         if (discrepancies.length === 0) {
           send("result", {
-            text: "No discrepancies found — the live site appears to match the Figma frame. Try switching to the live site tab so the extension can re-capture fresh styles, then run again.",
+            text: "No discrepancies found. This can happen if:\n• The live URL doesn't match the Figma frame (e.g. wrong page)\n• The Loupe extension hasn't captured styles from the live site yet (visit the page first, then run again)\n• The design and live site genuinely match",
             table: [],
           });
           controller.close();
