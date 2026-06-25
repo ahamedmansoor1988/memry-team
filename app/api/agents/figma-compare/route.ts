@@ -263,10 +263,18 @@ export async function POST(req: NextRequest) {
         const headingNodes = textNodes.filter(n => n.fontSize >= 24).slice(0, 10);
         const bodyNodes    = textNodes.filter(n => n.fontSize < 24).slice(0, 15);
 
+        const sampleTexts = [
+          ...textNodes.filter(n => n.fontSize >= 24).slice(0, 8),
+          ...textNodes.filter(n => n.fontSize < 24).slice(0, 8),
+        ].map(n => `"${n.characters.slice(0, 60)}" (${n.fontFamily} ${n.fontSize}px/${n.fontWeight} ${n.color})`);
+
         const figmaSummary = `Font families: ${figmaFonts.join(", ")}
 Font sizes: ${figmaSizes.join(", ")}px
 Font weights: ${figmaWeights.join(", ")}
-Colors: ${figmaColors.slice(0, 20).join(", ")}`;
+Colors: ${figmaColors.slice(0, 20).join(", ")}
+
+Sample text nodes (use these for "element" field):
+${sampleTexts.join("\n")}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
@@ -303,8 +311,13 @@ Category rules:
 Be specific: state Figma value vs live value.
 Be thorough — real products almost always have discrepancies.
 
-Return ONLY a JSON array:
-[{ "element": "description", "issue": "Figma: X — Live: Y", "severity": "high"|"medium"|"low" }]
+Return ONLY a JSON array. Each item must have:
+- "element": the EXACT text content from the Figma spec that best illustrates this issue (copy a short snippet verbatim, e.g. "We are sad to see you go.")
+- "category": the check category (font_family, font_size, etc.)
+- "issue": "Figma: X — Live: Y"
+- "severity": "high"|"medium"|"low"
+
+Example: { "element": "We are sad to see you go.", "category": "font_size", "issue": "Figma: 26px — Live: 20px", "severity": "high" }
 
 Do not include any text outside the JSON array.`,
               },
@@ -328,7 +341,7 @@ Do not include any text outside the JSON array.`,
         const aiData = await aiRes.json() as { choices: Array<{ message: { content: string } }> };
         const rawContent = aiData.choices[0]?.message?.content?.trim() ?? "[]";
 
-        let discrepancies: Array<{ element: string; issue: string; severity: string }> = [];
+        let discrepancies: Array<{ element: string; category?: string; issue: string; severity: string }> = [];
         try {
           const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
           discrepancies = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
@@ -355,18 +368,30 @@ Do not include any text outside the JSON array.`,
         send("step", { text: `Posting ${discrepancies.length} comments to Figma…` });
 
         const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
-        let commentIndex = 0;
+        const total = discrepancies.length;
 
-        for (const d of discrepancies) {
+        for (let commentIndex = 0; commentIndex < discrepancies.length; commentIndex++) {
+          const d = discrepancies[commentIndex];
+
+          // Match by actual text content the AI returned
+          const needle = d.element.toLowerCase().trim();
           const match = textNodes.find(n =>
-            n.characters.toLowerCase().includes(d.element.toLowerCase().split(" ")[0]) ||
-            d.element.toLowerCase().includes(n.name.toLowerCase())
-          ) ?? textNodes[commentIndex % textNodes.length];
+            n.characters.toLowerCase().includes(needle.slice(0, 20)) ||
+            needle.includes(n.characters.toLowerCase().slice(0, 20))
+          );
 
-          // Offset is relative to the frame's top-left corner
-          const bbox    = match?.absoluteBoundingBox ?? fb;
-          const offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width  / 2);
-          const offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
+          let offsetX: number;
+          let offsetY: number;
+
+          if (match?.absoluteBoundingBox) {
+            const bbox = match.absoluteBoundingBox;
+            offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width  / 2);
+            offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
+          } else {
+            // Spread evenly down the frame with slight horizontal offset alternation
+            offsetX = fb.width * (commentIndex % 2 === 0 ? 0.25 : 0.75);
+            offsetY = (fb.height / (total + 1)) * (commentIndex + 1);
+          }
 
           const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
           const message  = `${severity} ${d.element}\n${d.issue}`;
@@ -392,8 +417,7 @@ Do not include any text outside the JSON array.`,
             console.error(`Comment post failed ${commentRes.status}: ${errText}`);
           }
 
-          table.push({ element: d.element, issue: d.issue, commentId });
-          commentIndex++;
+          table.push({ element: d.category ?? d.element, issue: `${d.element} — ${d.issue}`, commentId });
         }
 
         const posted = table.filter(r => r.commentId).length;
