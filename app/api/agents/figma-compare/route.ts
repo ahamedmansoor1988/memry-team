@@ -444,47 +444,48 @@ export async function POST(req: NextRequest) {
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
-        // Build design-system-level summary instead of per-element text matching
         const figmaFonts   = Array.from(new Set(textNodes.map(n => n.fontFamily).filter(Boolean)));
         const figmaSizes   = Array.from(new Set(textNodes.map(n => n.fontSize).filter(Boolean))).sort((a, b) => b - a);
         const figmaWeights = Array.from(new Set(textNodes.map(n => n.fontWeight).filter(Boolean)));
         const figmaColors  = Array.from(new Set(textNodes.map(n => n.color).filter(Boolean)));
 
-        const headingNodes = textNodes.filter(n => n.fontSize >= 24).slice(0, 10);
-        const bodyNodes    = textNodes.filter(n => n.fontSize < 24).slice(0, 15);
+        // Deduplicate text nodes by unique font+size+weight combo — keeps prompt small
+        const seenFontCombos = new Set<string>();
+        const nodeDetails: string[] = [];
+        for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize)) {
+          const key = `${n.fontFamily}|${n.fontSize}|${n.fontWeight}|${n.color}`;
+          if (seenFontCombos.has(key)) continue;
+          seenFontCombos.add(key);
+          nodeDetails.push(`text="${n.characters.slice(0, 50)}" font="${n.fontFamily}" size=${n.fontSize}px weight=${n.fontWeight} color=${n.color}`);
+          if (nodeDetails.length >= 15) break;
+        }
 
-        // Include per-node detail so AI uses exact font names and can reference real text
-        const nodeDetails = [
-          ...textNodes.filter(n => n.fontSize >= 24).slice(0, 10),
-          ...textNodes.filter(n => n.fontSize < 24 && n.fontSize >= 14).slice(0, 10),
-        ].map(n => `text="${n.characters.slice(0, 60)}" font="${n.fontFamily}" size=${n.fontSize}px weight=${n.fontWeight} color=${n.color}`);
-
-        // Visual nodes: buttons, nav, footer with border-radius, shadow, colors
-        const figmaButtons = visualNodes.filter(n => n.role === "button").slice(0, 8);
-        const figmaNavNodes = visualNodes.filter(n => n.role === "nav").slice(0, 3);
-        const figmaFooterNodes = visualNodes.filter(n => n.role === "footer").slice(0, 3);
+        // Visual nodes: buttons, nav, footer
+        const figmaButtons    = visualNodes.filter(n => n.role === "button").slice(0, 5);
+        const figmaNavNodes   = visualNodes.filter(n => n.role === "nav").slice(0, 2);
+        const figmaFooterNodes = visualNodes.filter(n => n.role === "footer").slice(0, 2);
 
         const visualDetail = (nodes: VisualNode[]) => nodes.map(n =>
-          `  "${n.name}" bg:${n.backgroundColor ?? "none"} radius:${n.borderRadius ?? 0}px shadow:${n.shadow ?? "none"} border:${n.borderColor ? `${n.borderWidth}px ${n.borderColor}` : "none"} padding:${n.paddingTop ?? 0}px ${n.paddingRight ?? 0}px ${n.paddingBottom ?? 0}px ${n.paddingLeft ?? 0}px`
+          `  bg:${n.backgroundColor ?? "none"} radius:${n.borderRadius ?? 0}px shadow:${n.shadow ?? "none"} padding:${n.paddingTop ?? 0}/${n.paddingRight ?? 0}/${n.paddingBottom ?? 0}/${n.paddingLeft ?? 0}px`
         ).join("\n");
 
-        const figmaSummary = `=== FIGMA TYPOGRAPHY ===
-Font families: ${figmaFonts.join(", ")}
-Font sizes: ${figmaSizes.join(", ")}px
-Font weights: ${figmaWeights.join(", ")}
-Colors: ${figmaColors.slice(0, 15).join(", ")}
+        // Trim live context to cap total prompt size
+        const trimmedLiveContext = liveContext.split("\n").slice(0, 80).join("\n");
 
-TEXT NODES (use exact text value for "element" field):
+        const figmaSummary = `=== FIGMA TYPOGRAPHY ===
+Fonts: ${figmaFonts.join(", ")} | Sizes: ${figmaSizes.slice(0, 10).join(", ")}px | Weights: ${figmaWeights.join(", ")} | Colors: ${figmaColors.slice(0, 10).join(", ")}
+
+TEXT NODES:
 ${nodeDetails.join("\n")}
 
-=== FIGMA NAVIGATION ===
-${figmaNavNodes.length ? visualDetail(figmaNavNodes) : "  (no nav nodes found — check node names)"}
+=== FIGMA NAV ===
+${figmaNavNodes.length ? visualDetail(figmaNavNodes) : "  none detected"}
 
 === FIGMA FOOTER ===
-${figmaFooterNodes.length ? visualDetail(figmaFooterNodes) : "  (no footer nodes found)"}
+${figmaFooterNodes.length ? visualDetail(figmaFooterNodes) : "  none detected"}
 
-=== FIGMA BUTTONS / CTA ===
-${figmaButtons.length ? visualDetail(figmaButtons) : "  (no button nodes found — check node names include 'button', 'btn', or 'cta')"}`;
+=== FIGMA BUTTONS ===
+${figmaButtons.length ? visualDetail(figmaButtons) : "  none detected"}`;
 
         send("step", { text: "Sending to Groq AI for analysis…" });
 
@@ -535,7 +536,7 @@ Return ONLY a valid JSON array. No text outside the array.`,
               },
               {
                 role: "user",
-                content: `FIGMA SPEC:\n${figmaSummary}\n\nLIVE SITE COMPUTED STYLES from ${liveUrl}:\n${liveContext}\n\nFind all typography and color discrepancies.`,
+                content: `FIGMA SPEC:\n${figmaSummary}\n\nLIVE SITE COMPUTED STYLES from ${liveUrl}:\n${trimmedLiveContext}\n\nFind all discrepancies for the selected checks.`,
               },
             ],
           }),
