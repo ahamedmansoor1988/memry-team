@@ -167,10 +167,10 @@ export async function POST(req: NextRequest) {
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
         // Build design-system-level summary instead of per-element text matching
-        const figmaFonts   = [...new Set(textNodes.map(n => n.fontFamily).filter(Boolean))];
-        const figmaSizes   = [...new Set(textNodes.map(n => n.fontSize).filter(Boolean))].sort((a, b) => b - a);
-        const figmaWeights = [...new Set(textNodes.map(n => n.fontWeight).filter(Boolean))];
-        const figmaColors  = [...new Set(textNodes.map(n => n.color).filter(Boolean))];
+        const figmaFonts   = Array.from(new Set(textNodes.map(n => n.fontFamily).filter(Boolean)));
+        const figmaSizes   = Array.from(new Set(textNodes.map(n => n.fontSize).filter(Boolean))).sort((a, b) => b - a);
+        const figmaWeights = Array.from(new Set(textNodes.map(n => n.fontWeight).filter(Boolean)));
+        const figmaColors  = Array.from(new Set(textNodes.map(n => n.color).filter(Boolean)));
 
         const headingNodes = textNodes.filter(n => n.fontSize >= 24).slice(0, 10);
         const bodyNodes    = textNodes.filter(n => n.fontSize < 24).slice(0, 15);

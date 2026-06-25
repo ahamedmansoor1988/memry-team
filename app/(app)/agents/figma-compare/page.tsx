@@ -47,6 +47,7 @@ interface SharedState {
   log: string[];
   results: DiscrepancyRow[];
   resultText: string;
+  retryIn: number;
   run: () => void;
 }
 
@@ -195,11 +196,13 @@ function CompareNode({ data }: NodeProps) {
         )}
         <button
           onClick={s.run}
-          disabled={!canRun || running}
+          disabled={!canRun || running || s.retryIn > 0}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#18181b] px-3 py-2 text-[12px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-35"
         >
           {running ? (
             <><Loader2 size={11} className="animate-spin" />Running…</>
+          ) : s.retryIn > 0 ? (
+            <>Rate limited — retry in {s.retryIn}s</>
           ) : (
             <><Play size={11} />Run comparison</>
           )}
@@ -341,6 +344,7 @@ function Canvas() {
   const [log,          setLog]          = useState<string[]>([]);
   const [results,      setResults]      = useState<DiscrepancyRow[]>([]);
   const [resultText,   setResultText]   = useState("");
+  const [retryIn,      setRetryIn]      = useState(0);
   const [messages,     setMessages]     = useState<ChatMessage[]>([{
     id: "welcome", type: "info",
     text: "Configure the nodes on the right, then hit Run comparison. I'll check every text element for font and color discrepancies and annotate them directly in Figma.",
@@ -436,9 +440,24 @@ function Canvas() {
           `https://api.figma.com/v1/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
           { headers: { "X-Figma-Token": patVal.trim() } },
         );
+        if (figmaRes.status === 429) {
+          const waitSecs = 60;
+          addLog(`Figma rate limit hit — retrying in ${waitSecs}s…`);
+          addMsg({ type: "error", text: `Figma rate limit — auto-retrying in ${waitSecs} seconds.` });
+          setStatus("error");
+          setRetryIn(waitSecs);
+          let t = waitSecs;
+          const tick = setInterval(() => {
+            t--;
+            setRetryIn(t);
+            if (t <= 0) { clearInterval(tick); setRetryIn(0); setStatus("idle"); }
+          }, 1000);
+          return;
+        }
         if (!figmaRes.ok) {
           const txt = await figmaRes.text();
           addLog(`Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}`);
+          addMsg({ type: "error", text: `Figma API error ${figmaRes.status}` });
           setStatus("error");
           return;
         }
@@ -519,7 +538,7 @@ function Canvas() {
     liveUrl,  setLiveUrl,
     pat,      setPat,
     liveStyles, liveStylesUrl,
-    status, log, results, resultText,
+    status, log, results, resultText, retryIn,
     run,
   };
 
