@@ -258,9 +258,27 @@ export async function POST(req: NextRequest) {
         let liveContext = "";
 
         if (liveStyles && liveStyles.length > 0) {
-          // Use real computed styles from the Chrome extension — aggregate only, no per-element text
           send("step", { text: `Using ${liveStyles.length} computed styles from Loupe extension.` });
-          const liveFonts   = Array.from(new Set(liveStyles.map((s: any) => s.fontFamily).filter(Boolean)));
+
+          // Resolve CSS system font aliases to human-readable names
+          const FONT_ALIASES: Record<string, string> = {
+            "-apple-system":        "SF Pro (Apple System Font)",
+            "BlinkMacSystemFont":   "SF Pro (Apple System Font)",
+            "system-ui":            "System UI Font",
+            "ui-sans-serif":        "System Sans-Serif",
+            "ui-serif":             "System Serif",
+            "ui-monospace":         "System Monospace",
+            "sans-serif":           "sans-serif (generic)",
+            "serif":                "serif (generic)",
+            "monospace":            "monospace (generic)",
+          };
+          function resolveFont(f: string): string {
+            // Font family strings can be comma-separated; resolve the first real name
+            const first = f.split(",")[0].trim().replace(/['"]/g, "");
+            return FONT_ALIASES[first] ?? first;
+          }
+
+          const liveFonts   = Array.from(new Set(liveStyles.map((s: any) => resolveFont(s.fontFamily ?? "")).filter(Boolean)));
           const liveSizes   = Array.from(new Set(liveStyles.map((s: any) => s.fontSize).filter(Boolean))).sort((a: any, b: any) => parseFloat(b) - parseFloat(a));
           const liveWeights = Array.from(new Set(liveStyles.map((s: any) => s.fontWeight).filter(Boolean)));
           const liveColors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 20);
@@ -422,34 +440,45 @@ Return ONLY a valid JSON array. No text outside the array.`,
           }
         } catch {}
 
-        // Group discrepancies by category — one comment per category, placed on a relevant node
-        const groupedByCategory = new Map<string, typeof discrepancies>();
+        // Group by element text — one comment per unique text element listing all its issues
+        const groupedByElement = new Map<string, typeof discrepancies>();
         for (const d of discrepancies) {
-          const cat = d.category ?? "other";
-          if (!groupedByCategory.has(cat)) groupedByCategory.set(cat, []);
-          groupedByCategory.get(cat)!.push(d);
+          const key = d.element.slice(0, 60);
+          if (!groupedByElement.has(key)) groupedByElement.set(key, []);
+          groupedByElement.get(key)!.push(d);
         }
 
-        send("step", { text: `Posting ${groupedByCategory.size} comments to Figma (one per category)…` });
+        send("step", { text: `Posting ${groupedByElement.size} comments to Figma (one per element)…` });
 
         const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
-        const categories = Array.from(groupedByCategory.entries());
+        const elementGroups = Array.from(groupedByElement.entries());
 
-        for (let i = 0; i < categories.length; i++) {
-          const [cat, items] = categories[i];
+        for (let i = 0; i < elementGroups.length; i++) {
+          const [elementText, items] = elementGroups[i];
 
-          // Place each category comment in a column along the left edge of the frame
-          // 40px apart vertically so they don't overlap
-          const offsetX = 20;
-          const offsetY = 20 + i * 40;
+          // Find matching text node in Figma
+          const matchNode = textNodes.find(n =>
+            n.characters.toLowerCase().startsWith(elementText.toLowerCase().slice(0, 20)) ||
+            elementText.toLowerCase().startsWith(n.characters.toLowerCase().slice(0, 20))
+          );
+
+          let offsetX = 20;
+          let offsetY = 20 + i * 40;
+          if (matchNode?.absoluteBoundingBox) {
+            const bbox = matchNode.absoluteBoundingBox;
+            offsetX = Math.max(0, bbox.x - fb.x);
+            offsetY = Math.max(0, bbox.y - fb.y);
+          }
 
           const severity = items.some(d => d.severity === "high") ? "❌" : items.some(d => d.severity === "medium") ? "⚠️" : "ℹ️";
-          const catLabel = cat.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-          const issueLines = items.map(d => `• ${d.issue}`).join("\n");
-          const message = `${severity} ${catLabel} mismatch\n\n${issueLines}`;
+          const issueLines = items.map(d => {
+            const catLabel = (d.category ?? "issue").replace(/_/g, " ");
+            return `• ${catLabel}: ${d.issue}`;
+          }).join("\n");
+          const message = `${severity} "${elementText}"\n\n${issueLines}`;
 
           if (existingMessages.has(message)) {
-            for (const d of items) table.push({ element: catLabel, issue: d.issue, commentId: "already posted" });
+            for (const d of items) table.push({ element: elementText, issue: d.issue, commentId: "already posted" });
             continue;
           }
 
@@ -470,7 +499,7 @@ Return ONLY a valid JSON array. No text outside the array.`,
             console.error(`Comment failed ${commentRes.status}: ${await commentRes.text().catch(() => "")}`);
           }
 
-          for (const d of items) table.push({ element: catLabel, issue: d.issue, commentId });
+          for (const d of items) table.push({ element: elementText, issue: `${(d.category ?? "").replace(/_/g, " ")}: ${d.issue}`, commentId });
           await new Promise(r => setTimeout(r, 400));
         }
 
