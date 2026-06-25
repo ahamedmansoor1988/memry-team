@@ -182,7 +182,23 @@ export default function FigmaComparePage() {
           { headers: { "X-Figma-Token": pat.trim() } }
         );
         if (figmaRes.status === 429) {
-          addRun({ type: "error", text: "Figma rate limit hit. Please wait 1–2 minutes and try again — Figma limits API requests per minute." });
+          const retryAfter = figmaRes.headers.get("Retry-After");
+          const planTier   = figmaRes.headers.get("X-Figma-Plan-Tier") ?? "unknown";
+          const limitType  = figmaRes.headers.get("X-Figma-Rate-Limit-Type") ?? "unknown";
+          let waitMsg = "Please wait a moment and try again.";
+          if (retryAfter) {
+            const secs = parseInt(retryAfter, 10);
+            if (secs > 3600) {
+              const hours = Math.ceil(secs / 3600);
+              waitMsg = `Your Figma API quota is exhausted (plan: ${planTier}, limit type: ${limitType}). Retry-After: ${secs}s (~${hours} hour${hours !== 1 ? "s" : ""}). The quota resets in approximately ${hours} hour${hours !== 1 ? "s" : ""}.`;
+            } else if (secs > 60) {
+              const mins = Math.ceil(secs / 60);
+              waitMsg = `Rate limited (plan: ${planTier}). Please wait ${mins} minute${mins !== 1 ? "s" : ""} (${secs}s) then try again.`;
+            } else {
+              waitMsg = `Rate limited. Please wait ${secs} seconds then try again.`;
+            }
+          }
+          addRun({ type: "error", text: `Figma returned 429 — ${waitMsg}` });
           setRunning(false);
           return;
         }
