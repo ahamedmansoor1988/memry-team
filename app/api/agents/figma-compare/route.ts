@@ -507,6 +507,42 @@ Return ONLY a valid JSON array. No text outside the array.`,
           .map(([cat, count]) => `${count} ${cat.replace("_", " ")}`)
           .join(", ");
 
+        // ── Step 7: Post summary report comment ───────────────────────────────
+        send("step", { text: "Posting QA summary report to Figma…" });
+
+        // Fetch last editor from version history
+        let mentionLine = "";
+        try {
+          const versionsRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/versions`, {
+            headers: { "X-Figma-Token": pat },
+          });
+          if (versionsRes.ok) {
+            const versionsData = await versionsRes.json() as { versions: Array<{ user: { handle: string; id: string } }> };
+            const lastEditor = versionsData.versions?.[0]?.user;
+            if (lastEditor?.handle) {
+              mentionLine = `\nLast edited by: @${lastEditor.handle}`;
+            }
+          }
+        } catch {}
+
+        const categoryLines = Object.entries(byCategory)
+          .map(([cat, count]) => `  • ${count}× ${cat.replace(/_/g, " ")}`)
+          .join("\n");
+
+        const reportDate = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        const reportMessage = `📋 Loupe QA Report — ${reportDate}\n\n${discrepancies.length} issue${discrepancies.length !== 1 ? "s" : ""} found:\n${categoryLines}${mentionLine}\n\nSee individual comments on each element for details.`;
+
+        if (!existingMessages.has(reportMessage)) {
+          await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
+            method:  "POST",
+            headers: { "X-Figma-Token": pat, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: reportMessage,
+              client_meta: { node_id: frame.id, node_offset: { x: 0, y: 0 } },
+            }),
+          });
+        }
+
         send("result", {
           text: `Found ${discrepancies.length} issues: ${summary}. ${posted} comments posted in Figma — open the file to review.`,
           table,
