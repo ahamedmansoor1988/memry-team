@@ -118,9 +118,9 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
-  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat, checks, assignTo, forceRefresh } = await req.json() as {
+  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, liveData, pat, checks, assignTo, forceRefresh } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
-    liveUrl: string; liveStyles: any[] | null; pat: string; checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
+    liveUrl: string; liveStyles: any[] | null; liveData?: any | null; pat: string; checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
   };
 
   const encoder = new TextEncoder();
@@ -254,48 +254,88 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // ── Step 4: Get live page styles ─────────────────────────────────────
+        // ── Step 4: Build live context ────────────────────────────────────────
         let liveContext = "";
 
-        const hasExtensionStyles = Array.isArray(liveStyles) && liveStyles.length > 0;
-        if (!hasExtensionStyles) {
-          send("step", { text: `Scraping styles from ${liveUrl}…` });
+        if (liveData) {
+          // New structured format from updated extension
+          const d = liveData;
+          const lines: string[] = [];
+
+          if (d.nav) {
+            lines.push("=== NAVIGATION ===");
+            lines.push(`Background: ${d.nav.styles?.backgroundColor ?? "unknown"}`);
+            if (d.nav.items?.length) {
+              lines.push("Nav items:");
+              d.nav.items.slice(0, 10).forEach((item: any) => {
+                lines.push(`  "${item.text}" — font: ${item.styles.fontFamily} ${item.styles.fontSize} weight:${item.styles.fontWeight} color:${item.styles.color}`);
+              });
+            }
+          }
+
+          if (d.footer) {
+            lines.push("=== FOOTER ===");
+            lines.push(`Background: ${d.footer.styles?.backgroundColor ?? "unknown"}, color: ${d.footer.styles?.color ?? "unknown"}`);
+            if (d.footer.items?.length) {
+              lines.push("Footer items:");
+              d.footer.items.slice(0, 10).forEach((item: any) => {
+                lines.push(`  "${item.text}" — font: ${item.styles.fontFamily} ${item.styles.fontSize} color:${item.styles.color}`);
+              });
+            }
+          }
+
+          if (d.buttons?.length) {
+            lines.push("=== CTA BUTTONS ===");
+            d.buttons.forEach((btn: any) => {
+              const s = btn.styles;
+              lines.push(`  "${btn.text}" — font: ${s.fontFamily} ${s.fontSize} weight:${s.fontWeight} color:${s.color} bg:${s.backgroundColor} radius:${s.borderRadius} shadow:${s.boxShadow ?? "none"} padding:${s.paddingTop} ${s.paddingRight} ${s.paddingBottom} ${s.paddingLeft}`);
+            });
+          }
+
+          if (d.typography?.length) {
+            lines.push("=== TYPOGRAPHY ===");
+            d.typography.slice(0, 40).forEach((t: any) => {
+              lines.push(`  "${t.text}" — ${t.fontFamily} ${t.fontSize} weight:${t.fontWeight} color:${t.color}`);
+            });
+          }
+
+          if (d.colors?.length) {
+            lines.push(`=== COLORS ===\n  ${d.colors.join(", ")}`);
+          }
+
+          liveContext = lines.join("\n");
+          const btnCount = d.buttons?.length ?? 0;
+          const typoCount = d.typography?.length ?? 0;
+          send("step", { text: `Extracted ${typoCount} text elements, ${btnCount} buttons, nav, footer from live site.` });
+
+        } else if (Array.isArray(liveStyles) && liveStyles.length > 0) {
+          // Legacy flat styles array from old extension
+          const fonts   = Array.from(new Set(liveStyles.map((s: any) => s.fontFamily).filter(Boolean)));
+          const sizes   = Array.from(new Set(liveStyles.map((s: any) => s.fontSize).filter(Boolean)));
+          const weights = Array.from(new Set(liveStyles.map((s: any) => s.fontWeight).filter(Boolean)));
+          const colors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 25);
+          const typoLines = liveStyles.slice(0, 40).map((s: any) =>
+            `  "${s.text}" — ${s.fontFamily} ${s.fontSize} weight:${s.fontWeight} color:${s.color}`
+          );
+          liveContext = `=== TYPOGRAPHY ===\n${typoLines.join("\n")}\n\nFont families: ${fonts.join(", ")}\nFont sizes: ${sizes.join(", ")}\nFont weights: ${weights.join(", ")}\nColors: ${colors.join(", ")}`;
+          send("step", { text: `Using ${liveStyles.length} computed styles from extension.` });
+
         } else {
-          send("step", { text: `Using ${liveStyles.length} computed styles from extension + scraping for fonts…` });
-        }
-        let scrapedStyles: { fonts: string[]; sizes: string[]; weights: string[]; colors: string[]; googleFonts: string[] } | null = null;
-        try {
-          const scrapeRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/scrape-styles`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: liveUrl }),
-            signal: AbortSignal.timeout(20_000),
-          });
-          if (scrapeRes.ok) scrapedStyles = await scrapeRes.json();
-        } catch {}
-
-        // Merge scraped styles with extension styles if both available
-        const mergedFonts   = Array.from(new Set([
-          ...(scrapedStyles?.googleFonts ?? []),
-          ...(scrapedStyles?.fonts ?? []),
-          ...(liveStyles ?? []).map((s: any) => s.fontFamily).filter(Boolean),
-        ])).filter(Boolean);
-        const mergedSizes   = Array.from(new Set([
-          ...(scrapedStyles?.sizes ?? []),
-          ...(liveStyles ?? []).map((s: any) => s.fontSize).filter(Boolean),
-        ])).filter(Boolean);
-        const mergedWeights = Array.from(new Set([
-          ...(scrapedStyles?.weights ?? []),
-          ...(liveStyles ?? []).map((s: any) => s.fontWeight).filter(Boolean),
-        ])).filter(Boolean);
-        const mergedColors  = Array.from(new Set([
-          ...(scrapedStyles?.colors ?? []),
-          ...(liveStyles ?? []).map((s: any) => s.color).filter(Boolean),
-        ])).slice(0, 25);
-
-        if (mergedFonts.length > 0 || mergedColors.length > 0) {
-          liveContext = `Font families: ${mergedFonts.join(", ")}\nFont sizes: ${mergedSizes.join(", ")}\nFont weights: ${mergedWeights.join(", ")}\nColors: ${mergedColors.join(", ")}`;
-          send("step", { text: `Found ${mergedFonts.length} fonts, ${mergedColors.length} colors from live site.` });
+          // Fallback: server-side CSS scraping only
+          send("step", { text: `No extension data — scraping CSS from ${liveUrl}…` });
+          try {
+            const scrapeRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/scrape-styles`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: liveUrl }),
+              signal: AbortSignal.timeout(20_000),
+            });
+            if (scrapeRes.ok) {
+              const s = await scrapeRes.json() as any;
+              liveContext = `Font families: ${s.fonts?.join(", ")}\nFont sizes: ${s.sizes?.join(", ")}\nColors: ${s.colors?.join(", ")}`;
+              send("step", { text: "CSS scraped (limited — install extension for full data)." });
+            }
+          } catch {}
         }
 
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });

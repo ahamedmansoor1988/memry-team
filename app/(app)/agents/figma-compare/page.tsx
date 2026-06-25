@@ -45,9 +45,12 @@ export default function FigmaComparePage() {
 
   // Extension bridge
   const [liveStyles,     setLiveStyles]     = useState<any[] | null>(null);
+  const [liveData,       setLiveData]       = useState<any | null>(null);
   const [scrapeStatus,   setScrapeStatus]   = useState<"idle"|"fetching"|"ready">("idle");
   const liveStylesRef = useRef<any[] | null>(null);
+  const liveDataRef   = useRef<any | null>(null);
   liveStylesRef.current = liveStyles;
+  liveDataRef.current   = liveData;
 
   // Collaborators
   const [collaborators, setCollaborators] = useState<Array<{ id: string; handle: string; img_url: string }>>([]);
@@ -110,7 +113,8 @@ export default function FigmaComparePage() {
         const raw = localStorage.getItem("loupe_bridge_styles");
         if (raw) {
           const d = JSON.parse(raw);
-          if (d?.styles?.length) setLiveStyles(d.styles);
+          if (d?.data) { setLiveData(d.data); setLiveStyles(d.data.typography ?? []); }
+          else if (d?.styles?.length) setLiveStyles(d.styles);
         }
         // Sync status
         const statusRaw = localStorage.getItem("loupe_scrape_status");
@@ -162,7 +166,8 @@ export default function FigmaComparePage() {
           styleNameMap: forceRefresh ? {} : styleNameMap,
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
-          liveStyles: (liveStylesRef.current ?? []).map((s: any) => ({
+          liveData:   liveDataRef.current ?? null,
+          liveStyles: liveDataRef.current ? null : (liveStylesRef.current ?? []).map((s: any) => ({
             text: s.text, fontFamily: s.fontFamily,
             fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
           })),
