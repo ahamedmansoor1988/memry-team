@@ -172,9 +172,11 @@ export async function POST(req: NextRequest) {
           (n.fillStyleId && styleNameMap[n.fillStyleId] ? ` [fill: ${styleNameMap[n.fillStyleId]}]` : "")
         ).join("\n");
 
+        send("step", { text: "Sending to Groq AI for analysis…" });
+
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method:  "POST",
-          signal:  AbortSignal.timeout(30_000),
+          signal:  AbortSignal.timeout(55_000),
           headers: {
             Authorization:  `Bearer ${process.env.GROQ_API_KEY}`,
             "Content-Type": "application/json",
@@ -224,6 +226,8 @@ Do not include any text outside the JSON array.`,
           return;
         }
 
+        send("step", { text: "AI responded — parsing results…" });
+
         const aiData = await aiRes.json() as { choices: Array<{ message: { content: string } }> };
         const rawContent = aiData.choices[0]?.message?.content?.trim() ?? "[]";
 
@@ -232,7 +236,9 @@ Do not include any text outside the JSON array.`,
           const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
           discrepancies = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
         } catch {
-          discrepancies = [];
+          send("error", { text: `Could not parse AI response: ${rawContent.slice(0, 300)}` });
+          controller.close();
+          return;
         }
 
         send("step", { text: `AI identified ${discrepancies.length} discrepancies.` });

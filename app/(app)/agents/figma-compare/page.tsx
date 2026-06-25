@@ -270,7 +270,11 @@ function ResultsNode({ data }: NodeProps) {
         <span className="ml-auto text-[10px] text-[#9a9aa5]">{s.results.length} discrepancies</span>
       </div>
       <div className="node-body">
-        <p className="text-[11px] text-[#1a9457] leading-[15px]">{s.resultText}</p>
+        <p className="text-[11px] text-[#1a9457] leading-[15px]">
+          {s.resultText || (s.results.length === 0
+            ? "No discrepancies found — the live site matches the Figma frame."
+            : `${s.results.length} discrepancies found.`)}
+        </p>
         {s.results.length > 0 && (
           <div className="rounded-lg border border-[#e8e8ec] overflow-hidden mt-1">
             <table className="w-full text-[11px]">
