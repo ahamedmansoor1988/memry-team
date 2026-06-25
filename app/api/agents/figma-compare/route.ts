@@ -210,7 +210,14 @@ export async function POST(req: NextRequest) {
         const rootBbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
         const frame: FrameInfo = { id: rootDoc.id, absoluteBoundingBox: rootBbox };
 
-        send("step", { text: `Found ${textNodes.length} text nodes in frame.` });
+        const frameName = rootDoc.name ?? "Unknown frame";
+        send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes.` });
+
+        if (textNodes.length === 0) {
+          send("error", { text: `No text found in frame "${frameName}". Make sure you right-clicked the correct frame and used "Copy link to selection".` });
+          controller.close();
+          return;
+        }
 
         // ── Step 4: Get live page styles ─────────────────────────────────────
         let liveContext = "";
@@ -350,11 +357,7 @@ Do not include any text outside the JSON array.`,
             d.element.toLowerCase().includes(n.name.toLowerCase())
           ) ?? textNodes[commentIndex % textNodes.length];
 
-          const bbox    = match?.absoluteBoundingBox ?? frameBbox ?? { x: 0, y: 0, width: 100, height: 100 };
-          const fb      = frameBbox ?? { x: 0, y: 0, width: 100, height: 100 };
-          const offsetX = (bbox.x - fb.x) + bbox.width / 2;
-          const offsetY = (bbox.y - fb.y) + bbox.height / 2;
-
+          const targetNode = match ?? textNodes[commentIndex % textNodes.length];
           const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
           const message  = `${severity} DESIGN MISMATCH\n\n${d.element}\n\n${d.issue}`;
 
@@ -364,11 +367,8 @@ Do not include any text outside the JSON array.`,
             body: JSON.stringify({
               message,
               client_meta: {
-                node_id:           frame.id,
-                node_offset:       { x: offsetX, y: offsetY },
-                region_width:      bbox.width,
-                region_height:     bbox.height,
-                comment_pin_corner: "bottom-right",
+                node_id:     targetNode.id,
+                node_offset: { x: 0, y: 0 },
               },
             }),
           });
