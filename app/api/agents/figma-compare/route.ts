@@ -257,51 +257,41 @@ export async function POST(req: NextRequest) {
         // ── Step 4: Get live page styles ─────────────────────────────────────
         let liveContext = "";
 
-        if (liveStyles && liveStyles.length > 0) {
-          send("step", { text: `Using ${liveStyles.length} computed styles from Loupe extension.` });
+        // Always scrape live styles server-side — extension no longer needed
+        send("step", { text: `Scraping styles from ${liveUrl}…` });
+        let scrapedStyles: { fonts: string[]; sizes: string[]; weights: string[]; colors: string[]; googleFonts: string[] } | null = null;
+        try {
+          const scrapeRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "https://memry-team-opal.vercel.app"}/api/scrape-styles`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: liveUrl }),
+            signal: AbortSignal.timeout(20_000),
+          });
+          if (scrapeRes.ok) scrapedStyles = await scrapeRes.json();
+        } catch {}
 
-          // Resolve CSS system font aliases to human-readable names
-          const FONT_ALIASES: Record<string, string> = {
-            "-apple-system":        "SF Pro (Apple System Font)",
-            "BlinkMacSystemFont":   "SF Pro (Apple System Font)",
-            "system-ui":            "System UI Font",
-            "ui-sans-serif":        "System Sans-Serif",
-            "ui-serif":             "System Serif",
-            "ui-monospace":         "System Monospace",
-            "sans-serif":           "sans-serif (generic)",
-            "serif":                "serif (generic)",
-            "monospace":            "monospace (generic)",
-          };
-          function resolveFont(f: string): string {
-            // Font family strings can be comma-separated; resolve the first real name
-            const first = f.split(",")[0].trim().replace(/['"]/g, "");
-            return FONT_ALIASES[first] ?? first;
-          }
+        // Merge scraped styles with extension styles if both available
+        const mergedFonts   = Array.from(new Set([
+          ...(scrapedStyles?.googleFonts ?? []),
+          ...(scrapedStyles?.fonts ?? []),
+          ...(liveStyles ?? []).map((s: any) => s.fontFamily).filter(Boolean),
+        ])).filter(Boolean);
+        const mergedSizes   = Array.from(new Set([
+          ...(scrapedStyles?.sizes ?? []),
+          ...(liveStyles ?? []).map((s: any) => s.fontSize).filter(Boolean),
+        ])).filter(Boolean);
+        const mergedWeights = Array.from(new Set([
+          ...(scrapedStyles?.weights ?? []),
+          ...(liveStyles ?? []).map((s: any) => s.fontWeight).filter(Boolean),
+        ])).filter(Boolean);
+        const mergedColors  = Array.from(new Set([
+          ...(scrapedStyles?.colors ?? []),
+          ...(liveStyles ?? []).map((s: any) => s.color).filter(Boolean),
+        ])).slice(0, 25);
 
-          const liveFonts   = Array.from(new Set(liveStyles.map((s: any) => resolveFont(s.fontFamily ?? "")).filter(Boolean)));
-          const liveSizes   = Array.from(new Set(liveStyles.map((s: any) => s.fontSize).filter(Boolean))).sort((a: any, b: any) => parseFloat(b) - parseFloat(a));
-          const liveWeights = Array.from(new Set(liveStyles.map((s: any) => s.fontWeight).filter(Boolean)));
-          const liveColors  = Array.from(new Set(liveStyles.map((s: any) => s.color).filter(Boolean))).slice(0, 20);
-          liveContext = `Font families: ${liveFonts.join(", ")}\nFont sizes: ${liveSizes.slice(0, 15).join(", ")}\nFont weights: ${liveWeights.join(", ")}\nColors: ${liveColors.join(", ")}`;
-        } else {
-          // Fallback: fetch raw HTML
-          send("step", { text: `Fetching live page HTML from ${liveUrl}…` });
-          let liveHtml = "";
-          try {
-            const liveRes = await fetch(liveUrl, {
-              headers: { "User-Agent": "Mozilla/5.0 (compatible; Loupe/1.0)" },
-              signal: AbortSignal.timeout(15_000),
-            });
-            liveHtml = await liveRes.text();
-            liveHtml = liveHtml.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
-            liveHtml = liveHtml.slice(0, 12_000);
-          } catch (e) {
-            send("error", { text: `Could not fetch live URL: ${String(e)}` });
-            controller.close();
-            return;
-          }
-          liveContext = liveHtml;
-          send("step", { text: "Tip: Install the Loupe extension for more accurate results using real computed styles." });
+        if (mergedFonts.length > 0 || mergedColors.length > 0) {
+          liveContext = `Font families: ${mergedFonts.join(", ")}\nFont sizes: ${mergedSizes.join(", ")}\nFont weights: ${mergedWeights.join(", ")}\nColors: ${mergedColors.join(", ")}`;
+          send("step", { text: `Found ${mergedFonts.length} fonts, ${mergedColors.length} colors from live site.` });
         }
 
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });

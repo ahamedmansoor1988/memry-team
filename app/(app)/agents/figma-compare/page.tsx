@@ -42,8 +42,6 @@ export default function FigmaComparePage() {
   // Execution
   const [running,   setRunning]   = useState(false);
   const [runMsgs,   setRunMsgs]   = useState<RunMessage[]>([]);
-  const [liveStyles,    setLiveStyles]    = useState<any[] | null>(null);
-  const [liveStylesUrl, setLiveStylesUrl] = useState("");
 
   // Chat
   const [chatMsgs,  setChatMsgs]  = useState<ChatMessage[]>([]);
@@ -52,10 +50,7 @@ export default function FigmaComparePage() {
 
   const runBottomRef  = useRef<HTMLDivElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
-  const liveStylesRef = useRef<any[] | null>(null);
-  liveStylesRef.current = liveStyles;
-
-  const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage.setItem("loupe_figma_url", v); }, []);
+const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage.setItem("loupe_figma_url", v); }, []);
   const setLiveUrl  = useCallback((v: string) => { setLiveUrlRaw(v);  localStorage.setItem("loupe_live_url",  v); }, []);
   const setPat      = useCallback((v: string) => { setPatRaw(v);      localStorage.setItem("loupe_pat",       v); }, []);
 
@@ -69,24 +64,7 @@ export default function FigmaComparePage() {
     setPatRaw(localStorage.getItem("loupe_pat")            ?? "");
   }, []);
 
-  useEffect(() => {
-    let lastTs = 0;
-    const id = setInterval(() => {
-      try {
-        const raw = localStorage.getItem("loupe_bridge_styles");
-        if (!raw) return;
-        const d = JSON.parse(raw);
-        if (!d?.timestamp || d.timestamp === lastTs) return;
-        lastTs = d.timestamp;
-        setLiveStyles(d.styles ?? []);
-        setLiveStylesUrl(d.url ?? "");
-        if (d.url) setLiveUrlRaw(d.url);
-      } catch {}
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
+useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
   useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
 
   function addRun(msg: Omit<RunMessage, "id">) {
@@ -124,10 +102,6 @@ export default function FigmaComparePage() {
           styleNameMap: forceRefresh ? {} : styleNameMap,
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
-          liveStyles: (liveStylesRef.current ?? []).map((s: any) => ({
-            text: s.text, fontFamily: s.fontFamily,
-            fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
-          })),
           pat: pat.trim(),
           checks: Array.from(checks),
           forceRefresh,
@@ -197,12 +171,6 @@ export default function FigmaComparePage() {
             <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#9a9aa5]">Design QA</span>
           </div>
           <div className="flex items-center gap-2">
-            {liveStyles && (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#1a9457]" />
-                {liveStyles.length} styles · {liveStylesUrl ? new URL(liveStylesUrl).hostname : "extension"}
-              </span>
-            )}
             {runMsgs.length > 0 && (
               <button onClick={() => setRunMsgs([])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-[#9a9aa5] hover:bg-[#f7f7f8] hover:text-[#17171c] transition-colors">
                 <Trash2 size={12} />Clear
@@ -224,7 +192,7 @@ export default function FigmaComparePage() {
               </div>
               <div className="w-full max-w-md space-y-2">
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
-                <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} badge={liveStyles ? `✓ ${liveStyles.length} styles` : undefined} />
+                <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
                 <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
                   <ChecklistPanel checks={checks} onToggle={toggleCheck} />
@@ -250,7 +218,7 @@ export default function FigmaComparePage() {
             {configOpen && (
               <div className="mb-3 rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-3 space-y-2">
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
-                <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} badge={liveStyles ? `✓ ${liveStyles.length} styles` : undefined} />
+                <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
                 <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
