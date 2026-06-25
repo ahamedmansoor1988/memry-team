@@ -180,17 +180,29 @@ export async function POST(req: NextRequest) {
           if (!figmaNodes) {
             if (!cached) send("step", { text: "Fetching Figma nodes for the first time…" });
 
-            const figmaRes = await figmaFetch(
-              pat,
-              `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
-              (secs) => send("step", { text: `Figma rate limit — waiting ${secs}s…` }),
-            );
-            if (!figmaRes.ok) {
-              const txt = await figmaRes.text();
-              send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
-              controller.close();
-              return;
+            let figmaRes: Response | null = null;
+            try {
+              figmaRes = await figmaFetch(
+                pat,
+                `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`,
+                (secs) => send("step", { text: `Figma rate limit — waiting ${secs}s…` }),
+              );
+            } catch {
+              // Rate limit persists — fall back to stale cache if available
             }
+
+            if (!figmaRes || !figmaRes.ok) {
+              if (cached) {
+                figmaNodes   = cached.figma_nodes;
+                styleNameMap = (cached.style_map as Record<string, string>) ?? {};
+                send("step", { text: "Figma rate limited — using cached data to continue." });
+              } else {
+                const txt = figmaRes ? await figmaRes.text().catch(() => "") : "rate limit";
+                send("error", { text: `Figma API error: ${txt.slice(0, 200)}. Wait 1 minute and try again.` });
+                controller.close();
+                return;
+              }
+            } else {
             figmaNodes = await figmaRes.json();
 
             // Resolve named styles
@@ -216,6 +228,7 @@ export async function POST(req: NextRequest) {
             }, { onConflict: "file_key,node_id" });
 
             send("cache", { figmaNodes, styleNameMap });
+            } // end else (fetch succeeded)
           } // end if (!figmaNodes)
         } // end block
 
