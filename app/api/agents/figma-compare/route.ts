@@ -118,9 +118,9 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
-  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat } = await req.json() as {
+  const { figmaNodes: prefetched, styleNameMap: prefetchedStyleMap, fileKey, nodeId, liveUrl, liveStyles, pat, checks } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
-    liveUrl: string; liveStyles: any[] | null; pat: string;
+    liveUrl: string; liveStyles: any[] | null; pat: string; checks?: string[];
   };
 
   const encoder = new TextEncoder();
@@ -286,15 +286,22 @@ Colors: ${figmaColors.slice(0, 20).join(", ")}`;
                 role: "system",
                 content: `You are a design QA engineer. Compare a Figma design spec against real computed CSS styles from a live website.
 
-The Figma spec and live page may be different pages of the same product — do NOT require text content to match. Compare design system properties:
+The Figma spec and live page may be different pages of the same product — do NOT require text content to match.
 
-1. FONT FAMILIES — does the live site use the same typefaces? Flag any mismatch (e.g. Figma: Inter, Live: Arial).
-2. FONT SIZES — compare the size scale. Flag if heading sizes differ by more than 2px.
-3. FONT WEIGHTS — if Figma uses 700 but live renders 400, flag it.
-4. COLORS — compare the palettes. Flag color differences that are visually distinct.
+Only check the following categories (ignore everything else): ${(checks && checks.length > 0 ? checks : ["font_family","font_size","font_weight","color"]).join(", ")}
 
-Be specific with your findings: state the Figma value vs the live value.
-Be thorough — real products almost always have at least some discrepancies.
+Category rules:
+- font_family: Flag typeface mismatches (e.g. Figma: Inter, Live: Arial)
+- font_size: Flag size differences > 2px, especially headings
+- font_weight: Flag weight mismatches (e.g. Figma: 700, Live: 400)
+- color: Flag visually distinct color differences in text or backgrounds
+- spacing: Flag notable padding/margin differences if visible in the data
+- menu: Focus on navigation/header text styles
+- footer: Focus on footer text styles
+- buttons: Focus on button label styles
+
+Be specific: state Figma value vs live value.
+Be thorough — real products almost always have discrepancies.
 
 Return ONLY a JSON array:
 [{ "element": "description", "issue": "Figma: X — Live: Y", "severity": "high"|"medium"|"low" }]
@@ -347,19 +354,22 @@ Do not include any text outside the JSON array.`,
 
         send("step", { text: `Posting ${discrepancies.length} comments to Figma…` });
 
-        const frameBbox = frame.absoluteBoundingBox;
+        const fb = frame.absoluteBoundingBox ?? { x: 0, y: 0, width: 800, height: 600 };
         let commentIndex = 0;
 
         for (const d of discrepancies) {
-          // Find best matching text node
           const match = textNodes.find(n =>
             n.characters.toLowerCase().includes(d.element.toLowerCase().split(" ")[0]) ||
             d.element.toLowerCase().includes(n.name.toLowerCase())
           ) ?? textNodes[commentIndex % textNodes.length];
 
-          const targetNode = match ?? textNodes[commentIndex % textNodes.length];
+          // Offset is relative to the frame's top-left corner
+          const bbox    = match?.absoluteBoundingBox ?? fb;
+          const offsetX = Math.max(0, (bbox.x - fb.x) + bbox.width  / 2);
+          const offsetY = Math.max(0, (bbox.y - fb.y) + bbox.height / 2);
+
           const severity = d.severity === "high" ? "❌" : d.severity === "medium" ? "⚠️" : "ℹ️";
-          const message  = `${severity} DESIGN MISMATCH\n\n${d.element}\n\n${d.issue}`;
+          const message  = `${severity} ${d.element}\n${d.issue}`;
 
           const commentRes = await fetch(`https://api.figma.com/v1/files/${fileKey}/comments`, {
             method:  "POST",
@@ -367,8 +377,8 @@ Do not include any text outside the JSON array.`,
             body: JSON.stringify({
               message,
               client_meta: {
-                node_id:     targetNode.id,
-                node_offset: { x: 0, y: 0 },
+                node_id:     frame.id,
+                node_offset: { x: offsetX, y: offsetY },
               },
             }),
           });
@@ -377,6 +387,9 @@ Do not include any text outside the JSON array.`,
           if (commentRes.ok) {
             const cd = await commentRes.json() as { id?: string };
             commentId = cd.id;
+          } else {
+            const errText = await commentRes.text().catch(() => "");
+            console.error(`Comment post failed ${commentRes.status}: ${errText}`);
           }
 
           table.push({ element: d.element, issue: d.issue, commentId });

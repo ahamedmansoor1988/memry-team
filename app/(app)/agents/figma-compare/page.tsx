@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play, Loader2, ChevronRight,
   AlertCircle, CheckCircle2, Trash2, ArrowUp,
-  FileCode2, Globe, KeyRound, Sparkles,
+  FileCode2, Globe, KeyRound, Sparkles, Check,
 } from "lucide-react";
 
 interface Message {
@@ -20,6 +20,17 @@ interface DiscrepancyRow {
   commentId?: string;
 }
 
+const CHECK_OPTIONS = [
+  { id: "font_family", label: "Font Family" },
+  { id: "font_size",   label: "Font Size"   },
+  { id: "font_weight", label: "Font Weight" },
+  { id: "color",       label: "Color"       },
+  { id: "spacing",     label: "Spacing"     },
+  { id: "menu",        label: "Menu / Nav"  },
+  { id: "footer",      label: "Footer"      },
+  { id: "buttons",     label: "Buttons"     },
+];
+
 export default function FigmaComparePage() {
   const [figmaUrl,  setFigmaUrlRaw]  = useState("");
   const [liveUrl,   setLiveUrlRaw]   = useState("");
@@ -29,6 +40,9 @@ export default function FigmaComparePage() {
   const [liveStylesUrl, setLiveStylesUrl] = useState("");
   const [messages,  setMessages]     = useState<Message[]>([]);
   const [configOpen, setConfigOpen]  = useState(false);
+  const [checks, setChecks] = useState<Set<string>>(
+    new Set(["font_family", "font_size", "font_weight", "color"])
+  );
 
   const bottomRef     = useRef<HTMLDivElement>(null);
   const liveStylesRef = useRef<any[] | null>(null);
@@ -37,6 +51,14 @@ export default function FigmaComparePage() {
   const setFigmaUrl = useCallback((v: string) => { setFigmaUrlRaw(v); localStorage.setItem("loupe_figma_url", v); }, []);
   const setLiveUrl  = useCallback((v: string) => { setLiveUrlRaw(v);  localStorage.setItem("loupe_live_url",  v); }, []);
   const setPat      = useCallback((v: string) => { setPatRaw(v);      localStorage.setItem("loupe_pat",       v); }, []);
+
+  function toggleCheck(id: string) {
+    setChecks(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
   useEffect(() => {
     setFigmaUrlRaw(localStorage.getItem("loupe_figma_url") ?? "");
@@ -74,16 +96,21 @@ export default function FigmaComparePage() {
       setConfigOpen(true);
       return;
     }
+    if (checks.size === 0) {
+      addMessage({ type: "error", text: "Select at least one check to run." });
+      return;
+    }
 
     setRunning(true);
     setConfigOpen(false);
-    addMessage({ type: "user", text: `Compare Figma design against ${liveUrl.trim()}` });
+    const checkLabels = CHECK_OPTIONS.filter(c => checks.has(c.id)).map(c => c.label).join(", ");
+    addMessage({ type: "user", text: `Check ${checkLabels} — Figma vs ${liveUrl.trim()}` });
 
     try {
       const fileKeyMatch = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
       const nodeIdMatch  = figmaUrl.match(/node-id=([^&]+)/);
-      if (!fileKeyMatch) { addMessage({ type: "error", text: "Invalid Figma URL — could not extract file key." }); return; }
-      if (!nodeIdMatch)  { addMessage({ type: "error", text: "Figma URL must include node-id (right-click frame → Copy link to selection)." }); return; }
+      if (!fileKeyMatch) { addMessage({ type: "error", text: "Invalid Figma URL — could not extract file key." }); setRunning(false); return; }
+      if (!nodeIdMatch)  { addMessage({ type: "error", text: "Figma URL must include node-id (right-click frame → Copy link to selection)." }); setRunning(false); return; }
 
       const fileKey  = fileKeyMatch[1];
       const nodeId   = decodeURIComponent(nodeIdMatch[1]).replace("-", ":");
@@ -107,6 +134,7 @@ export default function FigmaComparePage() {
           liveUrl:    liveUrl.trim(),
           liveStyles: liveStylesRef.current ?? null,
           pat:        pat.trim(),
+          checks:     Array.from(checks),
         }),
       });
 
@@ -138,7 +166,29 @@ export default function FigmaComparePage() {
     }
   }
 
-  const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim();
+  const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim() && checks.size > 0;
+
+  const ChecklistPanel = () => (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#9a9aa5]">What to check</p>
+      <div className="flex flex-wrap gap-2">
+        {CHECK_OPTIONS.map(opt => {
+          const active = checks.has(opt.id);
+          return (
+            <button key={opt.id} onClick={() => toggleCheck(opt.id)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-all ${
+                active
+                  ? "border-[#0f0f0f] bg-[#0f0f0f] text-white"
+                  : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#9a9aa5] hover:text-[#17171c]"
+              }`}>
+              {active && <Check size={10} />}
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   return (
     <div className="flex h-screen flex-col bg-white">
@@ -168,7 +218,7 @@ export default function FigmaComparePage() {
       {/* ── Chat area ────────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-6 px-6 py-12">
+          <div className="flex h-full flex-col items-center justify-center gap-5 px-6 py-12">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f0f0f]">
               <Sparkles size={20} className="text-white" />
             </div>
@@ -176,11 +226,14 @@ export default function FigmaComparePage() {
               <p className="text-[16px] font-semibold text-[#17171c]">Figma vs Live comparison</p>
               <p className="mt-1 text-[13px] text-[#9a9aa5]">Compare your Figma design against the live site<br />and find design inconsistencies instantly.</p>
             </div>
-            <div className="w-full max-w-lg space-y-2">
+            <div className="w-full max-w-lg space-y-3">
               <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
               <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl}
                 badge={liveStyles ? `✓ ${liveStyles.length} styles captured` : undefined} />
               <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+              <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
+                <ChecklistPanel />
+              </div>
               <button onClick={run} disabled={!canRun}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white shadow-sm hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
                 {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
@@ -209,6 +262,7 @@ export default function FigmaComparePage() {
               <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl}
                 badge={liveStyles ? `✓ ${liveStyles.length} styles captured` : undefined} />
               <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+              <ChecklistPanel />
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -216,6 +270,11 @@ export default function FigmaComparePage() {
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}>
               Configure
             </button>
+            <div className="flex flex-wrap gap-1.5 mx-2">
+              {CHECK_OPTIONS.filter(c => checks.has(c.id)).map(c => (
+                <span key={c.id} className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#5b5b66]">{c.label}</span>
+              ))}
+            </div>
             <button onClick={run} disabled={!canRun}
               className="ml-auto flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#1a1a1a] disabled:opacity-40 transition-all">
               {running ? <><Loader2 size={12} className="animate-spin" />Running…</> : <><ArrowUp size={12} />Run again</>}
