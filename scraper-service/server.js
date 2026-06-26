@@ -28,6 +28,30 @@ async function getBrowser() {
 // Font extraction — runs inside the page context via Playwright evaluate
 async function extractStyles(page) {
   return page.evaluate(async () => {
+    const SYSTEM_FONTS = new Set([
+      "-apple-system", "blinkmacsystemfont", "segoe ui", "roboto", "helvetica neue",
+      "arial", "sans-serif", "serif", "monospace", "system-ui", "ui-sans-serif",
+      "ui-serif", "ui-monospace",
+    ]);
+
+    function isSystemFont(name) {
+      return SYSTEM_FONTS.has(name.toLowerCase());
+    }
+
+    // Walk up ancestors to find the element where a web font is explicitly declared
+    function resolveFont(startEl) {
+      let el = startEl;
+      while (el && el !== document.body) {
+        const cs = window.getComputedStyle(el);
+        const first = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+        if (first && !isSystemFont(first)) return first;
+        el = el.parentElement;
+      }
+      // Fall back to body font
+      const bodyCs = window.getComputedStyle(document.body);
+      return bodyCs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+    }
+
     function rgbToHex(rgb) {
       if (!rgb || rgb === "transparent" || rgb === "rgba(0, 0, 0, 0)") return null;
       const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
@@ -51,7 +75,7 @@ async function extractStyles(page) {
 
       styles.push({
         text:       text.slice(0, 60),
-        fontFamily: cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
+        fontFamily: resolveFont(el),
         fontSize:   cs.fontSize,
         fontWeight: cs.fontWeight,
         color:      rgbToHex(cs.color),
