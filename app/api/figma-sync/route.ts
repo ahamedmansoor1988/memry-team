@@ -25,8 +25,8 @@ async function figmaFetch(pat: string, path: string): Promise<Response> {
     console.log(`[figma-sync] [${reqId}] GET ${path} → ${res.status} ${ms}ms${ra ? ` retry-after:${ra}s` : ""}`);
 
     if (res.status === 429) {
-      if (retried) throw new Error(`Figma rate limit persists (Retry-After: ${ra ?? "unknown"}s). Please wait and try again.`);
-      const waitSec = ra !== null ? parseInt(ra, 10) : 65;
+      if (retried) throw new Error(`Figma rate limit persists (Retry-After: ${ra ?? "unknown"}s). Please wait a minute and try again.`);
+      const waitSec = Math.min(ra !== null ? parseInt(ra, 10) : 30, 30);
       await new Promise(r => setTimeout(r, waitSec * 1_000));
       return doFetch(true);
     }

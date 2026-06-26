@@ -204,7 +204,15 @@ export default function FigmaComparePage() {
     const parsed = parseFigmaUrl(figmaUrl);
     if (!parsed || !pat.trim()) { setConfigOpen(true); return; }
     setSyncing(true);
-    addRun({ type: "step", text: "Syncing design from Figma…" });
+    const t0 = Date.now();
+    addRun({ type: "step", text: "Syncing design from Figma — fetching nodes…" });
+
+    // Show elapsed time every 5s so the user knows it's still running
+    const ticker = setInterval(() => {
+      const secs = Math.round((Date.now() - t0) / 1000);
+      addRun({ type: "step", text: `Still syncing… ${secs}s elapsed (Figma may be rate limiting — please wait)` });
+    }, 5000);
+
     try {
       const r = await fetch("/api/figma-sync", {
         method: "POST",
@@ -227,10 +235,11 @@ export default function FigmaComparePage() {
       setSnapshot(meta);
       const lsKey = `loupe_snap_meta_v1_${parsed.fileKey}_${parsed.nodeId}`;
       localStorage.setItem(lsKey, JSON.stringify(meta));
-      addRun({ type: "step", text: `Design synced — "${d.frameName}" · ${d.textNodeCount} text nodes · depth=${d.depthUsed} · ${d.syncDurationMs}ms. Scans will use this snapshot.` });
+      addRun({ type: "step", text: `Design synced — "${d.frameName}" · ${d.textNodeCount} text nodes · depth=${d.depthUsed} · ${Math.round((Date.now() - t0) / 1000)}s total. Scans will use this snapshot.` });
     } catch (e) {
       addRun({ type: "error", text: `Sync error: ${String(e)}` });
     } finally {
+      clearInterval(ticker);
       setSyncing(false);
     }
   }
