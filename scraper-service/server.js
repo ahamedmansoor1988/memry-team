@@ -109,11 +109,29 @@ app.post("/scrape", async (req, res) => {
 
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
 
-    // Wait for fonts to load fully
-    await page.waitForTimeout(2000);
-    await page.evaluate(() => document.fonts.ready);
-    await page.evaluate(() => Promise.all([...document.fonts].map(f => f.load())));
-    await page.waitForTimeout(500);
+    // Scroll through the full page to trigger viewport-gated font loads (Elementor etc.)
+    await page.evaluate(async () => {
+      const totalHeight = document.body.scrollHeight;
+      const step = window.innerHeight;
+      for (let y = 0; y < totalHeight; y += step) {
+        window.scrollTo(0, y);
+        await new Promise(r => setTimeout(r, 50));
+      }
+      window.scrollTo(0, 0);
+    });
+
+    // Force-load every declared font family at multiple weights
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      const families = [...new Set(
+        [...document.fonts].map(f => f.family.replace(/['"]/g, "").trim())
+      )];
+      const weights = ["400", "500", "600", "700"];
+      await Promise.all(
+        families.flatMap(f => weights.map(w => document.fonts.load(`${w} 16px ${f}`).catch(() => {})))
+      );
+      await new Promise(r => setTimeout(r, 800));
+    });
 
     const result = await extractStyles(page);
     res.json(result);
@@ -126,6 +144,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "preload-v5" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "scroll-preload-v6" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
