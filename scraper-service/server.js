@@ -27,41 +27,22 @@ async function getBrowser() {
 
 // Font extraction — runs inside the page context via Playwright evaluate
 async function extractStyles(page) {
+  // Force-load all @font-face declared fonts before extracting computed styles
+  await page.evaluate(async () => {
+    const fontFamilies = [...document.styleSheets]
+      .flatMap(sheet => {
+        try { return [...sheet.cssRules]; } catch { return []; }
+      })
+      .filter(rule => rule instanceof CSSFontFaceRule)
+      .map(rule => rule.style.getPropertyValue("font-family").replace(/['"]/g, "").trim());
+    await Promise.all([
+      document.fonts.ready,
+      ...fontFamilies.map(f => document.fonts.load(`16px ${f}`)),
+    ]);
+    await new Promise(r => setTimeout(r, 500));
+  });
+
   return page.evaluate(async () => {
-    const systemFontNames = ["-apple-system", "blinkmacsystemfont", "system-ui", "arial", "helvetica", "sans-serif", "serif", "monospace"];
-    function isSystem(font) {
-      return systemFontNames.some(s => font.toLowerCase().startsWith(s));
-    }
-
-    // Build a set of web fonts actually loaded by the browser
-    const loadedWebFonts = [...document.fonts]
-      .filter(f => f.status === "loaded")
-      .map(f => f.family.replace(/['"]/g, "").trim())
-      .filter(f => !isSystem(f));
-
-    // Primary font for page = most common loaded web font (by usage count on visible text)
-    const fontUsage = new Map();
-    for (const el of document.querySelectorAll("h1,h2,h3,h4,h5,h6,p,a,button,li,span,td")) {
-      const f = getComputedStyle(el).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-      if (!isSystem(f)) fontUsage.set(f, (fontUsage.get(f) ?? 0) + 1);
-    }
-    const pageDefaultFont = [...fontUsage.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
-      ?? loadedWebFonts[0]
-      ?? null;
-
-    function getWebFont(el) {
-      // Walk up to find an element whose computed font is a web font
-      let current = el;
-      for (let i = 0; i < 10; i++) {
-        const font = getComputedStyle(current).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-        if (!isSystem(font)) return font;
-        if (!current.parentElement) break;
-        current = current.parentElement;
-      }
-      // Fall back to most-used web font on the page
-      return pageDefaultFont ?? getComputedStyle(el).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-    }
-
     function rgbToHex(rgb) {
       if (!rgb || rgb === "transparent" || rgb === "rgba(0, 0, 0, 0)") return null;
       const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
@@ -85,7 +66,7 @@ async function extractStyles(page) {
 
       styles.push({
         text:       text.slice(0, 60),
-        fontFamily: getWebFont(el),
+        fontFamily: cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
         fontSize:   cs.fontSize,
         fontWeight: cs.fontWeight,
         color:      rgbToHex(cs.color),
@@ -145,6 +126,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "getWebFont-v4" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "preload-v5" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
