@@ -72,6 +72,10 @@ export default function FigmaComparePage() {
   const [publishing, setPublishing] = useState(false);
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
 
+  // Claude session key — paste from Claude to load extracted live styles
+  const [sessionKey,        setSessionKey]        = useState("");
+  const [sessionKeyStatus,  setSessionKeyStatus]  = useState<"idle"|"loading"|"loaded"|"error">("idle");
+
   const runBottomRef = useRef<HTMLDivElement>(null);
   const scanGuardRef  = useRef(false);
   const setFigmaUrl = useCallback((v: string) => {
@@ -366,6 +370,31 @@ export default function FigmaComparePage() {
         try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes, styleNameMap })); } catch {}
       }
 
+      // ── Load styles from Claude session key (if provided) ────────────────────
+      let sessionStyles: any[] | null = null;
+      if (sessionKey.trim()) {
+        addRun({ type: "step", text: "Loading live styles from Claude session…" });
+        try {
+          const sr = await fetch(`/api/extract-styles?sessionKey=${encodeURIComponent(sessionKey.trim())}`);
+          if (sr.ok) {
+            const sd = await sr.json();
+            sessionStyles = sd.styles ?? null;
+            if (sessionStyles?.length) {
+              addRun({ type: "step", text: `Loaded ${sessionStyles.length} styles from Claude session.` });
+            }
+          } else {
+            addRun({ type: "step", text: "Session key not found — using extension styles if available." });
+          }
+        } catch { addRun({ type: "step", text: "Could not load session styles — using extension fallback." }); }
+      }
+
+      // Priority: session key styles > extension styles > Playwright scraper
+      const effectiveLiveStyles = sessionStyles
+        ?? (liveDataRef.current ? null : (liveStylesRef.current ?? []).map((s: any) => ({
+          text: s.text, fontFamily: s.fontFamily,
+          fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
+        })));
+
       const res = await fetch("/api/agents/figma-compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -377,11 +406,8 @@ export default function FigmaComparePage() {
           styleNameMap: hasSnapshot ? {} : (forceRefresh ? {} : styleNameMap),
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
-          liveData:   liveDataRef.current ?? null,
-          liveStyles: liveDataRef.current ? null : (liveStylesRef.current ?? []).map((s: any) => ({
-            text: s.text, fontFamily: s.fontFamily,
-            fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
-          })),
+          liveData:   sessionStyles ? null : (liveDataRef.current ?? null),
+          liveStyles: effectiveLiveStyles,
           pat: pat.trim(),
           checks: Array.from(checks),
           assignTo: assignTo || null,
@@ -561,6 +587,18 @@ export default function FigmaComparePage() {
                 <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
             )}
+            {/* Claude session key input */}
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[11px] text-[#9a9aa5] shrink-0">Claude session key</span>
+              <input
+                value={sessionKey}
+                onChange={e => { setSessionKey(e.target.value); setSessionKeyStatus("idle"); }}
+                placeholder="Paste key from Claude…"
+                className="flex-1 rounded-lg border border-[#e8e8ec] px-2.5 py-1.5 text-[11px] text-[#17171c] placeholder:text-[#c0c0c8] focus:outline-none focus:border-[#0f0f0f]"
+              />
+              {sessionKeyStatus === "loaded" && <CheckCircle2 size={13} className="text-[#1a9457] shrink-0" />}
+              {sessionKeyStatus === "error"  && <AlertCircle  size={13} className="text-[#e53e3e] shrink-0" />}
+            </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setConfigOpen(o => !o)}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}>
