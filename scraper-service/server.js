@@ -189,17 +189,20 @@ app.post("/scrape", async (req, res) => {
     const b = await getBrowser();
     page    = await b.newPage();
 
-    // Block images/video — we only need DOM + CSS + fonts
+    // Block images/video but allow all fonts (including Google Fonts)
     await page.route("**/*", route => {
       const type = route.request().resourceType();
-      if (["image", "media", "font"].includes(type) && !route.request().url().includes("fonts.g")) {
-        // Allow font files through; block heavy media
-        if (type !== "font") return route.abort();
-      }
+      if (type === "image" || type === "media") return route.abort();
       return route.continue();
     });
 
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+
+    // Wait for fonts to load fully
+    await page.waitForTimeout(2000);
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => Promise.all([...document.fonts].map(f => f.load())));
+    await page.waitForTimeout(500);
 
     const result = await extractStyles(page);
     res.json(result);

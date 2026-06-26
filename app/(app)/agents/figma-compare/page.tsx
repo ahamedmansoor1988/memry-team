@@ -292,13 +292,10 @@ export default function FigmaComparePage() {
       if (!parsed) { addRun({ type: "error", text: "Invalid Figma URL." }); setRunning(false); return; }
       const { fileKey, nodeId } = parsed;
 
-      // ── Auto-sync if no snapshot exists ──────────────────────────────────────
-      let activeSnapshot = snapshot;
-      if (!activeSnapshot && !forceRefresh) {
-        addRun({ type: "step", text: "No snapshot found — syncing design from Figma first…" });
-        activeSnapshot = await syncDesign();
-        if (!activeSnapshot) return; // syncDesign already showed the error
-      }
+      // ── Always sync from Figma on every Run ──────────────────────────────────
+      addRun({ type: "step", text: "Syncing design from Figma…" });
+      let activeSnapshot = await syncDesign();
+      if (!activeSnapshot) return;
 
       // ── Browser cache (speed only) ───────────────────────────────────────────
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
