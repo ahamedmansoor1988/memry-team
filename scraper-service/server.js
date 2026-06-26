@@ -64,9 +64,23 @@ async function extractStyles(page) {
       if (!el) continue;
       const cs = window.getComputedStyle(el);
 
+      // If computed font is a system fallback, read the raw CSS declaration instead
+      const systemFonts = ["-apple-system", "BlinkMacSystemFont", "system-ui"];
+      let fontFamily = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+      if (systemFonts.some(s => fontFamily.startsWith(s))) {
+        // Walk stylesheets for a matching rule
+        const declared = [...document.styleSheets].flatMap(sheet => {
+          try { return [...sheet.cssRules]; } catch { return []; }
+        }).find(rule => {
+          try { return rule.selectorText && el.matches(rule.selectorText) && rule.style.fontFamily; }
+          catch { return false; }
+        });
+        if (declared) fontFamily = declared.style.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+      }
+
       styles.push({
         text:       text.slice(0, 60),
-        fontFamily: cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
+        fontFamily,
         fontSize:   cs.fontSize,
         fontWeight: cs.fontWeight,
         color:      rgbToHex(cs.color),
@@ -144,6 +158,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "scroll-preload-v6" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "css-fallback-v7" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
