@@ -537,7 +537,7 @@ ${nodeDetails.join("\n")}`;
           body: JSON.stringify({
             model: "llama-3.1-8b-instant",
             temperature: 0,
-            max_tokens: 4000,
+            max_tokens: 8000,
             messages: [
               {
                 role: "system",
@@ -582,17 +582,36 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
 
         let discrepancies: Array<{ element: string; label?: string; category?: string; issue: string; severity: string }> = [];
         try {
+          // Try full parse first
           const jsonMatch = rawContent.match(/\[[\s\S]*\]/);
-          if (!jsonMatch) {
-            send("error", { text: `AI returned an unexpected response: ${rawContent.slice(0, 300)}` });
+          if (jsonMatch) {
+            discrepancies = JSON.parse(jsonMatch[0]);
+          } else {
+            // Response was truncated — recover completed objects from the partial JSON
+            const partial = rawContent.includes("[") ? rawContent.slice(rawContent.indexOf("[")) : rawContent;
+            const objectMatches = partial.match(/\{[^{}]*"element"[^{}]*"issue"[^{}]*\}/g) ?? [];
+            for (const obj of objectMatches) {
+              try { discrepancies.push(JSON.parse(obj)); } catch {}
+            }
+            if (discrepancies.length === 0) {
+              send("error", { text: `AI response was too long to parse. Try narrowing your checks (e.g. font only, not color).` });
+              controller.close();
+              return;
+            }
+            send("step", { text: `Response was truncated — recovered ${discrepancies.length} discrepancies from partial output.` });
+          }
+        } catch {
+          // JSON.parse failed on the full match — try object-by-object recovery
+          const objectMatches = rawContent.match(/\{[^{}]*"element"[^{}]*"issue"[^{}]*\}/g) ?? [];
+          for (const obj of objectMatches) {
+            try { discrepancies.push(JSON.parse(obj)); } catch {}
+          }
+          if (discrepancies.length === 0) {
+            send("error", { text: `Could not parse AI response. Try running again.` });
             controller.close();
             return;
           }
-          discrepancies = JSON.parse(jsonMatch[0]);
-        } catch {
-          send("error", { text: `Could not parse AI response: ${rawContent.slice(0, 300)}` });
-          controller.close();
-          return;
+          send("step", { text: `Recovered ${discrepancies.length} discrepancies from partial AI response.` });
         }
 
         // Remove false positives and duplicates
