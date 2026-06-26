@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play, Loader2, ChevronRight, AlertCircle, CheckCircle2,
   Trash2, ArrowUp, FileCode2, Globe, KeyRound, Sparkles,
-  Check, Send, Bot, RefreshCw, Upload, Database,
+  Check, RefreshCw, Upload, Database,
 } from "lucide-react";
 
 /* ── Types ───────────────────────────────────────────────────────── */
@@ -18,7 +18,7 @@ interface RunMessage {
   figmaApiReport?: ApiReport;
 }
 interface DiscrepancyRow { element: string; issue: string; commentId?: string; }
-interface ChatMessage { id: string; role: "user" | "assistant"; text: string; }
+
 interface SnapshotMeta {
   id: string; frameName: string; textNodeCount: number;
   colorNodeCount: number; depthUsed: number; syncedAt: string;
@@ -71,13 +71,7 @@ export default function FigmaComparePage() {
   const [publishing, setPublishing] = useState(false);
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
 
-  // Chat
-  const [chatMsgs,  setChatMsgs]  = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatBusy,  setChatBusy]  = useState(false);
-
-  const runBottomRef  = useRef<HTMLDivElement>(null);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const runBottomRef = useRef<HTMLDivElement>(null);
   const scanGuardRef  = useRef(false);
   const setFigmaUrl = useCallback((v: string) => {
     setFigmaUrlRaw(v);
@@ -194,7 +188,6 @@ export default function FigmaComparePage() {
   }, []);
 
   useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
-  useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
 
   function addRun(msg: Omit<RunMessage, "id">) {
     setRunMsgs(prev => [...prev, { ...msg, id: crypto.randomUUID() }]);
@@ -412,38 +405,6 @@ export default function FigmaComparePage() {
     }
   }
 
-  async function sendChat() {
-    const text = chatInput.trim();
-    if (!text || chatBusy) return;
-    setChatInput("");
-    setChatBusy(true);
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", text };
-    setChatMsgs(prev => [...prev, userMsg]);
-
-    // Build context from the latest completed scan result
-    const latestResult = [...runMsgs].reverse().find(m => m.type === "result");
-    const scanContext = {
-      figmaUrl: figmaUrl || undefined,
-      liveUrl:  liveUrl  || undefined,
-      checks:   Array.from(checks),
-      discrepancies: latestResult?.table ?? [],
-      summary:  latestResult?.text ?? undefined,
-    };
-
-    try {
-      const res = await fetch("/api/agents/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history: chatMsgs.slice(-10), context: scanContext }),
-      });
-      const data = await res.json();
-      setChatMsgs(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", text: data.reply ?? "Sorry, I couldn't respond." }]);
-    } catch {
-      setChatMsgs(prev => [...prev, { id: crypto.randomUUID(), role: "assistant", text: "Connection error — try again." }]);
-    } finally {
-      setChatBusy(false);
-    }
-  }
 
   const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim() && checks.size > 0;
 
@@ -599,88 +560,6 @@ export default function FigmaComparePage() {
         )}
       </div>
 
-      {/* ── RIGHT: AI Chat ────────────────────────────────────────── */}
-      <div className="flex w-[300px] shrink-0 flex-col bg-[#fafafa]">
-        <div className="flex items-center gap-2 border-b border-[#f0f0f0] px-4 py-3 shrink-0">
-          <Bot size={13} className="text-[#9a9aa5]" />
-          <span className="text-[13px] font-medium text-[#17171c]">Ask AI</span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-          {chatMsgs.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-2">
-              <div className="h-9 w-9 rounded-xl bg-[#0f0f0f] flex items-center justify-center">
-                <Bot size={15} className="text-white" />
-              </div>
-              {(() => {
-                const latestResult = [...runMsgs].reverse().find(m => m.type === "result");
-                const hasResults = !!latestResult?.table?.length;
-                const suggestions = hasResults
-                  ? [
-                      "Summarize the issues found",
-                      "How do I fix the font mismatches?",
-                      "Which issues are most critical?",
-                    ]
-                  : [
-                      "What checks does Loupe perform?",
-                      "How do I get my Figma node ID?",
-                      "Why might colors look different on the live site?",
-                    ];
-                return (
-                  <>
-                    <p className="text-[12px] text-[#9a9aa5]">
-                      {hasResults ? "Scan complete. Ask about the results." : "Ask anything about design or this tool."}
-                    </p>
-                    <div className="space-y-1.5 w-full">
-                      {suggestions.map(q => (
-                        <button key={q} onClick={() => { setChatInput(q); }}
-                          className="w-full rounded-lg border border-[#e8e8ec] bg-white px-3 py-2 text-left text-[11px] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">
-                          {q}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-          )}
-          {chatMsgs.map(msg => (
-            <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-[12px] leading-relaxed ${
-                msg.role === "user"
-                  ? "bg-[#0f0f0f] text-white rounded-tr-sm"
-                  : "bg-white border border-[#f0f0f0] text-[#17171c] rounded-tl-sm"
-              }`}>
-                {msg.role === "assistant" ? <MdText text={msg.text} /> : msg.text}
-              </div>
-            </div>
-          ))}
-          {chatBusy && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-[#f0f0f0] rounded-2xl rounded-tl-sm px-3 py-2">
-                <Loader2 size={12} className="animate-spin text-[#9a9aa5]" />
-              </div>
-            </div>
-          )}
-          <div ref={chatBottomRef} />
-        </div>
-
-        <div className="shrink-0 border-t border-[#f0f0f0] p-3">
-          <div className="flex items-center gap-2 rounded-xl border border-[#e8e8ec] bg-white px-3 py-2 focus-within:border-[#0f0f0f] transition-colors">
-            <input
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendChat()}
-              placeholder="Ask a question…"
-              className="flex-1 bg-transparent text-[12px] text-[#17171c] placeholder:text-[#c8c8d0] outline-none"
-            />
-            <button onClick={sendChat} disabled={!chatInput.trim() || chatBusy}
-              className="h-6 w-6 flex items-center justify-center rounded-lg bg-[#0f0f0f] disabled:opacity-30 hover:bg-[#1a1a1a] transition-all">
-              <Send size={10} className="text-white" />
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
