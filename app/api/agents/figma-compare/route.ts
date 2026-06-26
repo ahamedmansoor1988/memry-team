@@ -479,6 +479,16 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Step 4: Build live context — match Figma nodes to live styles by text ─
+        // Declare check flags here so Step 4 matching can use them
+        const TYPOGRAPHY_CHECKS = ["font_family", "font_size", "font_weight", "color"] as const;
+        const enabledChecks = (checks ?? TYPOGRAPHY_CHECKS as unknown as string[])
+          .filter(c => (TYPOGRAPHY_CHECKS as readonly string[]).includes(c));
+        const activeChecks = enabledChecks.length > 0 ? enabledChecks : [...TYPOGRAPHY_CHECKS];
+        const inclFamily = activeChecks.includes("font_family");
+        const inclSize   = activeChecks.includes("font_size");
+        const inclWeight = activeChecks.includes("font_weight");
+        const inclColor  = activeChecks.includes("color");
+
         let liveContext = "";
         const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
           ? liveStyles
@@ -523,18 +533,7 @@ export async function POST(req: NextRequest) {
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
-        // Determine which properties the user actually wants checked
-        const TYPOGRAPHY_CHECKS = ["font_family", "font_size", "font_weight", "color"] as const;
-        const enabledChecks = (checks ?? TYPOGRAPHY_CHECKS as unknown as string[])
-          .filter(c => (TYPOGRAPHY_CHECKS as readonly string[]).includes(c));
-        // Fall back to all four if somehow nothing enabled
-        const activeChecks = enabledChecks.length > 0 ? enabledChecks : [...TYPOGRAPHY_CHECKS];
-
         // Build Figma summary — only include data relevant to enabled checks
-        const inclFamily = activeChecks.includes("font_family");
-        const inclSize   = activeChecks.includes("font_size");
-        const inclWeight = activeChecks.includes("font_weight");
-        const inclColor  = activeChecks.includes("color");
 
         const figmaFonts   = inclFamily ? Array.from(new Set(textNodes.map(n => n.fontFamily).filter(Boolean))) : [];
         const figmaSizes   = inclSize   ? Array.from(new Set(textNodes.map(n => n.fontSize).filter(Boolean))).sort((a, b) => b - a) : [];
