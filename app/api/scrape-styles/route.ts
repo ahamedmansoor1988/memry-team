@@ -2,117 +2,100 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 30;
 
-interface ExtractedStyles {
-  fonts: string[];
-  sizes: string[];
-  weights: string[];
-  colors: string[];
-  googleFonts: string[];
-  samples: Array<{ selector: string; fontFamily: string; fontSize: string; fontWeight: string; color: string }>;
+// ── Playwright scraper service (Render) ───────────────────────────────────────
+// Set SCRAPER_SERVICE_URL in Vercel env vars to point at the Render deployment.
+// Falls back to the old regex approach when the env var is absent (local dev).
+
+async function callScraperService(url: string) {
+  const base = process.env.SCRAPER_SERVICE_URL!;
+  const res  = await fetch(`${base}/scrape`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ url }),
+    signal:  AbortSignal.timeout(28_000),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Scraper service ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  return res.json() as Promise<{
+    fonts: string[];
+    fontSizes: string[];
+    fontWeights: string[];
+    colors: string[];
+    styles: Array<{ text: string; fontFamily: string; fontSize: string; fontWeight: string; color: string | null }>;
+  }>;
 }
 
-function parseCssRules(css: string): ExtractedStyles["samples"] {
-  const samples: ExtractedStyles["samples"] = [];
-  // Match CSS rules: selector { ... }
+// ── Regex fallback (no real browser — used only when SCRAPER_SERVICE_URL unset) ─
+function parseCssRules(css: string) {
+  const samples: Array<{ selector: string; fontFamily: string; fontSize: string; fontWeight: string; color: string }> = [];
   const ruleRegex = /([^{}]+)\{([^{}]+)\}/g;
   let match;
   while ((match = ruleRegex.exec(css)) !== null) {
     const selector = match[1].trim();
     const body     = match[2];
-    // Only care about typography-related selectors
     if (!/^(body|html|h[1-6]|p|a|span|div|header|nav|footer|button|li|ul|label|input|\.[\w-]+)/.test(selector)) continue;
-
-    const get = (prop: string) => {
-      const m = new RegExp(`${prop}\\s*:\\s*([^;]+)`).exec(body);
-      return m ? m[1].trim() : "";
-    };
-
+    const get = (prop: string) => new RegExp(`${prop}\\s*:\\s*([^;]+)`).exec(body)?.[1]?.trim() ?? "";
     const fontFamily = get("font-family");
     const fontSize   = get("font-size");
     const fontWeight = get("font-weight");
     const color      = get("color");
-
-    if (fontFamily || fontSize || color) {
-      samples.push({ selector, fontFamily, fontSize, fontWeight, color });
-    }
+    if (fontFamily || fontSize || color) samples.push({ selector, fontFamily, fontSize, fontWeight, color });
   }
   return samples;
 }
 
 function resolveFont(f: string): string {
   const ALIASES: Record<string, string> = {
-    "-apple-system":      "SF Pro (Apple System Font)",
+    "-apple-system": "SF Pro (Apple System Font)",
     "BlinkMacSystemFont": "SF Pro (Apple System Font)",
-    "system-ui":          "System UI Font",
-    "ui-sans-serif":      "System Sans-Serif",
-    "ui-serif":           "System Serif",
-    "ui-monospace":       "System Monospace",
+    "system-ui": "System UI Font",
   };
   const first = f.split(",")[0].trim().replace(/['"]/g, "");
   return ALIASES[first] ?? first;
 }
 
-export async function POST(req: NextRequest) {
-  const { url } = await req.json() as { url: string };
+async function regexFallback(url: string) {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; Loupe/1.0)" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
 
-  let html = "";
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; Loupe/1.0; +https://loupe.design)" },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) return NextResponse.json({ error: `HTTP ${res.status}` }, { status: 400 });
-    html = await res.text();
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 400 });
-  }
-
-  // Extract Google Fonts to identify intended fonts
   const googleFonts: string[] = [];
   const gfRegex = /fonts\.googleapis\.com\/css[^"'\s]*family=([^"'&\s]+)/g;
-  let gfMatch;
-  while ((gfMatch = gfRegex.exec(html)) !== null) {
-    const families = decodeURIComponent(gfMatch[1]).split("|").map(f => f.split(":")[0].replace(/\+/g, " "));
-    googleFonts.push(...families);
-  }
+  let m;
+  while ((m = gfRegex.exec(html)) !== null)
+    googleFonts.push(...decodeURIComponent(m[1]).split("|").map(f => f.split(":")[0].replace(/\+/g, " ")));
 
-  // Extract @import font URLs
-  const importRegex = /@import url\(['"]?(https:\/\/fonts\.googleapis[^'")\s]+)/g;
-  let impMatch;
-  while ((impMatch = importRegex.exec(html)) !== null) {
-    const families = decodeURIComponent(impMatch[1]).split("family=")[1]?.split("&")[0]?.split("|") ?? [];
-    googleFonts.push(...families.map(f => f.split(":")[0].replace(/\+/g, " ")));
-  }
-
-  // Extract all <style> blocks
   const styleBlocks: string[] = [];
   const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-  let styleMatch;
-  while ((styleMatch = styleRegex.exec(html)) !== null) {
-    styleBlocks.push(styleMatch[1]);
-  }
-  const allCss = styleBlocks.join("\n");
-
-  // Parse CSS rules
+  while ((m = styleRegex.exec(html)) !== null) styleBlocks.push(m[1]);
+  const allCss  = styleBlocks.join("\n");
   const samples = parseCssRules(allCss);
 
-  // Collect unique values
-  const fonts   = Array.from(new Set([
-    ...googleFonts,
-    ...samples.map(s => resolveFont(s.fontFamily)).filter(Boolean),
-  ])).filter(Boolean);
+  return {
+    fonts:      Array.from(new Set([...googleFonts, ...samples.map(s => resolveFont(s.fontFamily)).filter(Boolean)])),
+    fontSizes:  Array.from(new Set(samples.map(s => s.fontSize).filter(s => /\d/.test(s)))),
+    fontWeights: Array.from(new Set(samples.map(s => s.fontWeight).filter(Boolean))),
+    colors:     Array.from(new Set(allCss.match(/#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|hsl\([^)]+\)/g) ?? [])).slice(0, 25),
+    styles:     samples.slice(0, 30).map(s => ({ text: s.selector, fontFamily: s.fontFamily, fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color })),
+  };
+}
 
-  const sizes   = Array.from(new Set(
-    samples.map(s => s.fontSize).filter(s => s && /\d/.test(s))
-  )).sort((a, b) => parseFloat(b) - parseFloat(a));
+// ── Handler ────────────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const { url } = await req.json() as { url: string };
+  if (!url) return NextResponse.json({ error: "url is required" }, { status: 400 });
 
-  const weights = Array.from(new Set(
-    samples.map(s => s.fontWeight).filter(Boolean)
-  ));
-
-  // Extract colors from CSS (hex, rgb, hsl)
-  const colorMatches = allCss.match(/#[0-9a-fA-F]{3,6}|rgb\([^)]+\)|hsl\([^)]+\)/g) ?? [];
-  const colors = Array.from(new Set(colorMatches)).slice(0, 25);
-
-  return NextResponse.json({ fonts, sizes, weights, colors, googleFonts, samples: samples.slice(0, 30) });
+  try {
+    const result = process.env.SCRAPER_SERVICE_URL
+      ? await callScraperService(url)
+      : await regexFallback(url);
+    return NextResponse.json(result);
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }
