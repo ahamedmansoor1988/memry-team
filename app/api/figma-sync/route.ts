@@ -11,7 +11,53 @@ function supabaseAdmin() {
   );
 }
 
-// Shared figmaFetch with Retry-After support and full instrumentation
+interface FigmaRateLimitInfo {
+  retryAfterSec: number | null;
+  planTier: string | null;
+  limitType: string | null;
+  limitInterval: string | null;
+}
+
+function extractRateLimitHeaders(res: Response): FigmaRateLimitInfo {
+  const ra            = res.headers.get("Retry-After");
+  const planTier      = res.headers.get("X-Figma-Plan-Tier");
+  const limitType     = res.headers.get("X-Figma-Rate-Limit-Type");
+  const limitInterval = res.headers.get("X-Figma-Rate-Limit-Interval");
+  return {
+    retryAfterSec: ra !== null ? parseInt(ra, 10) : null,
+    planTier,
+    limitType,
+    limitInterval,
+  };
+}
+
+function formatRateLimitError(info: FigmaRateLimitInfo): string {
+  const { retryAfterSec, planTier, limitType, limitInterval } = info;
+
+  const planMsg  = planTier      ? `Plan tier: ${planTier}`          : "";
+  const typeMsg  = limitType     ? `Limit type: ${limitType}`        : "";
+  const intMsg   = limitInterval ? `Interval: ${limitInterval}`      : "";
+  const diagLine = [planMsg, typeMsg, intMsg].filter(Boolean).join(" · ");
+
+  if (retryAfterSec !== null && retryAfterSec > 3600) {
+    const hours = Math.round(retryAfterSec / 3600);
+    const days  = Math.round(retryAfterSec / 86400);
+    const wait  = days >= 1 ? `~${days} day${days !== 1 ? "s" : ""}` : `~${hours} hour${hours !== 1 ? "s" : ""}`;
+
+    if (planTier === "starter" || limitInterval?.toLowerCase().includes("month")) {
+      return `Monthly Figma API quota exhausted. Resets in ${wait}. ${diagLine}. Upgrade to Figma Professional to remove the monthly cap, or wait for the reset.`;
+    }
+    return `Figma rate limited for ${wait} (Retry-After: ${retryAfterSec}s). ${diagLine}.`;
+  }
+
+  if (retryAfterSec !== null) {
+    return `Figma rate limited — wait ${retryAfterSec}s. ${diagLine}.`;
+  }
+
+  return `Figma rate limited. ${diagLine}.`;
+}
+
+// Shared figmaFetch with full rate-limit diagnostics
 async function figmaFetch(pat: string, path: string): Promise<Response> {
   const reqId = Math.random().toString(36).slice(2, 10);
 
@@ -20,13 +66,26 @@ async function figmaFetch(pat: string, path: string): Promise<Response> {
     const res = await fetch(`https://api.figma.com/v1${path}`, {
       headers: { "X-Figma-Token": pat },
     });
-    const ms = Date.now() - t0;
-    const ra = res.headers.get("Retry-After");
-    console.log(`[figma-sync] [${reqId}] GET ${path} → ${res.status} ${ms}ms${ra ? ` retry-after:${ra}s` : ""}`);
+    const ms   = Date.now() - t0;
+    const info = res.status === 429 ? extractRateLimitHeaders(res) : null;
+
+    console.log(
+      `[figma-sync] [${reqId}] GET ${path} → ${res.status} ${ms}ms` +
+      (info ? ` retry-after:${info.retryAfterSec}s plan:${info.planTier} type:${info.limitType} interval:${info.limitInterval}` : "")
+    );
 
     if (res.status === 429) {
-      if (retried) throw new Error(`Figma rate limit persists (Retry-After: ${ra ?? "unknown"}s). Please wait a minute and try again.`);
-      const waitSec = Math.min(ra !== null ? parseInt(ra, 10) : 30, 30);
+      const rateInfo = extractRateLimitHeaders(res);
+
+      // Monthly / long-duration quota: fail immediately, no retry
+      if (rateInfo.retryAfterSec !== null && rateInfo.retryAfterSec > 300) {
+        throw new Error(formatRateLimitError(rateInfo));
+      }
+
+      if (retried) throw new Error(formatRateLimitError(rateInfo));
+
+      // Short per-minute limit: wait and retry once
+      const waitSec = Math.min(rateInfo.retryAfterSec ?? 30, 30);
       await new Promise(r => setTimeout(r, waitSec * 1_000));
       return doFetch(true);
     }
