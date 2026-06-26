@@ -471,14 +471,6 @@ export default function FigmaComparePage() {
                 No snapshot
               </span>
             )}
-            {/* Sync Design button */}
-            {figmaUrl.trim() && pat.trim() && (
-              <button onClick={syncDesign} disabled={syncing}
-                className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
-                {syncing ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
-                {syncing ? "Syncing…" : snapshot ? "Re-sync" : "Sync Design"}
-              </button>
-            )}
             {/* Live styles status */}
             {scrapeStatus === "fetching" && (
               <span className="flex items-center gap-1.5 rounded-full bg-[#f0f0f0] px-2.5 py-1 text-[11px] font-medium text-[#9a9aa5]">
