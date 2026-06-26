@@ -28,151 +28,47 @@ async function getBrowser() {
 // Font extraction — runs inside the page context via Playwright evaluate
 async function extractStyles(page) {
   return page.evaluate(async () => {
-    // Wait for fonts and a settle window
-    await document.fonts.ready;
-    await new Promise(r => setTimeout(r, 500));
-
-    // Try to force-load common web fonts found in the cascade
-    const declaredFamilies = new Set();
-    for (const sheet of [...document.styleSheets]) {
-      try {
-        for (const rule of [...(sheet.cssRules || [])]) {
-          if (rule instanceof CSSFontFaceRule) {
-            const f = rule.style.getPropertyValue("font-family").replace(/['"]/g, "").trim();
-            if (f) declaredFamilies.add(f);
-          }
-        }
-      } catch {} // cross-origin stylesheet
-    }
-    await Promise.allSettled(
-      [...declaredFamilies].map(f => document.fonts.load(`16px "${f}"`))
-    );
-
-    // Build loaded-font set after explicit loads
-    const loadedSet = new Set(
-      [...document.fonts]
-        .filter(f => f.status === "loaded")
-        .map(f => f.family.replace(/['"]/g, "").trim().toLowerCase())
-    );
-
-    // Read CSS-declared font-family from stylesheet rules
-    // (bypasses computed-style fallback resolution when fonts aren't installed)
-    function getDeclaredFont(el) {
-      for (const sheet of [...document.styleSheets]) {
-        try {
-          const rules = [...(sheet.cssRules || [])];
-          for (let i = rules.length - 1; i >= 0; i--) {
-            const rule = rules[i];
-            if (!(rule instanceof CSSStyleRule)) continue;
-            const ff = rule.style.fontFamily;
-            if (!ff || ff.includes("var(")) continue;
-            try {
-              if (el.matches(rule.selectorText)) {
-                return ff.split(",")[0].replace(/['"]/g, "").trim();
-              }
-            } catch {}
-          }
-        } catch {}
-      }
-      return null;
-    }
-
-    function resolveFont(cs, el) {
-      let family = cs.fontFamily;
-
-      // Resolve CSS custom properties
-      if (family.includes("var(")) {
-        const varName = family.match(/var\(\s*(--[^,)\s]+)/)?.[1];
-        if (varName) {
-          const resolved = cs.getPropertyValue(varName).trim().replace(/['"]/g, "");
-          if (resolved && !resolved.includes("var(")) family = resolved;
-        }
-      }
-
-      // Walk the cascade — return first font that is actually loaded
-      const cascade = family.split(",").map(f => f.replace(/['"]/g, "").trim());
-      for (const f of cascade) {
-        if (loadedSet.has(f.toLowerCase())) return f;
-      }
-
-      // Playwright has a full render engine, so fonts should load.
-      // If still not in loadedSet, prefer CSS-declared over computed fallback.
-      const cssFont = getDeclaredFont(el);
-      if (cssFont) return cssFont;
-
-      return cascade[0] || family;
-    }
-
     function rgbToHex(rgb) {
       if (!rgb || rgb === "transparent" || rgb === "rgba(0, 0, 0, 0)") return null;
       const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (!m) return null;
-      return (
-        "#" +
-        [m[1], m[2], m[3]]
-          .map(x => parseInt(x).toString(16).padStart(2, "0").toUpperCase())
-          .join("")
-      );
+      if (!m) return rgb;
+      return "#" + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, "0").toUpperCase()).join("");
     }
 
-    function isVisible(el) {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const seen   = new Set();
+    const styles = [];
+    let node;
+
+    while ((node = walker.nextNode())) {
+      const text = node.textContent.trim();
+      if (!text || text.length < 2 || seen.has(text)) continue;
+      seen.add(text);
+
+      const el = node.parentElement;
+      if (!el) continue;
       const cs = window.getComputedStyle(el);
-      if (cs.display === "none" || cs.visibility === "hidden" || parseFloat(cs.opacity) === 0)
-        return false;
-      const r = el.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) return false;
-      if (r.right < -200 || r.bottom < -200 || r.left > window.innerWidth + 200)
-        return false;
-      return true;
+
+      styles.push({
+        text:       text.slice(0, 60),
+        fontFamily: cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
+        fontSize:   cs.fontSize,
+        fontWeight: cs.fontWeight,
+        color:      rgbToHex(cs.color),
+      });
     }
 
-    const selectors = "h1, h2, h3, h4, h5, h6, p, a, li, button, label, span, td, th";
-    const elements = [...document.querySelectorAll(selectors)].filter(isVisible);
-
-    const textMap   = new Map();
-    const fontSet   = new Set();
-    const sizeSet   = new Set();
-    const weightSet = new Set();
-    const colorSet  = new Set();
-
-    for (const el of elements) {
-      const text = (el.innerText || el.textContent || "").trim();
-      if (!text || text.length < 2 || text.length > 200) continue;
-
-      const cs       = window.getComputedStyle(el);
-      const fontSize = parseFloat(cs.fontSize) || 0;
-      if (fontSize < 8) continue;
-
-      const font  = resolveFont(cs, el);
-      const color = rgbToHex(cs.color);
-
-      if (font)        fontSet.add(font);
-      if (cs.fontSize) sizeSet.add(cs.fontSize);
-      if (cs.fontWeight) weightSet.add(cs.fontWeight);
-      if (color)       colorSet.add(color);
-
-      const key      = text.slice(0, 60);
-      const existing = textMap.get(key);
-      if (!existing || fontSize > (existing._fontSize || 0)) {
-        textMap.set(key, {
-          text:       text.slice(0, 100),
-          fontFamily: font,
-          fontSize:   cs.fontSize,
-          fontWeight: cs.fontWeight,
-          color,
-          _fontSize:  fontSize,
-        });
-      }
-    }
+    const fontSet   = new Set(styles.map(s => s.fontFamily).filter(Boolean));
+    const sizeSet   = new Set(styles.map(s => s.fontSize).filter(Boolean));
+    const weightSet = new Set(styles.map(s => s.fontWeight).filter(Boolean));
+    const colorSet  = new Set(styles.map(s => s.color).filter(Boolean));
 
     return {
       fonts:       [...fontSet],
       fontSizes:   [...sizeSet],
       fontWeights: [...weightSet],
       colors:      [...colorSet],
-      styles:      [...textMap.values()]
-        .map(({ _fontSize, ...rest }) => rest)
-        .slice(0, 150),
+      styles:      styles.slice(0, 200),
     };
   });
 }

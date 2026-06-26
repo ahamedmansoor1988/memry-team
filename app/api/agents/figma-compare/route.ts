@@ -478,26 +478,46 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        // ── Step 4: Build live context from extension styles ──────────────────
+        // ── Step 4: Build live context — match Figma nodes to live styles by text ─
         let liveContext = "";
         const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
           ? liveStyles
           : (liveData?.styles ?? []);
 
         if (rawStyles.length > 0) {
-          const seenLive = new Set<string>();
-          const lines: string[] = [];
-          for (const s of rawStyles) {
-            const key = `${s.fontFamily}|${s.fontSize}|${s.fontWeight}|${s.color}`;
-            if (seenLive.has(key)) continue;
-            seenLive.add(key);
-            lines.push(`"${String(s.text ?? "").slice(0, 40)}" ${s.fontFamily} ${s.fontSize} w:${s.fontWeight} ${s.color}`);
-            if (lines.length >= 20) break;
+          const matchedLines: string[] = [];
+          const unmatchedFigma: string[] = [];
+
+          for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize).slice(0, 30)) {
+            const figmaText = n.characters.trim().toLowerCase();
+
+            // 1. Exact match
+            let live = rawStyles.find(s => s.text?.trim().toLowerCase() === figmaText);
+            // 2. Substring match
+            if (!live) live = rawStyles.find(s => {
+              const lt = s.text?.trim().toLowerCase() ?? "";
+              return lt.includes(figmaText) || figmaText.includes(lt);
+            });
+
+            if (live) {
+              const parts: string[] = [`"${n.characters.slice(0, 40)}"`];
+              if (inclFamily) parts.push(`font: ${n.fontFamily} → ${live.fontFamily}`);
+              if (inclSize)   parts.push(`size: ${n.fontSize}px → ${live.fontSize}`);
+              if (inclWeight) parts.push(`weight: ${n.fontWeight} → ${live.fontWeight}`);
+              if (inclColor)  parts.push(`color: ${n.color} → ${live.color}`);
+              matchedLines.push(parts.join(" | "));
+            } else {
+              unmatchedFigma.push(`"${n.characters.slice(0, 40)}" (no live match — skipped)`);
+            }
           }
-          liveContext = lines.join("\n");
-          send("step", { text: `Using ${rawStyles.length} live text styles from extension.` });
+
+          liveContext = matchedLines.join("\n");
+          if (unmatchedFigma.length > 0) {
+            liveContext += `\n\nUNMATCHED FIGMA NODES (skip these):\n${unmatchedFigma.join("\n")}`;
+          }
+          send("step", { text: `Matched ${matchedLines.length}/${textNodes.length} Figma nodes to live elements. ${unmatchedFigma.length} unmatched (skipped).` });
         } else {
-          send("step", { text: "No extension data — install and reload the Loupe extension for accurate results." });
+          send("step", { text: "No live style data — install and reload the Loupe extension for accurate results." });
         }
 
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
@@ -569,18 +589,19 @@ export async function POST(req: NextRequest) {
             messages: [
               {
                 role: "system",
-                content: `You are a design QA engineer comparing a Figma spec against live website computed styles.
+                content: `You are a design QA engineer. You are given pre-matched Figma vs live pairs — each line shows "text" | figma value → live value for each property.
 
 Rules:
 - ONLY check these properties: ${checkListStr}
 - DO NOT report any other properties even if they differ
 ${checkRules.join("\n")}
 - NEVER flag if Figma value equals Live value
-- Match text between Figma and live by approximate text content
+- Only report rows where there is a real difference
+- Skip any row marked "no live match"
 - Return at most 20 of the most significant discrepancies
 
 For each discrepancy return JSON:
-- "element": exact text from FIGMA TEXT NODES
+- "element": the quoted text label from the matched pair
 - "category": ${activeChecks.join(" | ")}
 - "issue": "Figma: <value> — Live: <value>"
 - "severity": high | medium | low
@@ -589,7 +610,7 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
               },
               {
                 role: "user",
-                content: `FIGMA:\n${figmaSummary}\n\nLIVE SITE (${liveUrl}):\n${liveContext}\n\nFind discrepancies for: ${checkListStr}.`,
+                content: `MATCHED FIGMA → LIVE PAIRS (${liveUrl}):\n${liveContext}\n\nFind discrepancies for: ${checkListStr}.`,
               },
             ],
           }),
