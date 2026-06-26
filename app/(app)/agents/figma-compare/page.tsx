@@ -51,9 +51,10 @@ export default function FigmaComparePage() {
   const [runMsgs,   setRunMsgs]   = useState<RunMessage[]>([]);
 
   // Extension bridge
-  const [liveStyles,     setLiveStyles]     = useState<any[] | null>(null);
-  const [liveData,       setLiveData]       = useState<any | null>(null);
-  const [scrapeStatus,   setScrapeStatus]   = useState<"idle"|"fetching"|"ready">("idle");
+  const [liveStyles,        setLiveStyles]        = useState<any[] | null>(null);
+  const [liveData,          setLiveData]          = useState<any | null>(null);
+  const [scrapeStatus,      setScrapeStatus]      = useState<"idle"|"fetching"|"ready">("idle");
+  const [extensionDetected, setExtensionDetected] = useState<boolean | null>(null);
   const liveStylesRef = useRef<any[] | null>(null);
   const liveDataRef   = useRef<any | null>(null);
   liveStylesRef.current = liveStyles;
@@ -164,10 +165,23 @@ export default function FigmaComparePage() {
     }
   }, []);
 
-  // Poll for styles written back by the extension bridge
+  // Detect extension presence + poll for styles written back by the extension bridge
   useEffect(() => {
+    // Check immediately
+    const checkExtension = () => {
+      const ts = localStorage.getItem("loupe_extension_present");
+      if (ts) setExtensionDetected(true);
+    };
+    checkExtension();
+    // After 3s with no signal, mark as not detected
+    const detectTimer = setTimeout(() => {
+      const ts = localStorage.getItem("loupe_extension_present");
+      setExtensionDetected(!!ts);
+    }, 3000);
+
     const id = setInterval(() => {
       try {
+        checkExtension();
         // Sync styles
         const raw = localStorage.getItem("loupe_bridge_styles");
         if (raw) {
@@ -184,7 +198,7 @@ export default function FigmaComparePage() {
         }
       } catch {}
     }, 800);
-    return () => clearInterval(id);
+    return () => { clearInterval(id); clearTimeout(detectTimer); };
   }, []);
 
   useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
@@ -451,6 +465,25 @@ export default function FigmaComparePage() {
             )}
           </div>
         </div>
+
+        {/* Extension missing banner */}
+        {extensionDetected === false && (
+          <div className="flex items-start gap-3 border-b border-[#fde68a] bg-[#fffbeb] px-5 py-3">
+            <AlertCircle size={14} className="mt-0.5 shrink-0 text-[#b45309]" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] font-medium text-[#92400e]">Loupe extension not detected</p>
+              <p className="mt-0.5 text-[11px] text-[#b45309]">
+                Install it to extract live fonts accurately.{" "}
+                <span className="font-medium">Chrome → Extensions → Load unpacked → select the </span>
+                <code className="rounded bg-[#fde68a] px-1 py-0.5 text-[10px]">loupe-extension</code>
+                <span className="font-medium"> folder from the repo.</span>
+              </p>
+            </div>
+            <button onClick={() => setExtensionDetected(null)} className="shrink-0 text-[#b45309] hover:text-[#92400e]">
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Execution area */}
         <div className="flex-1 overflow-y-auto">
