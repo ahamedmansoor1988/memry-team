@@ -61,7 +61,7 @@ async function figmaFetch(
 
     if (res.status === 429) {
       if (retried) throw new Error("Figma rate limit persists — please wait a moment and try again.");
-      const waitSec = retryAfterSec ?? 65;
+      const waitSec = Math.min(retryAfterSec ?? 30, 30);
       onWait?.(waitSec);
       await new Promise(r => setTimeout(r, waitSec * 1_000));
       return doFetch(true);
@@ -503,10 +503,23 @@ export async function POST(req: NextRequest) {
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
-        const figmaFonts   = Array.from(new Set(textNodes.map(n => n.fontFamily).filter(Boolean)));
-        const figmaSizes   = Array.from(new Set(textNodes.map(n => n.fontSize).filter(Boolean))).sort((a, b) => b - a);
-        const figmaWeights = Array.from(new Set(textNodes.map(n => n.fontWeight).filter(Boolean)));
-        const figmaColors  = Array.from(new Set(textNodes.map(n => n.color).filter(Boolean)));
+        // Determine which properties the user actually wants checked
+        const TYPOGRAPHY_CHECKS = ["font_family", "font_size", "font_weight", "color"] as const;
+        const enabledChecks = (checks ?? TYPOGRAPHY_CHECKS as unknown as string[])
+          .filter(c => (TYPOGRAPHY_CHECKS as readonly string[]).includes(c));
+        // Fall back to all four if somehow nothing enabled
+        const activeChecks = enabledChecks.length > 0 ? enabledChecks : [...TYPOGRAPHY_CHECKS];
+
+        // Build Figma summary — only include data relevant to enabled checks
+        const inclFamily = activeChecks.includes("font_family");
+        const inclSize   = activeChecks.includes("font_size");
+        const inclWeight = activeChecks.includes("font_weight");
+        const inclColor  = activeChecks.includes("color");
+
+        const figmaFonts   = inclFamily ? Array.from(new Set(textNodes.map(n => n.fontFamily).filter(Boolean))) : [];
+        const figmaSizes   = inclSize   ? Array.from(new Set(textNodes.map(n => n.fontSize).filter(Boolean))).sort((a, b) => b - a) : [];
+        const figmaWeights = inclWeight ? Array.from(new Set(textNodes.map(n => n.fontWeight).filter(Boolean))) : [];
+        const figmaColors  = inclColor  ? Array.from(new Set(textNodes.map(n => n.color).filter(Boolean))) : [];
 
         const seenFontCombos = new Set<string>();
         const nodeDetails: string[] = [];
@@ -514,18 +527,33 @@ export async function POST(req: NextRequest) {
           const key = `${n.fontFamily}|${n.fontSize}|${n.fontWeight}|${n.color}`;
           if (seenFontCombos.has(key)) continue;
           seenFontCombos.add(key);
-          nodeDetails.push(`"${n.characters.slice(0, 40)}" ${n.fontFamily} ${n.fontSize}px w:${n.fontWeight} ${n.color}`);
+          const parts: string[] = [`"${n.characters.slice(0, 40)}"`];
+          if (inclFamily) parts.push(n.fontFamily);
+          if (inclSize)   parts.push(`${n.fontSize}px`);
+          if (inclWeight) parts.push(`w:${n.fontWeight}`);
+          if (inclColor)  parts.push(n.color);
+          nodeDetails.push(parts.join(" "));
           if (nodeDetails.length >= 12) break;
         }
 
-        const figmaSummary = `FIGMA FONTS: ${figmaFonts.join(", ")}
-FIGMA SIZES: ${figmaSizes.slice(0, 10).join(", ")}px
-FIGMA WEIGHTS: ${figmaWeights.join(", ")}
-FIGMA COLORS: ${figmaColors.slice(0, 10).join(", ")}
-FIGMA TEXT NODES:
-${nodeDetails.join("\n")}`;
+        const summaryLines: string[] = [];
+        if (inclFamily) summaryLines.push(`FIGMA FONTS: ${figmaFonts.join(", ")}`);
+        if (inclSize)   summaryLines.push(`FIGMA SIZES: ${figmaSizes.slice(0, 10).join(", ")}px`);
+        if (inclWeight) summaryLines.push(`FIGMA WEIGHTS: ${figmaWeights.join(", ")}`);
+        if (inclColor)  summaryLines.push(`FIGMA COLORS: ${figmaColors.slice(0, 10).join(", ")}`);
+        summaryLines.push(`FIGMA TEXT NODES:\n${nodeDetails.join("\n")}`);
+        const figmaSummary = summaryLines.join("\n");
 
-        send("step", { text: "Sending to Groq AI for analysis…" });
+        // Build per-property rules for only the enabled checks
+        const checkRules: string[] = [];
+        if (inclFamily) checkRules.push("- font_family: flag mismatches using EXACT font names from the data");
+        if (inclSize)   checkRules.push("- font_size: only flag if difference > 2px");
+        if (inclWeight) checkRules.push("- font_weight: flag mismatches");
+        if (inclColor)  checkRules.push("- color: flag visually distinct differences only (skip near-identical shades)");
+
+        const checkListStr = activeChecks.join(", ");
+
+        send("step", { text: `Sending to Groq AI — checking: ${activeChecks.map(c => c.replace("_", " ")).join(", ")}…` });
 
         const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method:  "POST",
@@ -544,18 +572,16 @@ ${nodeDetails.join("\n")}`;
                 content: `You are a design QA engineer comparing a Figma spec against live website computed styles.
 
 Rules:
-- Only check: font_family, font_size, font_weight, color
-- font_family: flag mismatches using EXACT font names from the data
-- font_size: only flag if difference > 2px
-- font_weight: flag mismatches
-- color: flag visually distinct differences only (skip near-identical shades)
+- ONLY check these properties: ${checkListStr}
+- DO NOT report any other properties even if they differ
+${checkRules.join("\n")}
 - NEVER flag if Figma value equals Live value
 - Match text between Figma and live by approximate text content
 - Return at most 20 of the most significant discrepancies
 
 For each discrepancy return JSON:
 - "element": exact text from FIGMA TEXT NODES
-- "category": font_family | font_size | font_weight | color
+- "category": ${activeChecks.join(" | ")}
 - "issue": "Figma: <value> — Live: <value>"
 - "severity": high | medium | low
 
@@ -563,7 +589,7 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
               },
               {
                 role: "user",
-                content: `FIGMA:\n${figmaSummary}\n\nLIVE SITE (${liveUrl}):\n${liveContext}\n\nList all font and color discrepancies.`,
+                content: `FIGMA:\n${figmaSummary}\n\nLIVE SITE (${liveUrl}):\n${liveContext}\n\nFind discrepancies for: ${checkListStr}.`,
               },
             ],
           }),
@@ -615,9 +641,11 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
           send("step", { text: `Recovered ${discrepancies.length} discrepancies from partial AI response.` });
         }
 
-        // Remove false positives and duplicates
+        // Remove false positives, off-category results, and duplicates
         const seenIssues = new Set<string>();
         discrepancies = discrepancies.filter(d => {
+          // Strip anything not in the user's enabled checks (safety net for model drift)
+          if (d.category && !activeChecks.includes(d.category)) return false;
           const parts = d.issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
           if (parts) {
             // Normalize: strip trailing notes like "(visually distinct)", take first token
