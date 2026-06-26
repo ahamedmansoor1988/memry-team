@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 30;
 
+// ── Fallback only — preferred extraction method is the Loupe Chrome extension ──
+// The extension (loupe-extension/) runs in the user's real browser tab and reads
+// computed styles directly via TreeWalker — no Playwright needed.
+// This route is used when the extension is not installed or unavailable.
+//
 // ── Playwright scraper service (Render) ───────────────────────────────────────
 // Set SCRAPER_SERVICE_URL in Vercel env vars to point at the Render deployment.
 // Falls back to the old regex approach when the env var is absent (local dev).
