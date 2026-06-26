@@ -29,13 +29,18 @@ async function getBrowser() {
 async function extractStyles(page) {
   return page.evaluate(async () => {
     function getWebFont(el) {
-      const systemFonts = ["-apple-system", "BlinkMacSystemFont", "system-ui", "Arial", "sans-serif"];
+      const systemFonts = ["-apple-system", "BlinkMacSystemFont", "system-ui"];
       let current = el;
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 15; i++) {
         const font = getComputedStyle(current).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
         if (!systemFonts.some(s => font.startsWith(s))) return font;
         if (!current.parentElement) break;
         current = current.parentElement;
+      }
+      // Final fallback: check body/html
+      for (const root of [document.body, document.documentElement]) {
+        const font = getComputedStyle(root).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+        if (!systemFonts.some(s => font.startsWith(s))) return font;
       }
       return getComputedStyle(el).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
     }
@@ -123,6 +128,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "getWebFont-v2" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "getWebFont-v3" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
