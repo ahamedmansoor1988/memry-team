@@ -537,7 +537,7 @@ ${nodeDetails.join("\n")}`;
           body: JSON.stringify({
             model: "llama-3.1-8b-instant",
             temperature: 0,
-            max_tokens: 8000,
+            max_tokens: 3000,
             messages: [
               {
                 role: "system",
@@ -551,6 +551,7 @@ Rules:
 - color: flag visually distinct differences only (skip near-identical shades)
 - NEVER flag if Figma value equals Live value
 - Match text between Figma and live by approximate text content
+- Return at most 20 of the most significant discrepancies
 
 For each discrepancy return JSON:
 - "element": exact text from FIGMA TEXT NODES
