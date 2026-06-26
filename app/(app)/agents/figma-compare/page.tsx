@@ -200,9 +200,9 @@ export default function FigmaComparePage() {
     setRunMsgs(prev => [...prev, { ...msg, id: crypto.randomUUID() }]);
   }
 
-  async function syncDesign() {
+  async function syncDesign(): Promise<SnapshotMeta | null> {
     const parsed = parseFigmaUrl(figmaUrl);
-    if (!parsed || !pat.trim()) { setConfigOpen(true); return; }
+    if (!parsed || !pat.trim()) { setConfigOpen(true); return null; }
     setSyncing(true);
     const t0 = Date.now();
     addRun({ type: "step", text: "Syncing design from Figma — fetching nodes…" });
@@ -229,11 +229,11 @@ export default function FigmaComparePage() {
         } else {
           addRun({ type: "error", text: `Sync failed (${status}) — server returned an unexpected response. Try again.` });
         }
-        return;
+        return null;
       }
       if (!r.ok) {
         addRun({ type: "error", text: d?.error ?? `Sync failed (${r.status})` });
-        return;
+        return null;
       }
       const meta: SnapshotMeta = {
         id:             d.snapshotId,
@@ -247,8 +247,10 @@ export default function FigmaComparePage() {
       const lsKey = `loupe_snap_meta_v1_${parsed.fileKey}_${parsed.nodeId}`;
       localStorage.setItem(lsKey, JSON.stringify(meta));
       addRun({ type: "step", text: `Design synced — "${d.frameName}" · ${d.textNodeCount} text nodes · depth=${d.depthUsed} · ${Math.round((Date.now() - t0) / 1000)}s total. Scans will use this snapshot.` });
+      return meta;
     } catch (e) {
       addRun({ type: "error", text: `Sync error: ${String(e)}` });
+      return null;
     } finally {
       clearInterval(ticker);
       setSyncing(false);
@@ -297,6 +299,14 @@ export default function FigmaComparePage() {
       if (!parsed) { addRun({ type: "error", text: "Invalid Figma URL." }); setRunning(false); return; }
       const { fileKey, nodeId } = parsed;
 
+      // ── Auto-sync if no snapshot exists ──────────────────────────────────────
+      let activeSnapshot = snapshot;
+      if (!activeSnapshot && !forceRefresh) {
+        addRun({ type: "step", text: "No snapshot found — syncing design from Figma first…" });
+        activeSnapshot = await syncDesign();
+        if (!activeSnapshot) return; // syncDesign already showed the error
+      }
+
       // ── Browser cache (speed only) ───────────────────────────────────────────
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
       const cached   = localStorage.getItem(cacheKey);
@@ -304,7 +314,7 @@ export default function FigmaComparePage() {
       let styleNameMap: Record<string, string> = {};
 
       // Only use browser cache if no snapshot exists and not force-refreshing
-      const hasSnapshot = !forceRefresh && (snapshot !== null);
+      const hasSnapshot = !forceRefresh && (activeSnapshot !== null);
       if (!hasSnapshot && cached && !forceRefresh) {
         const p = JSON.parse(cached);
         figmaNodes   = p.figmaNodes;
@@ -354,7 +364,7 @@ export default function FigmaComparePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           // Pass snapshot ID if we have one — compare route reads from Supabase
-          snapshotId:   hasSnapshot ? snapshot!.id : null,
+          snapshotId:   hasSnapshot ? activeSnapshot!.id : null,
           // Browser cache (fallback, only when no snapshot)
           figmaNodes:   hasSnapshot ? null : (forceRefresh ? null : figmaNodes),
           styleNameMap: hasSnapshot ? {} : (forceRefresh ? {} : styleNameMap),
