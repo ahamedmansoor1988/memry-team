@@ -219,9 +219,20 @@ export default function FigmaComparePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileKey: parsed.fileKey, nodeId: parsed.nodeId, pat: pat.trim() }),
       });
-      const d = await r.json();
+      let d: any;
+      try {
+        d = await r.json();
+      } catch {
+        const status = r.status;
+        if (status === 504 || status === 502) {
+          addRun({ type: "error", text: `Sync timed out (${status}) — your Figma file may be very large. Wait 30 seconds and try again.` });
+        } else {
+          addRun({ type: "error", text: `Sync failed (${status}) — server returned an unexpected response. Try again.` });
+        }
+        return;
+      }
       if (!r.ok) {
-        addRun({ type: "error", text: d.error ?? `Sync failed (${r.status})` });
+        addRun({ type: "error", text: d?.error ?? `Sync failed (${r.status})` });
         return;
       }
       const meta: SnapshotMeta = {
