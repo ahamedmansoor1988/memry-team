@@ -123,6 +123,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "getWebFont-v2" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
