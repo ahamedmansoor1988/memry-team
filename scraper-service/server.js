@@ -28,21 +28,38 @@ async function getBrowser() {
 // Font extraction — runs inside the page context via Playwright evaluate
 async function extractStyles(page) {
   return page.evaluate(async () => {
+    const systemFontNames = ["-apple-system", "blinkmacsystemfont", "system-ui", "arial", "helvetica", "sans-serif", "serif", "monospace"];
+    function isSystem(font) {
+      return systemFontNames.some(s => font.toLowerCase().startsWith(s));
+    }
+
+    // Build a set of web fonts actually loaded by the browser
+    const loadedWebFonts = [...document.fonts]
+      .filter(f => f.status === "loaded")
+      .map(f => f.family.replace(/['"]/g, "").trim())
+      .filter(f => !isSystem(f));
+
+    // Primary font for page = most common loaded web font (by usage count on visible text)
+    const fontUsage = new Map();
+    for (const el of document.querySelectorAll("h1,h2,h3,h4,h5,h6,p,a,button,li,span,td")) {
+      const f = getComputedStyle(el).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+      if (!isSystem(f)) fontUsage.set(f, (fontUsage.get(f) ?? 0) + 1);
+    }
+    const pageDefaultFont = [...fontUsage.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]
+      ?? loadedWebFonts[0]
+      ?? null;
+
     function getWebFont(el) {
-      const systemFonts = ["-apple-system", "BlinkMacSystemFont", "system-ui"];
+      // Walk up to find an element whose computed font is a web font
       let current = el;
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 10; i++) {
         const font = getComputedStyle(current).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-        if (!systemFonts.some(s => font.startsWith(s))) return font;
+        if (!isSystem(font)) return font;
         if (!current.parentElement) break;
         current = current.parentElement;
       }
-      // Final fallback: check body/html
-      for (const root of [document.body, document.documentElement]) {
-        const font = getComputedStyle(root).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-        if (!systemFonts.some(s => font.startsWith(s))) return font;
-      }
-      return getComputedStyle(el).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+      // Fall back to most-used web font on the page
+      return pageDefaultFont ?? getComputedStyle(el).fontFamily.split(",")[0].replace(/['"]/g, "").trim();
     }
 
     function rgbToHex(rgb) {
@@ -128,6 +145,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "getWebFont-v3" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "getWebFont-v4" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
