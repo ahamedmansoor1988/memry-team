@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import { Instrument_Sans } from "next/font/google";
+import { Instrument_Sans, Lora } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+});
+
+const lora = Lora({
+  subsets: ["latin"],
+  variable: "--font-serif",
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -20,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${instrumentSans.variable} ${GeistMono.variable} antialiased`}>
+      <body className={`${instrumentSans.variable} ${lora.variable} ${GeistMono.variable} antialiased`}>
         {children}
       </body>
     </html>

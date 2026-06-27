@@ -59,10 +59,10 @@ export default function LandingPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0f0f0f]">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
               <span className="text-[11px] font-bold text-white">L</span>
             </div>
-            <span className="text-[15px] font-semibold text-[#0f0f0f]">Loupe</span>
+            <span className="text-[15px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
@@ -81,7 +81,7 @@ export default function LandingPage() {
           <span className="text-[12px] text-[#5b5b66] font-medium">Free to start — no credit card needed</span>
         </div>
 
-        <h1 className="text-[52px] font-semibold tracking-tight text-[#0f0f0f] leading-[1.1] mb-5 max-w-3xl mx-auto">
+        <h1 className="text-[52px] font-semibold text-[#0f0f0f] leading-[1.1] mb-5 max-w-3xl mx-auto font-[family-name:var(--font-serif)]">
           Catch design bugs<br />before they ship
         </h1>
         <p className="text-[18px] text-[#6b7280] leading-relaxed mb-10 max-w-xl mx-auto">
@@ -172,7 +172,7 @@ export default function LandingPage() {
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-6xl mx-auto px-6 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9a9aa5] mb-3">What Loupe checks</p>
-          <h2 className="text-[32px] font-semibold text-[#0f0f0f] tracking-tight mb-10">Every pixel. Every run.</h2>
+          <h2 className="text-[32px] font-semibold text-[#0f0f0f] mb-10 font-[family-name:var(--font-serif)]">Every pixel. Every run.</h2>
           <div className="flex flex-wrap justify-center gap-3">
             {CHECKS.map(c => (
               <div key={c} className="flex items-center gap-2 rounded-full border border-[#f0f0f0] bg-white px-4 py-2">
@@ -188,7 +188,7 @@ export default function LandingPage() {
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-6xl mx-auto px-6">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-[#9a9aa5] mb-3 text-center">How it works</p>
-          <h2 className="text-[32px] font-semibold text-[#0f0f0f] tracking-tight mb-12 text-center">From Figma to QA in 60 seconds</h2>
+          <h2 className="text-[32px] font-semibold text-[#0f0f0f] mb-12 text-center font-[family-name:var(--font-serif)]">From Figma to QA in 60 seconds</h2>
           <div className="grid grid-cols-3 gap-10">
             {HOW.map(h => (
               <div key={h.step} className="space-y-3">
@@ -220,7 +220,7 @@ export default function LandingPage() {
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
-            <h2 className="text-[32px] font-semibold text-white tracking-tight mb-4">Start catching bugs today</h2>
+            <h2 className="text-[32px] font-semibold text-white mb-4 font-[family-name:var(--font-serif)]">Start catching bugs today</h2>
             <p className="text-[15px] text-[#9a9aa5] mb-8 max-w-md mx-auto">Free forever for individuals. No credit card required.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[14px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={14} />
@@ -233,10 +233,10 @@ export default function LandingPage() {
       <footer className="border-t border-[#f5f5f7] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex h-5 w-5 items-center justify-center rounded bg-[#0f0f0f]">
+            <div className="flex h-5 w-5 items-center justify-center rounded" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
               <span className="text-[10px] font-bold text-white">L</span>
             </div>
-            <span className="text-[13px] font-semibold text-[#0f0f0f]">Loupe</span>
+            <span className="text-[13px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>

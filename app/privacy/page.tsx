@@ -13,10 +13,10 @@ export default function PrivacyPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0f0f0f]">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
               <span className="text-[11px] font-bold text-white">L</span>
             </div>
-            <span className="text-[15px] font-semibold text-[#0f0f0f]">Loupe</span>
+            <span className="text-[15px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
@@ -27,7 +27,7 @@ export default function PrivacyPage() {
 
       <main className="max-w-2xl mx-auto px-6 py-16">
         <p className="text-[12px] text-[#9a9aa5] mb-2">Effective {EFFECTIVE}</p>
-        <h1 className="text-[32px] font-semibold text-[#0f0f0f] tracking-tight mb-2">Privacy Policy</h1>
+        <h1 className="text-[32px] font-semibold text-[#0f0f0f] mb-2 font-[family-name:var(--font-serif)]">Privacy Policy</h1>
         <p className="text-[14px] text-[#6b7280] mb-10">We keep this simple and plain-English. We do not sell your data.</p>
 
         <div className="space-y-8 text-[14px] text-[#374151] leading-relaxed">

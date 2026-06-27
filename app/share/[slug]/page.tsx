@@ -53,10 +53,10 @@ export default function SharePage() {
     <div className="min-h-screen bg-[#fafafa] font-sans">
       {/* Header */}
       <div className="border-b border-[#f0f0f0] bg-white px-6 py-4 flex items-center gap-3">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0f0f0f]">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
           <span className="text-[12px] font-bold text-white tracking-tight">L</span>
         </div>
-        <span className="text-[14px] font-semibold text-[#0f0f0f]">Loupe</span>
+        <span className="text-[14px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
         <span className="text-[#e0e0e6] text-[14px]">/</span>
         <span className="text-[13px] text-[#9a9aa5]">Shared QA Report</span>
       </div>

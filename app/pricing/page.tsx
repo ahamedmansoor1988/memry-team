@@ -106,10 +106,10 @@ export default function PricingPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0f0f0f]">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
               <span className="text-[11px] font-bold text-white">L</span>
             </div>
-            <span className="text-[15px] font-semibold text-[#0f0f0f]">Loupe</span>
+            <span className="text-[15px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#0f0f0f] font-medium">Pricing</Link>
@@ -123,7 +123,7 @@ export default function PricingPage() {
 
       {/* Header */}
       <section className="max-w-6xl mx-auto px-6 pt-16 pb-12 text-center">
-        <h1 className="text-[42px] font-semibold tracking-tight text-[#0f0f0f] leading-tight mb-4">
+        <h1 className="text-[42px] font-semibold text-[#0f0f0f] leading-tight mb-4 font-[family-name:var(--font-serif)]">
           Pay for what you ship,<br />not what you try
         </h1>
         <p className="text-[17px] text-[#6b7280] max-w-lg mx-auto">
@@ -205,7 +205,7 @@ export default function PricingPage() {
       {/* Compare at a glance */}
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-[24px] font-semibold text-[#0f0f0f] tracking-tight mb-8 text-center">Compare plans</h2>
+          <h2 className="text-[24px] font-semibold text-[#0f0f0f] mb-8 text-center font-[family-name:var(--font-serif)]">Compare plans</h2>
           <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
@@ -244,7 +244,7 @@ export default function PricingPage() {
       {/* FAQ */}
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-2xl mx-auto px-6">
-          <h2 className="text-[24px] font-semibold text-[#0f0f0f] tracking-tight mb-8 text-center">Frequently asked</h2>
+          <h2 className="text-[24px] font-semibold text-[#0f0f0f] mb-8 text-center font-[family-name:var(--font-serif)]">Frequently asked</h2>
           <div className="space-y-6">
             {FAQ.map(({ q, a }) => (
               <div key={q} className="border-b border-[#f5f5f7] pb-6 last:border-0">
@@ -260,7 +260,7 @@ export default function PricingPage() {
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
-            <h2 className="text-[28px] font-semibold text-white tracking-tight mb-3">Start for free today</h2>
+            <h2 className="text-[28px] font-semibold text-white mb-3 font-[family-name:var(--font-serif)]">Start for free today</h2>
             <p className="text-[14px] text-[#9a9aa5] mb-7">No credit card. No setup. Just install the extension and run.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[13px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={13} />
@@ -273,10 +273,10 @@ export default function PricingPage() {
       <footer className="border-t border-[#f5f5f7] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-5 w-5 items-center justify-center rounded bg-[#0f0f0f]">
+            <div className="flex h-5 w-5 items-center justify-center rounded" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
               <span className="text-[10px] font-bold text-white">L</span>
             </div>
-            <span className="text-[13px] font-semibold text-[#0f0f0f]">Loupe</span>
+            <span className="text-[13px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
