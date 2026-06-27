@@ -666,11 +666,11 @@ function RunBubble({ msg }: { msg: RunMessage }) {
   );
   if (msg.type === "result") {
     const categoryColors: Record<string, { bg: string; text: string; label: string }> = {
-      missing_elements: { bg: "bg-red-50",     text: "text-red-600",    label: "Missing"     },
-      font_family:      { bg: "bg-purple-50",  text: "text-purple-600", label: "Font Family" },
-      font_size:        { bg: "bg-blue-50",    text: "text-blue-600",   label: "Font Size"   },
-      font_weight:      { bg: "bg-amber-50",   text: "text-amber-600",  label: "Font Weight" },
-      color:            { bg: "bg-pink-50",    text: "text-pink-600",   label: "Color"       },
+      missing_elements: { bg: "#fef2f2", text: "#dc2626", label: "Missing"     },
+      font_family:      { bg: "#faf5ff", text: "#9333ea", label: "Font Family" },
+      font_size:        { bg: "#eff6ff", text: "#2563eb", label: "Font Size"   },
+      font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },
+      color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
     };
 
     function IssueDiff({ issue }: { issue: string }) {
@@ -722,11 +722,11 @@ function RunBubble({ msg }: { msg: RunMessage }) {
                   const cat = categoryColors[row.category ?? ""] ?? { bg: "bg-gray-50", text: "text-gray-500", label: row.category ?? "" };
                   const isHigh = row.severity === "high" || row.category === "missing_elements";
                   return (
-                    <tr key={i} className={`border-b border-[#f7f7f8] last:border-0 hover:bg-[#fafafa] ${isHigh ? "bg-red-50/30" : ""}`}>
+                    <tr key={i} style={isHigh ? { backgroundColor: "#fff8f8" } : {}} className="border-b border-[#f7f7f8] last:border-0 hover:bg-[#fafafa]">
                       <td className="px-3 py-2.5 text-[#c8c8d0] text-[11px]">{i + 1}</td>
                       <td className="px-3 py-2.5 font-semibold text-[#17171c]">{row.element}</td>
                       <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${cat.bg} ${cat.text}`}>
+                        <span style={{ backgroundColor: cat.bg, color: cat.text }} className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium">
                           {cat.label || (row.category ?? "").replace(/_/g, " ")}
                         </span>
                       </td>
