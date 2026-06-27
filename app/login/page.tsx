@@ -28,20 +28,26 @@ export default function LoginPage() {
           <path d="M408.866 107.4C417.132 105.667 423.266 102.333 427.266 97.4C431.399 92.4667 433.466 87.7333 433.466 83.2C433.466 78.5333 432.199 75.4 429.666 73.8C427.266 72.0667 424.599 71.2 421.666 71.2C415.399 71.2 409.866 74.7333 405.066 81.8C400.399 88.7333 398.066 97.0667 398.066 106.8C398.066 116.4 400.332 123.6 404.866 128.4C409.532 133.067 415.266 135.4 422.066 135.4C432.066 135.4 441.666 131.933 450.866 125C460.066 118.067 467.532 109 473.266 97.8C476.199 100.6 478.866 104.067 481.266 108.2C476.866 118.2 469.066 128 457.866 137.6C452.266 142.267 445.599 146.067 437.866 149C430.266 151.933 422.399 153.4 414.266 153.4C400.932 153.4 390.399 149.333 382.666 141.2C374.399 132.4 370.266 121.133 370.266 107.4C370.266 93.6667 375.399 81.6667 385.666 71.4C396.066 61.1333 408.466 56 422.866 56C433.132 56 441.466 58.2667 447.866 62.8C454.266 67.2 457.532 73.2 457.666 80.8C457.666 91.0667 453.532 99.4 445.266 105.8C437.132 112.2 425.932 116.667 411.666 119.2L408.866 107.4Z" fill="white"/>
         </svg>
 
-        <h2 className="text-white text-[34px] font-semibold leading-snug font-[family-name:var(--font-serif)] mb-10">
-          Catch design bugs<br />before they ship.
-        </h2>
+        <p className="text-white/80 text-[16px] font-medium leading-snug mb-12">
+          Catch design bugs before they ship.
+        </p>
 
-        <div className="space-y-4 text-center max-w-xs">
+        <div className="space-y-5 w-full max-w-[300px]">
           {[
-            { title: "Figma vs Live", desc: "Compare any Figma frame against the real page instantly." },
-            { title: "Zero re-runs on Figma API", desc: "Design snapshot is cached — every re-scan is instant." },
-            { title: "AI-powered analysis", desc: "Groq AI surfaces missing elements, wrong fonts, and color mismatches." },
+            { title: "Figma vs Live", desc: "Compare any Figma frame against the real page — fonts, colors, spacing." },
+            { title: "Full run history", desc: "Every comparison is saved. Track regressions and see what changed between runs." },
             { title: "Shareable reports", desc: "Send a link to your team. No login needed to view." },
           ].map(f => (
-            <div key={f.title} className="flex flex-col items-center gap-1">
-              <p className="text-white text-[14px] font-semibold">{f.title}</p>
-              <p className="text-white/60 text-[12px] leading-relaxed">{f.desc}</p>
+            <div key={f.title} className="flex items-start gap-3 text-left">
+              <div className="mt-0.5 h-4 w-4 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                  <path d="M1.5 4.5l1.5 1.5 3.5-3.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-white text-[13px] font-semibold leading-none mb-1">{f.title}</p>
+                <p className="text-white/55 text-[12px] leading-relaxed">{f.desc}</p>
+              </div>
             </div>
           ))}
         </div>
