@@ -50,42 +50,37 @@ async function extractStyles(page) {
       return "#" + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, "0").toUpperCase()).join("");
     }
 
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const seen   = new Set();
-    const styles = [];
+    const SYSTEM_FONTS = ["-apple-system", "BlinkMacSystemFont", "system-ui", "Roboto", "Arial", "Helvetica"];
+    function isSystemFont(f) { return SYSTEM_FONTS.some(s => f.startsWith(s)); }
+
+    const walker  = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const textMap = new Map();
     let node;
 
     while ((node = walker.nextNode())) {
       const text = node.textContent.trim();
-      if (!text || text.length < 2 || seen.has(text)) continue;
-      seen.add(text);
+      if (!text || text.length < 2) continue;
 
       const el = node.parentElement;
       if (!el) continue;
-      const cs = window.getComputedStyle(el);
+      const cs         = window.getComputedStyle(el);
+      const fontFamily = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
 
-      // If computed font is a system fallback, read the raw CSS declaration instead
-      const systemFonts = ["-apple-system", "BlinkMacSystemFont", "system-ui"];
-      let fontFamily = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-      if (systemFonts.some(s => fontFamily.startsWith(s))) {
-        // Walk stylesheets for a matching rule
-        const declared = [...document.styleSheets].flatMap(sheet => {
-          try { return [...sheet.cssRules]; } catch { return []; }
-        }).find(rule => {
-          try { return rule.selectorText && el.matches(rule.selectorText) && rule.style.fontFamily; }
-          catch { return false; }
-        });
-        if (declared) fontFamily = declared.style.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-      }
-
-      styles.push({
+      const entry = {
         text:       text.slice(0, 60),
         fontFamily,
         fontSize:   cs.fontSize,
         fontWeight: cs.fontWeight,
         color:      rgbToHex(cs.color),
-      });
+      };
+
+      // Keep web font over system font when same text appears multiple times
+      if (!textMap.has(text) || isSystemFont(textMap.get(text).fontFamily)) {
+        textMap.set(text, entry);
+      }
     }
+
+    const styles = [...textMap.values()];
 
     const fontSet   = new Set(styles.map(s => s.fontFamily).filter(Boolean));
     const sizeSet   = new Set(styles.map(s => s.fontSize).filter(Boolean));
@@ -158,6 +153,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "browserless-v1" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "dedup-v2" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
