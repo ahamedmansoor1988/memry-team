@@ -31,10 +31,9 @@ export default function OnboardingPage() {
     setLoading(true);
     setError("");
 
-    try {
-      await completeOnboarding({ name, workspaceName, figmaPat: pat });
-    } catch (err: any) {
-      setError(err.message ?? "Something went wrong");
+    const result = await completeOnboarding({ name, workspaceName, figmaPat: pat });
+    if (result?.error) {
+      setError(result.error);
       setLoading(false);
     }
   }
