@@ -240,6 +240,8 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
+            <Link href="/terms" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Terms</Link>
+            <Link href="/privacy" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Privacy</Link>
             <Link href="/login" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
           </div>
           <p className="text-[12px] text-[#c8c8d0]">© 2026 Loupe</p>
