@@ -139,7 +139,11 @@ app.post("/scrape", async (req, res) => {
       await Promise.all(
         families.flatMap(f => weights.map(w => document.fonts.load(`${w} 16px ${f}`).catch(() => {})))
       );
-      await new Promise(r => setTimeout(r, 800));
+      // Force reflow so browser applies loaded fonts to computed styles
+      document.body.style.opacity = "0.99";
+      document.body.offsetHeight; // trigger layout
+      document.body.style.opacity = "";
+      await new Promise(r => setTimeout(r, 1500));
     });
 
     const result = await extractStyles(page);
