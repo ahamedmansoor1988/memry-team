@@ -4,25 +4,68 @@
 <meta charset="utf-8">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, sans-serif; width: 280px; padding: 16px; background: #fff; }
-  .logo { font-size: 15px; font-weight: 600; color: #111; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
-  label { font-size: 11px; color: #666; display: block; margin-bottom: 4px; }
-  input { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 12px; outline: none; }
-  input:focus { border-color: #111; }
-  button { margin-top: 12px; width: 100%; background: #111; color: #fff; border: none; border-radius: 6px; padding: 9px; font-size: 13px; font-weight: 500; cursor: pointer; }
-  button:hover { background: #333; }
-  button:disabled { background: #999; cursor: not-allowed; }
-  .status { margin-top: 10px; font-size: 11px; color: #666; text-align: center; min-height: 16px; }
-  .status.error { color: #c00; }
-  .status.ok { color: #060; }
+  body { font-family: -apple-system, sans-serif; width: 300px; background: #fff; color: #111; }
+
+  .header { padding: 14px 16px 12px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; }
+  .logo-box { width: 26px; height: 26px; background: #0f0f0f; border-radius: 7px; display: flex; align-items: center; justify-content: center; }
+  .logo-box span { color: #fff; font-size: 12px; font-weight: 700; }
+  .logo-text { font-size: 14px; font-weight: 600; }
+
+  .section { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; }
+  .section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #9a9aa5; margin-bottom: 8px; }
+
+  input[type="text"] { width: 100%; border: 1px solid #e5e5e5; border-radius: 8px; padding: 7px 10px; font-size: 12px; outline: none; color: #111; }
+  input[type="text"]:focus { border-color: #111; }
+  input[type="text"]::placeholder { color: #c0c0c8; }
+
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .check-item { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .check-item input { width: 13px; height: 13px; accent-color: #0f0f0f; cursor: pointer; }
+  .check-item span { font-size: 12px; color: #333; }
+
+  .footer { padding: 12px 16px; }
+  button#btn { width: 100%; background: #0f0f0f; color: #fff; border: none; border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  button#btn:hover { background: #333; }
+  button#btn:disabled { background: #aaa; cursor: not-allowed; }
+
+  .status { margin-top: 8px; font-size: 11px; color: #9a9aa5; text-align: center; min-height: 14px; }
+  .status.error { color: #dc2626; }
+  .status.ok    { color: #16a34a; }
 </style>
 </head>
 <body>
-<div class="logo">⬡ Loupe</div>
-<label>Figma URL</label>
-<input id="figmaUrl" type="text" placeholder="https://figma.com/file/..." />
-<button id="btn">Extract &amp; Compare</button>
-<div class="status" id="status"></div>
+
+<div class="header">
+  <div class="logo-box"><span>L</span></div>
+  <span class="logo-text">Loupe</span>
+</div>
+
+<div class="section">
+  <div class="section-label">Figma URL</div>
+  <input id="figmaUrl" type="text" placeholder="https://figma.com/file/…" />
+</div>
+
+<div class="section">
+  <div class="section-label">Check</div>
+  <div class="checks">
+    <label class="check-item"><input type="checkbox" id="chk-missing" checked /><span>Missing Elements</span></label>
+    <label class="check-item"><input type="checkbox" id="chk-family" checked /><span>Font Family</span></label>
+    <label class="check-item"><input type="checkbox" id="chk-size" checked /><span>Font Size</span></label>
+    <label class="check-item"><input type="checkbox" id="chk-weight" checked /><span>Font Weight</span></label>
+    <label class="check-item"><input type="checkbox" id="chk-color" checked /><span>Color</span></label>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-label">Assign To (optional)</div>
+  <input id="assignTo" type="text" placeholder="@slack-handle or figma username" />
+</div>
+
+<div class="footer">
+  <button id="btn">Extract &amp; Compare</button>
+  <div class="status" id="status"></div>
+</div>
+
 <script src="popup.js"></script>
 </body>
 </html>

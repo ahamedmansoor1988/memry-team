@@ -2,25 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ScanSearch, LogOut, MessageSquare, Palette } from "lucide-react";
+import { ScanSearch, LogOut, History } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const AGENTS = [
-  {
-    id: "figma-compare",
-    label: "Figma vs Live",
-    icon: ScanSearch,
-  },
-  {
-    id: "comment-watcher",
-    label: "Comment Clarity",
-    icon: MessageSquare,
-  },
-  {
-    id: "brand-handoff",
-    label: "Brand & Handoff",
-    icon: Palette,
-  },
+  { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch },
+  { id: "history",       label: "History",        icon: History    },
 ];
 
 interface Props { userEmail: string; }

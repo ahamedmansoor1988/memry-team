@@ -1,20 +1,41 @@
 const LOUPE_API = "https://memry-team-opal.vercel.app/api/extension-styles";
 const LOUPE_APP = "https://memry-team-opal.vercel.app/agents/figma-compare";
 
-const input  = document.getElementById("figmaUrl");
-const btn    = document.getElementById("btn");
-const status = document.getElementById("status");
+const figmaInput  = document.getElementById("figmaUrl");
+const assignInput = document.getElementById("assignTo");
+const btn         = document.getElementById("btn");
+const status      = document.getElementById("status");
 
-// Load saved Figma URL
-chrome.storage.local.get("figmaUrl", ({ figmaUrl }) => {
-  if (figmaUrl) input.value = figmaUrl;
+const CHECK_IDS = ["missing", "family", "size", "weight", "color"];
+const CHECK_MAP = {
+  missing: "missing_elements",
+  family:  "font_family",
+  size:    "font_size",
+  weight:  "font_weight",
+  color:   "color",
+};
+
+// Load saved settings
+chrome.storage.local.get(["figmaUrl", "assignTo", "checks"], ({ figmaUrl, assignTo, checks }) => {
+  if (figmaUrl) figmaInput.value = figmaUrl;
+  if (assignTo) assignInput.value = assignTo;
+  if (checks) {
+    CHECK_IDS.forEach(id => {
+      const el = document.getElementById(`chk-${id}`);
+      if (el) el.checked = checks.includes(id);
+    });
+  }
 });
 
 btn.addEventListener("click", async () => {
-  const figmaUrl = input.value.trim();
+  const figmaUrl = figmaInput.value.trim();
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
 
-  chrome.storage.local.set({ figmaUrl });
+  const assignTo = assignInput.value.trim();
+  const checks   = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
+  const checkKeys = checks.map(id => CHECK_MAP[id]);
+
+  chrome.storage.local.set({ figmaUrl, assignTo, checks });
   btn.disabled = true;
   setStatus("Extracting styles…");
 
@@ -25,13 +46,13 @@ btn.addEventListener("click", async () => {
   try {
     const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractStyles });
     styles = results?.[0]?.result ?? [];
-  } catch (e) {
+  } catch {
     setStatus("Could not extract styles.", "error");
     btn.disabled = false;
     return;
   }
 
-  if (!styles.length) { setStatus("No styles found on this page.", "error"); btn.disabled = false; return; }
+  if (!styles.length) { setStatus("No styles found.", "error"); btn.disabled = false; return; }
 
   setStatus(`Sending ${styles.length} styles…`);
   try {
@@ -47,7 +68,14 @@ btn.addEventListener("click", async () => {
   }
 
   setStatus("Opening Loupe…", "ok");
-  const loupeUrl = `${LOUPE_APP}?liveUrl=${encodeURIComponent(tab.url)}&figmaUrl=${encodeURIComponent(figmaUrl)}&autorun=1`;
+  const params = new URLSearchParams({
+    liveUrl:  tab.url,
+    figmaUrl,
+    autorun:  "1",
+    checks:   checkKeys.join(","),
+    ...(assignTo ? { assignTo } : {}),
+  });
+  const loupeUrl = `${LOUPE_APP}?${params}`;
   const existing = await chrome.tabs.query({ url: `${LOUPE_APP}*` });
   if (existing.length) {
     chrome.tabs.update(existing[0].id, { active: true, url: loupeUrl });

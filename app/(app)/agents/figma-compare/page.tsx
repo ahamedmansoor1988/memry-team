@@ -121,29 +121,29 @@ export default function FigmaComparePage() {
   }
 
   useEffect(() => {
-    const params   = new URLSearchParams(window.location.search);
-    const urlFigma = params.get("figmaUrl");
-    const urlLive  = params.get("liveUrl");
-    const autorun  = params.get("autorun") === "1";
+    const params     = new URLSearchParams(window.location.search);
+    const urlFigma   = params.get("figmaUrl");
+    const urlLive    = params.get("liveUrl");
+    const urlChecks  = params.get("checks");
+    const urlAssign  = params.get("assignTo");
+    const autorun    = params.get("autorun") === "1";
 
     const savedFigma = urlFigma ?? localStorage.getItem("loupe_figma_url") ?? "";
     const savedLive  = urlLive  ?? localStorage.getItem("loupe_live_url")  ?? "";
     const savedPat   = localStorage.getItem("loupe_pat") ?? "";
 
-    if (urlFigma) { localStorage.setItem("loupe_figma_url", urlFigma); }
-    if (urlLive)  { localStorage.setItem("loupe_live_url",  urlLive);  }
+    if (urlFigma)  { localStorage.setItem("loupe_figma_url", urlFigma); }
+    if (urlLive)   { localStorage.setItem("loupe_live_url",  urlLive);  }
+    if (urlChecks) { setChecks(new Set(urlChecks.split(",").filter(Boolean))); }
+    if (urlAssign) { localStorage.setItem("loupe_assign_to", urlAssign); }
 
     setFigmaUrlRaw(savedFigma);
     setLiveUrlRaw(savedLive);
     setPatRaw(savedPat);
     if (savedFigma) checkSnapshot(savedFigma);
 
-    // Auto-run when extension opens Loupe with autorun=1
     if (autorun && savedFigma && savedLive && savedPat) {
-      // Small delay to let state settle
-      setTimeout(() => {
-        document.getElementById("loupe-run-btn")?.click();
-      }, 800);
+      setTimeout(() => { document.getElementById("loupe-run-btn")?.click(); }, 800);
     }
   }, [checkSnapshot]);
 
