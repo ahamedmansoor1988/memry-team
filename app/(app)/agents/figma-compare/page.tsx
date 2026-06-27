@@ -34,6 +34,7 @@ const CHECK_OPTIONS = [
   { id: "menu",             label: "Menu / Nav"       },
   { id: "footer",           label: "Footer"           },
   { id: "buttons",          label: "Buttons"          },
+  { id: "content",          label: "Content"          },
 ];
 
 /* ── Page ────────────────────────────────────────────────────────── */
@@ -43,7 +44,7 @@ export default function FigmaComparePage() {
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
   const [checks, setChecks] = useState<Set<string>>(
-    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"])
+    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color", "content"])
   );
   const [configOpen, setConfigOpen] = useState(false);
 
@@ -703,6 +704,7 @@ function RunBubble({ msg }: { msg: RunMessage }) {
       font_size:        { bg: "#eff6ff", text: "#2563eb", label: "Font Size"   },
       font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },
       color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
+      content:          { bg: "#f0fdf4", text: "#16a34a", label: "Content"     },
     };
 
     function IssueDiff({ issue }: { issue: string }) {

@@ -496,14 +496,15 @@ export async function POST(req: NextRequest) {
         // ── Step 4: Build live context — match Figma nodes to live styles by text ─
         // Declare check flags here so Step 4 matching can use them
         const TYPOGRAPHY_CHECKS = ["font_family", "font_size", "font_weight", "color"] as const;
-        const ALL_CHECKS = [...TYPOGRAPHY_CHECKS, "missing_elements"] as const;
+        const ALL_CHECKS = [...TYPOGRAPHY_CHECKS, "missing_elements", "content"] as const;
         const enabledChecks = (checks ?? TYPOGRAPHY_CHECKS as unknown as string[])
           .filter(c => (ALL_CHECKS as readonly string[]).includes(c));
         const activeChecks = enabledChecks.length > 0 ? enabledChecks : [...TYPOGRAPHY_CHECKS];
-        const inclFamily = activeChecks.includes("font_family");
-        const inclSize   = activeChecks.includes("font_size");
-        const inclWeight = activeChecks.includes("font_weight");
-        const inclColor  = activeChecks.includes("color");
+        const inclFamily  = activeChecks.includes("font_family");
+        const inclSize    = activeChecks.includes("font_size");
+        const inclWeight  = activeChecks.includes("font_weight");
+        const inclColor   = activeChecks.includes("color");
+        const inclContent = activeChecks.includes("content");
 
         let liveContext = "";
         const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
@@ -563,6 +564,43 @@ export async function POST(req: NextRequest) {
           send("step", { text: "No live style data — install and reload the Loupe extension for accurate results." });
         }
 
+        // ── Content pairs: find Figma text nodes whose copy differs from live ───
+        let contentPairs = "";
+        if (inclContent && rawStyles.length > 0) {
+          const contentLines: string[] = [];
+          for (const n of textNodes.slice(0, 40)) {
+            const figmaText = n.characters.trim();
+            if (figmaText.length < 3) continue;
+            const figmaWords = figmaText.toLowerCase().split(/\s+/);
+
+            // Find best live match by word overlap
+            let bestMatch: any = null;
+            let bestScore = 0;
+            for (const s of rawStyles) {
+              const liveText = s.text?.trim() ?? "";
+              if (!liveText || liveText.length < 3) continue;
+              const liveWords = liveText.toLowerCase().split(/\s+/);
+              const overlap = figmaWords.filter((w: string) => w.length > 2 && liveWords.includes(w)).length;
+              const score = overlap / Math.max(figmaWords.length, liveWords.length);
+              if (score > bestScore && score >= 0.4) {
+                bestScore = score;
+                bestMatch = s;
+              }
+            }
+
+            if (bestMatch) {
+              const liveText = bestMatch.text?.trim() ?? "";
+              if (figmaText.toLowerCase() !== liveText.toLowerCase()) {
+                contentLines.push(`Figma: "${figmaText.slice(0, 80)}" → Live: "${liveText.slice(0, 80)}"`);
+              }
+            }
+          }
+
+          if (contentLines.length > 0) {
+            contentPairs = `\n\nCONTENT PAIRS TO CHECK:\n${contentLines.join("\n")}`;
+          }
+        }
+
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
@@ -601,7 +639,8 @@ export async function POST(req: NextRequest) {
         if (inclFamily) checkRules.push("- font_family: flag mismatches using EXACT font names from the data");
         if (inclSize)   checkRules.push("- font_size: only flag if difference > 2px");
         if (inclWeight) checkRules.push("- font_weight: flag mismatches");
-        if (inclColor)  checkRules.push("- color: flag visually distinct differences only (skip near-identical shades)");
+        if (inclColor)   checkRules.push("- color: flag visually distinct differences only (skip near-identical shades)");
+        if (inclContent) checkRules.push("- content: flag when the Figma text copy differs from the live text copy for the same element (e.g. button label, heading, nav link). Only flag real copy differences, not minor punctuation.");
 
         const checkListStr = activeChecks.join(", ");
 
@@ -635,7 +674,7 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
             },
             {
               role: "user",
-              content: `MATCHED FIGMA → LIVE PAIRS (${liveUrl}):\n${liveContext}\n\nFind discrepancies for: ${checkListStr}.`,
+              content: `MATCHED FIGMA → LIVE PAIRS (${liveUrl}):\n${liveContext}${contentPairs}\n\nFind discrepancies for: ${checkListStr}.`,
             },
           ],
         });
