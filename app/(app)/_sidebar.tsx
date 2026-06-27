@@ -25,9 +25,9 @@ export function Sidebar({ userEmail }: Props) {
   return (
     <aside className="flex h-screen w-[220px] shrink-0 flex-col bg-white border-r border-black/[0.06] text-[#0f0f0f]">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-4 border-b border-black/[0.06]">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0f0f0f]">
-          <span className="text-[12px] font-bold text-white tracking-tight">L</span>
+      <div className="flex h-[45px] items-center gap-2.5 px-4 border-b border-black/[0.06] shrink-0">
+        <div className="flex h-6 w-6 items-center justify-center rounded-md bg-[#0f0f0f]">
+          <span className="text-[11px] font-bold text-white tracking-tight">L</span>
         </div>
         <span className="text-[14px] font-semibold tracking-tight text-[#0f0f0f]">Loupe</span>
       </div>

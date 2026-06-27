@@ -432,12 +432,12 @@ export default function FigmaComparePage() {
   const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim() && checks.size > 0;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
 
       {/* ── CENTER: Execution ──────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col border-r border-[#f0f0f0] min-w-0 min-h-0 overflow-hidden">
+      <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {/* Top bar */}
-        <div className="flex items-center justify-between border-b border-[#f0f0f0] px-5 py-3 shrink-0">
+        <div className="flex h-[45px] items-center justify-between border-b border-[#f0f0f0] px-5 shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles size={13} className="text-[#9a9aa5]" />
             <span className="text-[13px] font-medium text-[#17171c]">Figma vs Live</span>

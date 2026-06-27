@@ -85,7 +85,7 @@ export default function HistoryPage() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-[#f0f0f0] px-6 py-4 flex items-center gap-3">
+      <div className="border-b border-[#f0f0f0] px-6 h-[45px] flex items-center gap-3 shrink-0">
         <History size={16} className="text-[#9a9aa5]" />
         <h1 className="text-[15px] font-semibold text-[#17171c]">History</h1>
         <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[11px] font-medium text-[#5b5b66]">{runs.length} runs</span>
