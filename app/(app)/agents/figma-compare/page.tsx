@@ -503,16 +503,16 @@ export default function FigmaComparePage() {
           /* ── Split screen: log left | results right ── */
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left: execution log */}
-            <div className="w-[40%] shrink-0 flex flex-col border-r border-[#f0f0f0] bg-[#fafafa] overflow-hidden">
-              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1.5 font-mono">
-                <p className="text-[9px] font-semibold uppercase tracking-widest text-[#d0d0d8] mb-3 select-none">Execution log</p>
+            <div className="w-[38%] shrink-0 flex flex-col border-r border-[#f0f0f0] overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-6 py-5 space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#d0d0d8] mb-4 select-none">Steps</p>
                 {runMsgs.filter(m => m.type !== "result").map(msg => (
                   <LogLine key={msg.id} msg={msg} />
                 ))}
                 {running && (
-                  <div className="flex items-center gap-2 text-[11px] text-[#c0c0c8]">
-                    <Loader2 size={10} className="animate-spin" />
-                    <span>analyzing…</span>
+                  <div className="flex items-center gap-2 text-[12px] text-[#c0c0c8]">
+                    <Loader2 size={11} className="animate-spin shrink-0" />
+                    <span>Analyzing…</span>
                   </div>
                 )}
                 <div ref={runBottomRef} />
@@ -520,16 +520,16 @@ export default function FigmaComparePage() {
             </div>
 
             {/* Right: results */}
-            <div className="flex-1 overflow-y-auto bg-white">
+            <div className="flex-1 overflow-y-auto">
               {(() => {
                 const resultMsg = [...runMsgs].reverse().find(m => m.type === "result");
                 if (!resultMsg) {
                   return (
-                    <div className="flex h-full items-center justify-center">
-                      <div className="text-center space-y-2">
-                        <Loader2 size={18} className={`mx-auto text-[#e0e0e6] ${running ? "animate-spin" : ""}`} />
-                        <p className="text-[12px] text-[#b0b0b8]">{running ? "Running comparison…" : "Results will appear here"}</p>
+                    <div className="flex h-full flex-col items-center justify-center gap-3 px-8">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5f5f7] ${running ? "" : ""}`}>
+                        <Sparkles size={16} className="text-[#c0c0c8]" />
                       </div>
+                      <p className="text-[13px] text-[#b0b0b8] text-center">{running ? "Running comparison…" : "Results will appear here"}</p>
                     </div>
                   );
                 }
@@ -780,23 +780,25 @@ function RunBubble({ msg }: { msg: RunMessage }) {
 
 function LogLine({ msg }: { msg: RunMessage }) {
   if (msg.type === "user") return (
-    <div className="text-[11px] text-[#5b5b66] pt-2 pb-0.5 border-t border-[#ebebef] mt-1">
-      <span className="text-[#9a9aa5]">▶</span> {msg.text}
+    <div className="text-[12px] font-medium text-[#17171c] pt-3 pb-1 border-t border-[#f0f0f0] mt-2 first:border-0 first:pt-0 leading-relaxed">
+      {msg.text}
     </div>
   );
   if (msg.type === "step") return (
-    <div className="text-[11px] text-[#9a9aa5] leading-relaxed">
-      <span className="text-[#c8c8d0] select-none">› </span>{msg.text}
+    <div className="flex items-start gap-2 text-[12px] text-[#9a9aa5] leading-relaxed">
+      <ChevronRight size={12} className="mt-0.5 shrink-0 text-[#d0d0d8]" />
+      <span>{msg.text}</span>
     </div>
   );
   if (msg.type === "figma-log") return (
-    <div className="text-[10px] text-[#b0b0b8] pl-3 leading-relaxed">
-      ↳ {msg.text}
+    <div className="text-[11px] text-[#c0c0c8] pl-5 leading-relaxed">
+      {msg.text}
     </div>
   );
   if (msg.type === "error") return (
-    <div className="text-[11px] text-red-500 leading-relaxed">
-      <span className="select-none">✗ </span>{msg.text}
+    <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[12px] text-red-500 leading-relaxed">
+      <AlertCircle size={12} className="mt-0.5 shrink-0" />
+      <span>{msg.text}</span>
     </div>
   );
   return null;
