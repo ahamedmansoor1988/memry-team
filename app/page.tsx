@@ -59,7 +59,7 @@ export default function LandingPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
+            <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
           </div>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
@@ -230,7 +230,7 @@ export default function LandingPage() {
       <footer className="border-t border-[#f5f5f7] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/loupe.svg" alt="Loupe" className="h-4 w-auto" />
+            <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto" />
           </div>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>

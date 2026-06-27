@@ -106,7 +106,7 @@ export default function PricingPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
+            <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#0f0f0f] font-medium">Pricing</Link>
@@ -270,7 +270,7 @@ export default function PricingPage() {
       <footer className="border-t border-[#f5f5f7] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/loupe.svg" alt="Loupe" className="h-4 w-auto" />
+            <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>

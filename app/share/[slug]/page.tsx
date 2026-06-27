@@ -53,7 +53,7 @@ export default function SharePage() {
     <div className="min-h-screen bg-[#fafafa] font-sans">
       {/* Header */}
       <div className="border-b border-[#f0f0f0] bg-white px-6 py-4 flex items-center gap-3">
-        <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
+        <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
         
         <span className="text-[#e0e0e6] text-[14px]">/</span>
         <span className="text-[13px] text-[#9a9aa5]">Shared QA Report</span>

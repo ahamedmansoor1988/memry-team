@@ -26,7 +26,7 @@ export function Sidebar({ userEmail }: Props) {
     <aside className="flex h-screen w-[220px] shrink-0 flex-col bg-white border-r border-black/[0.06] text-[#0f0f0f]">
       {/* Logo */}
       <div className="flex h-[45px] items-center gap-2.5 px-4 border-b border-black/[0.06] shrink-0">
-        <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
+        <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
         
       </div>
 

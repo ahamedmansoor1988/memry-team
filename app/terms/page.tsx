@@ -14,7 +14,7 @@ export default function TermsPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
+            <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>

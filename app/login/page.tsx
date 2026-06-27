@@ -18,7 +18,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0f0f13] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-3 mb-10 justify-center">
-          <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
+          <img src="/loupe.svg" alt="Loupe" className="h-8 w-auto" />
           
         </div>
 
