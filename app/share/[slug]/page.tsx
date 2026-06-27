@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { ExternalLink, AlertCircle } from "lucide-react";
-import { use } from "react";
+import { useParams } from "next/navigation";
 
 interface Issue {
   id: string;
@@ -32,8 +32,9 @@ function IssueDiff({ issue }: { issue: string }) {
   );
 }
 
-export default function SharePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params);
+export default function SharePage() {
+  const params = useParams();
+  const slug = params.slug as string;
   const [data, setData] = useState<{ live_url: string; scanned_at: string; issues: Issue[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
