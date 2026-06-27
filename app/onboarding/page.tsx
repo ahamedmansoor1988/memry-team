@@ -42,7 +42,7 @@ export default function OnboardingPage() {
       setError(data.error ?? "Something went wrong");
       setLoading(false);
     } else {
-      router.push("/");
+      router.push("/agents/figma-compare");
     }
   }
 
