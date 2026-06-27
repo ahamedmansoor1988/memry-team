@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const token = req.headers.get("Authorization")?.replace("Bearer ", "");
+  if (!token) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  const admin = createAdminClient();
+  const { data: { user }, error: authErr } = await admin.auth.getUser(token);
+  if (authErr || !user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
   const { name, workspaceName, figmaPat } = await req.json();
-  const admin = createAdminClient();
 
   if (name?.trim()) {
     await admin.auth.admin.updateUserById(user.id, {

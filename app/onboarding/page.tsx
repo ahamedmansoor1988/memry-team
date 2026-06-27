@@ -32,17 +32,35 @@ export default function OnboardingPage() {
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/onboarding", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, workspaceName, figmaPat: pat }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? "Something went wrong");
+    try {
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        setError("Session expired — please sign in again.");
+        setLoading(false);
+        return;
+      }
+
+      const res = await fetch("/api/onboarding", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name, workspaceName, figmaPat: pat }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong");
+        setLoading(false);
+      } else {
+        router.push("/agents/figma-compare");
+      }
+    } catch (err) {
+      setError("Unexpected error: " + String(err));
       setLoading(false);
-    } else {
-      router.push("/agents/figma-compare");
     }
   }
 
