@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
   const token = req.headers.get("Authorization")?.replace("Bearer ", "");
-  if (!token) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  if (!token) return NextResponse.json({ error: "No token provided" }, { status: 401 });
 
-  const admin = createAdminClient();
-  const { data: { user }, error: authErr } = await admin.auth.getUser(token);
-  if (authErr || !user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+  const supabase = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
+  if (authErr || !user) return NextResponse.json({ error: "Invalid session: " + authErr?.message }, { status: 401 });
 
   const { name, workspaceName, figmaPat } = await req.json();
 
