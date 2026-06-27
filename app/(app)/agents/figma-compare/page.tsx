@@ -120,11 +120,30 @@ export default function FigmaComparePage() {
   }
 
   useEffect(() => {
-    const savedUrl = localStorage.getItem("loupe_figma_url") ?? "";
-    setFigmaUrlRaw(savedUrl);
-    setLiveUrlRaw(localStorage.getItem("loupe_live_url") ?? "");
-    setPatRaw(localStorage.getItem("loupe_pat")          ?? "");
-    if (savedUrl) checkSnapshot(savedUrl);
+    const params   = new URLSearchParams(window.location.search);
+    const urlFigma = params.get("figmaUrl");
+    const urlLive  = params.get("liveUrl");
+    const autorun  = params.get("autorun") === "1";
+
+    const savedFigma = urlFigma ?? localStorage.getItem("loupe_figma_url") ?? "";
+    const savedLive  = urlLive  ?? localStorage.getItem("loupe_live_url")  ?? "";
+    const savedPat   = localStorage.getItem("loupe_pat") ?? "";
+
+    if (urlFigma) { localStorage.setItem("loupe_figma_url", urlFigma); }
+    if (urlLive)  { localStorage.setItem("loupe_live_url",  urlLive);  }
+
+    setFigmaUrlRaw(savedFigma);
+    setLiveUrlRaw(savedLive);
+    setPatRaw(savedPat);
+    if (savedFigma) checkSnapshot(savedFigma);
+
+    // Auto-run when extension opens Loupe with autorun=1
+    if (autorun && savedFigma && savedLive && savedPat) {
+      // Small delay to let state settle
+      setTimeout(() => {
+        document.getElementById("loupe-run-btn")?.click();
+      }, 800);
+    }
   }, [checkSnapshot]);
 
 
@@ -474,7 +493,7 @@ export default function FigmaComparePage() {
                 <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
                   <ChecklistPanel checks={checks} onToggle={toggleCheck} />
                 </div>
-                <button onClick={() => run(false)} disabled={!canRun}
+                <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
                   {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
                 </button>

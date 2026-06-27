@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, sans-serif; width: 280px; padding: 16px; background: #fff; }
+  .logo { font-size: 15px; font-weight: 600; color: #111; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; }
+  label { font-size: 11px; color: #666; display: block; margin-bottom: 4px; }
+  input { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 7px 10px; font-size: 12px; outline: none; }
+  input:focus { border-color: #111; }
+  button { margin-top: 12px; width: 100%; background: #111; color: #fff; border: none; border-radius: 6px; padding: 9px; font-size: 13px; font-weight: 500; cursor: pointer; }
+  button:hover { background: #333; }
+  button:disabled { background: #999; cursor: not-allowed; }
+  .status { margin-top: 10px; font-size: 11px; color: #666; text-align: center; min-height: 16px; }
+  .status.error { color: #c00; }
+  .status.ok { color: #060; }
+</style>
+</head>
+<body>
+<div class="logo">⬡ Loupe</div>
+<label>Figma URL</label>
+<input id="figmaUrl" type="text" placeholder="https://figma.com/file/..." />
+<button id="btn">Extract &amp; Compare</button>
+<div class="status" id="status"></div>
+<script src="popup.js"></script>
+</body>
+</html>
