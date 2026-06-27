@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -15,25 +16,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f13] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="flex items-center gap-3 mb-10 justify-center">
-          <img src="/loupe.svg" alt="Loupe" className="h-8 w-auto" />
-          
+    <div className="min-h-screen bg-white flex">
+      {/* Left — branding */}
+      <div className="hidden lg:flex w-[480px] shrink-0 flex-col justify-between bg-[#fafafa] border-r border-[#f0f0f0] px-12 py-12">
+        <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto self-start" />
+
+        <div>
+          <p className="text-[13px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-6">What you get</p>
+          <div className="space-y-5">
+            {[
+              { title: "Figma vs Live", desc: "Compare any Figma frame against the real page — fonts, colors, spacing." },
+              { title: "AI-powered analysis", desc: "Groq AI surfaces every discrepancy in seconds, not hours." },
+              { title: "Shareable reports", desc: "Send a link to your designer or PM. No login needed to view." },
+            ].map(f => (
+              <div key={f.title} className="flex items-start gap-3">
+                <div className="mt-0.5 h-5 w-5 rounded-full flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 5.5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-[#0f0f0f]">{f.title}</p>
+                  <p className="text-[12px] text-[#9a9aa5] leading-relaxed">{f.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-[#1a1a24] border border-white/10 rounded-2xl p-8">
-          <h1 className="text-white text-2xl font-bold mb-1">Welcome back</h1>
-          <p className="text-white/40 text-sm mb-2">
-            Catch design bugs before they ship.
-          </p>
-          <p className="text-white/25 text-xs mb-8">
-            Figma · Live sites · Chrome extension
-          </p>
+        <p className="text-[11px] text-[#c8c8d0]">© 2026 Loupe. All rights reserved.</p>
+      </div>
+
+      {/* Right — form */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        {/* Mobile logo */}
+        <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto mb-10 lg:hidden" />
+
+        <div className="w-full max-w-[360px]">
+          <h1 className="text-[26px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Welcome to Loupe</h1>
+          <p className="text-[14px] text-[#9a9aa5] mb-8">Sign in to catch design bugs before they ship.</p>
 
           <button
             onClick={signInWithGoogle}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-900 font-semibold text-sm py-3 px-4 rounded-xl transition-colors"
+            className="w-full flex items-center justify-center gap-3 bg-white border border-[#e8e8ec] hover:border-[#0f0f0f] text-[#0f0f0f] font-medium text-[14px] py-3 px-4 rounded-xl transition-colors shadow-sm"
           >
             <svg width="18" height="18" viewBox="0 0 18 18">
               <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
@@ -44,8 +69,11 @@ export default function LoginPage() {
             Continue with Google
           </button>
 
-          <p className="text-white/20 text-xs text-center mt-6">
-            By continuing you agree to our Terms & Privacy Policy
+          <p className="text-[11px] text-[#c8c8d0] text-center mt-6">
+            By continuing you agree to our{" "}
+            <Link href="/terms" className="underline underline-offset-2 hover:text-[#9a9aa5] transition-colors">Terms</Link>
+            {" & "}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-[#9a9aa5] transition-colors">Privacy Policy</Link>
           </p>
         </div>
       </div>
