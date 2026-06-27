@@ -108,6 +108,7 @@ app.post("/scrape", async (req, res) => {
   try {
     const b = await getBrowser();
     page    = await b.newPage();
+    await page.setViewportSize({ width: 1440, height: 900 });
 
     // Block images/video but allow all fonts (including Google Fonts)
     await page.route("**/*", route => {
