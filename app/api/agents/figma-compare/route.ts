@@ -628,8 +628,6 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
 
         const aiData = await aiRes.json() as { choices: Array<{ message: { content: string } }> };
         const rawContent = aiData.choices[0]?.message?.content?.trim() ?? "[]";
-        send("step", { text: `[DEBUG] liveContext sent to AI:\n${liveContext.slice(0, 500)}` });
-        send("step", { text: `[DEBUG] AI raw response: ${rawContent.slice(0, 500)}` });
 
         let discrepancies: Array<{ element: string; label?: string; category?: string; issue: string; severity: string }> = [];
         try {
