@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
-import { Instrument_Sans, Lora } from "next/font/google";
+import { Instrument_Serif, DM_Sans } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
-const instrumentSans = Instrument_Sans({
+const dmSans = DM_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
 });
 
-const lora = Lora({
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
   variable: "--font-serif",
+  weight: "400",
   style: ["normal", "italic"],
 });
 
@@ -26,9 +28,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${instrumentSans.variable} ${lora.variable} ${GeistMono.variable} antialiased`}>
+      <body className={`${dmSans.variable} ${instrumentSerif.variable} ${GeistMono.variable} antialiased`}>
         {children}
       </body>
     </html>
   );
 }
+
