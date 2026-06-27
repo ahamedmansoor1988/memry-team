@@ -30,38 +30,10 @@ export default function OnboardingPage() {
   async function handleFigmaSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError("");
-
-    try {
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        setError("Session expired — please sign in again.");
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ name, workspaceName, figmaPat: pat }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong");
-        setLoading(false);
-      } else {
-        window.location.href = "/agents/figma-compare";
-      }
-    } catch (err) {
-      setError("Unexpected error: " + String(err));
-      setLoading(false);
+    if (pat.trim()) {
+      localStorage.setItem("loupe_pat", pat.trim());
     }
+    window.location.href = "/agents/figma-compare";
   }
 
   return (
