@@ -503,10 +503,10 @@ export async function POST(req: NextRequest) {
 
             // 1. Exact match
             let live = rawStyles.find(s => s.text?.trim().toLowerCase() === figmaText);
-            // 2. Substring match
+            // 2. Substring match — live text must contain figma text (not reverse, avoids false matches)
             if (!live) live = rawStyles.find(s => {
               const lt = s.text?.trim().toLowerCase() ?? "";
-              return lt.includes(figmaText) || figmaText.includes(lt);
+              return lt.includes(figmaText) && figmaText.length >= 4;
             });
 
             if (live) {
