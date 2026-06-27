@@ -435,7 +435,7 @@ export default function FigmaComparePage() {
     <div className="flex h-screen overflow-hidden">
 
       {/* ── CENTER: Execution ──────────────────────────────────────── */}
-      <div className="flex flex-1 flex-col border-r border-[#f0f0f0] min-w-0">
+      <div className="flex flex-1 flex-col border-r border-[#f0f0f0] min-w-0 min-h-0 overflow-hidden">
         {/* Top bar */}
         <div className="flex items-center justify-between border-b border-[#f0f0f0] px-5 py-3 shrink-0">
           <div className="flex items-center gap-2">
