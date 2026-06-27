@@ -29,7 +29,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10">
+    <div className="h-full overflow-y-auto"><div className="max-w-2xl mx-auto px-6 py-10">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[20px] font-semibold text-[#0f0f0f] mb-1">Settings</h1>
@@ -124,6 +124,6 @@ export default function SettingsPage() {
         </div>
 
       </div>
-    </div>
+    </div></div>
   );
 }
