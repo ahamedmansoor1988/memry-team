@@ -130,7 +130,7 @@ export default function FigmaComparePage() {
     if (urlFigma)  { localStorage.setItem("loupe_figma_url", urlFigma); }
     if (urlLive)   { localStorage.setItem("loupe_live_url",  urlLive);  }
     if (urlChecks) { setChecks(new Set(urlChecks.split(",").filter(Boolean))); }
-    if (urlAssign) { localStorage.setItem("loupe_assign_to", urlAssign); }
+
 
     setFigmaUrlRaw(savedFigma);
     setLiveUrlRaw(savedLive);
