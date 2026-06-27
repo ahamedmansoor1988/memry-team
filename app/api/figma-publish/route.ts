@@ -100,9 +100,18 @@ export async function POST(req: NextRequest) {
     }
   } catch {}
 
+  // Deduplicate issues by element + issue text (multiple runs create duplicates)
+  const seenIssueKeys = new Set<string>();
+  const dedupedIssues = issues.filter(issue => {
+    const key = `${issue.element}||${issue.issue}`;
+    if (seenIssueKeys.has(key)) return false;
+    seenIssueKeys.add(key);
+    return true;
+  });
+
   // Group issues by element (one comment per element, listing all its issues)
   const groupedByElement = new Map<string, typeof issues>();
-  for (const issue of issues) {
+  for (const issue of dedupedIssues) {
     const key = issue.element.slice(0, 60);
     if (!groupedByElement.has(key)) groupedByElement.set(key, []);
     groupedByElement.get(key)!.push(issue);
