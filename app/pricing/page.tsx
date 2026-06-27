@@ -124,10 +124,10 @@ export default function PricingPage() {
       {/* Header */}
       <section className="max-w-6xl mx-auto px-6 pt-16 pb-12 text-center">
         <h1 className="text-[42px] font-semibold tracking-tight text-[#0f0f0f] leading-tight mb-4">
-          Simple, honest pricing
+          Pay for what you ship,<br />not what you try
         </h1>
-        <p className="text-[17px] text-[#6b7280] max-w-md mx-auto">
-          Start free. Upgrade when you need more. No hidden fees.
+        <p className="text-[17px] text-[#6b7280] max-w-lg mx-auto">
+          Start free with no limits on time. Upgrade when your team grows or your projects do.
         </p>
       </section>
 
@@ -150,7 +150,7 @@ export default function PricingPage() {
                     {plan.name}
                   </span>
                   {plan.highlight && (
-                    <span className="rounded-full bg-white/20 px-2.5 py-0.5 text-[10px] font-medium text-white">
+                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-white" style={{ background: "linear-gradient(90deg, #a855f7, #ec4899, #f97316)" }}>
                       Most popular
                     </span>
                   )}
