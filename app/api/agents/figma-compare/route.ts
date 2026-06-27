@@ -566,21 +566,25 @@ export async function POST(req: NextRequest) {
         let contentPairs = "";
         if (inclContent && rawStyles.length > 0) {
           const contentLines: string[] = [];
+          const missingLines: string[] = [];
           for (const n of textNodes) {
             const figmaText = n.characters.trim();
-            if (figmaText.length < 3) continue;
-            const figmaWords = figmaText.toLowerCase().split(/\s+/);
+            if (figmaText.length < 4) continue;
+            const figmaWords = figmaText.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
+            if (figmaWords.length < 1) continue;
 
-            // Find best live match by word overlap
+            // Score = overlap / figmaWords.length (recall-based: what fraction of Figma's words appear in live text)
+            // Require at least 2 matching words OR score >= 0.5 to avoid false positives on 1-word matches
             let bestMatch: any = null;
             let bestScore = 0;
             for (const s of rawStyles) {
               const liveText = s.text?.trim() ?? "";
               if (!liveText || liveText.length < 3) continue;
               const liveWords = liveText.toLowerCase().split(/\s+/);
-              const overlap = figmaWords.filter((w: string) => w.length > 2 && liveWords.includes(w)).length;
-              const score = overlap / Math.max(figmaWords.length, liveWords.length);
-              if (score > bestScore && score >= 0.4) {
+              const overlap = figmaWords.filter((w: string) => liveWords.includes(w)).length;
+              const score = overlap / figmaWords.length;
+              const qualifies = overlap >= 2 || (overlap >= 1 && score >= 0.5);
+              if (qualifies && score > bestScore) {
                 bestScore = score;
                 bestMatch = s;
               }
@@ -589,13 +593,19 @@ export async function POST(req: NextRequest) {
             if (bestMatch) {
               const liveText = bestMatch.text?.trim() ?? "";
               if (figmaText.toLowerCase() !== liveText.toLowerCase()) {
-                contentLines.push(`Figma: "${figmaText.slice(0, 80)}" → Live: "${liveText.slice(0, 80)}"`);
+                contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
               }
+            } else if (figmaWords.length >= 3) {
+              // No live match found — could be missing or heavily reworded content
+              missingLines.push(`"${figmaText.slice(0, 100)}"`);
             }
           }
 
           if (contentLines.length > 0) {
-            contentPairs = `\n\nCONTENT PAIRS TO CHECK:\n${contentLines.join("\n")}`;
+            contentPairs += `\n\nCONTENT PAIRS TO CHECK (same element, copy may differ):\n${contentLines.join("\n")}`;
+          }
+          if (missingLines.length > 0) {
+            contentPairs += `\n\nFIGMA TEXT WITH NO LIVE MATCH (may be missing or reworded on live page):\n${missingLines.join("\n")}`;
           }
         }
 
@@ -638,7 +648,7 @@ export async function POST(req: NextRequest) {
         if (inclSize)   checkRules.push("- font_size: only flag if difference > 2px");
         if (inclWeight) checkRules.push("- font_weight: flag mismatches");
         if (inclColor)   checkRules.push("- color: flag visually distinct differences only (skip near-identical shades)");
-        if (inclContent) checkRules.push("- content: flag when the Figma text copy differs from the live text copy for the same element (e.g. button label, heading, nav link). Only flag real copy differences, not minor punctuation.");
+        if (inclContent) checkRules.push("- content: (1) In CONTENT PAIRS section: flag when Figma copy differs from live copy for the same element. Only flag real copy differences, not minor punctuation. (2) In FIGMA TEXT WITH NO LIVE MATCH section: flag each entry as missing content if it looks like real UI copy (headings, labels, CTAs, body text) — skip purely decorative or placeholder text.");
 
         const checkListStr = activeChecks.join(", ");
 
