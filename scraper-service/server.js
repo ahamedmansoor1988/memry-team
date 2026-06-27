@@ -1,26 +1,19 @@
 const express = require("express");
-const { chromium } = require("playwright");
+const { chromium } = require("playwright-core");
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(express.json());
 
-// Singleton browser — reused across requests, relaunched if it crashes
+// Browserless CDP connection — reconnects if dropped
 let browser = null;
 
 async function getBrowser() {
   if (!browser || !browser.isConnected()) {
-    browser = await chromium.launch({
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--single-process",         // needed on Render free tier (low memory)
-        "--disable-web-security",   // allow cross-origin font reads
-      ],
-    });
+    browser = await chromium.connectOverCDP(
+      `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
+    );
   }
   return browser;
 }
@@ -158,6 +151,6 @@ app.post("/scrape", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "css-fallback-v7" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "browserless-v1" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
