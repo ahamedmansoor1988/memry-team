@@ -18,19 +18,19 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0f0f13] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-3 mb-10 justify-center">
-          <div className="w-9 h-9 rounded-xl bg-zinc-700 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">m</span>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
+            <span className="text-[13px] font-bold text-white">L</span>
           </div>
-          <span className="text-white font-bold text-xl tracking-tight">memry</span>
+          <span className="text-white font-semibold text-[18px] font-[family-name:var(--font-serif)] italic">Loupe</span>
         </div>
 
         <div className="bg-[#1a1a24] border border-white/10 rounded-2xl p-8">
           <h1 className="text-white text-2xl font-bold mb-1">Welcome back</h1>
           <p className="text-white/40 text-sm mb-2">
-            Capture every decision. Automatically.
+            Catch design bugs before they ship.
           </p>
           <p className="text-white/25 text-xs mb-8">
-            Slack · Figma · Jira · Notion
+            Figma · Live sites · Chrome extension
           </p>
 
           <button
