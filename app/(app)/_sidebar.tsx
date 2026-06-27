@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ScanSearch, LogOut, History } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-const AGENTS = [
+const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch },
   { id: "history",       label: "History",        icon: History    },
 ];
@@ -32,25 +32,23 @@ export function Sidebar({ userEmail }: Props) {
         <span className="text-[14px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
       </div>
 
-      {/* Agents */}
-      <div className="px-3 pt-4">
+      {/* Nav */}
+      <div className="px-3 pt-4 flex-1">
         <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af]">Agents</p>
         <nav className="space-y-0.5">
-          {AGENTS.map((agent) => {
-            const Icon   = agent.icon;
-            const active = pathname.startsWith(`/agents/${agent.id}`);
+          {NAV.map((item) => {
+            const Icon   = item.icon;
+            const active = pathname.startsWith(`/agents/${item.id}`);
             return (
               <Link
-                key={agent.id}
-                href={`/agents/${agent.id}`}
+                key={item.id}
+                href={`/agents/${item.id}`}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
-                  active
-                    ? "bg-black/[0.06] text-[#0f0f0f]"
-                    : "text-[#6b7280] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+                  active ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#6b7280] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
                 }`}
               >
                 <Icon size={14} strokeWidth={1.75} />
-                <span className="text-[13px] font-medium">{agent.label}</span>
+                <span className="text-[13px] font-medium">{item.label}</span>
               </Link>
             );
           })}
@@ -58,7 +56,16 @@ export function Sidebar({ userEmail }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="mt-auto border-t border-black/[0.06] px-3 py-3">
+      <div className="border-t border-black/[0.06] px-3 py-3 space-y-0.5">
+        <Link
+          href="/agents/settings"
+          className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
+            pathname.startsWith("/agents/settings") ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#6b7280] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+          }`}
+        >
+          <Settings size={14} strokeWidth={1.75} />
+          <span className="text-[13px] font-medium">Settings</span>
+        </Link>
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
           <div className="h-6 w-6 shrink-0 rounded-full bg-black/[0.07] flex items-center justify-center">
             <span className="text-[10px] font-semibold text-[#6b7280]">{userEmail[0]?.toUpperCase()}</span>
