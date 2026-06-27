@@ -30,10 +30,6 @@ const CHECK_OPTIONS = [
   { id: "font_size",        label: "Font Size"        },
   { id: "font_weight",      label: "Font Weight"      },
   { id: "color",            label: "Color"            },
-  { id: "spacing",          label: "Spacing"          },
-  { id: "menu",             label: "Menu / Nav"       },
-  { id: "footer",           label: "Footer"           },
-  { id: "buttons",          label: "Buttons"          },
   { id: "content",          label: "Content"          },
 ];
 
