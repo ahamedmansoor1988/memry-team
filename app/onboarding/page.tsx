@@ -249,12 +249,12 @@ export default function OnboardingPage() {
                     </div>
 
                     <a
-                      href="https://github.com/ahamedmansoor1988/memry-team/releases"
+                      href="https://github.com/ahamedmansoor1988/memry-team/tree/main/loupe-extension"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#1a1a1a] transition-colors"
                     >
-                      <Chrome size={11} /> Install extension
+                      <Chrome size={11} /> View install instructions
                     </a>
                   </div>
                 </div>
