@@ -123,10 +123,9 @@ export default function HistoryPage() {
                   </span>
                   <button
                     onClick={e => { e.stopPropagation(); copyShareLink(run, key); }}
-                    className="text-[#9a9aa5] hover:text-[#5b5b66] transition-colors"
-                    title="Copy share link"
+                    className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium border transition-colors ${copied === key ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}
                   >
-                    {copied === key ? <Check size={12} className="text-emerald-500" /> : <Link2 size={12} />}
+                    {copied === key ? <><Check size={10} />Copied!</> : <><Link2 size={10} />Share</>}
                   </button>
                   <a
                     href={run.live_url}
