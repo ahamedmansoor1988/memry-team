@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Check } from "lucide-react";
 import { completeOnboarding } from "./actions";
 
 type Step = "info" | "figma";
 
 export default function OnboardingPage() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("info");
 
   // Step 1
@@ -35,6 +37,8 @@ export default function OnboardingPage() {
     if (result?.error) {
       setError(result.error);
       setLoading(false);
+    } else {
+      router.push("/");
     }
   }
 

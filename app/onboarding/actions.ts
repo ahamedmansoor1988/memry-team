@@ -1,7 +1,6 @@
 "use server";
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
 export async function completeOnboarding(formData: {
   name: string;
@@ -46,5 +45,5 @@ export async function completeOnboarding(formData: {
     if (patErr) return { error: "Figma PAT save failed: " + patErr.message };
   }
 
-  redirect("/");
+  return null;
 }
