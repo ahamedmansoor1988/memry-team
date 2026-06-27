@@ -87,7 +87,7 @@ export default function OnboardingPage() {
           {step === 0 && (
             <div>
               <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 1 of 5</p>
-              <h1 className="text-[28px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">What's your name?</h1>
+              <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">What's your name?</h1>
               <p className="text-[14px] text-[#9a9aa5] mb-8">We'll use this to personalise your experience.</p>
               <input
                 autoFocus
@@ -112,7 +112,7 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div>
               <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 2 of 5</p>
-              <h1 className="text-[28px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">What's your role?</h1>
+              <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">What's your role?</h1>
               <p className="text-[14px] text-[#9a9aa5] mb-8">This helps us tailor Loupe to how you work.</p>
               <div className="grid grid-cols-2 gap-2 mb-6">
                 {ROLES.map(r => (
@@ -140,7 +140,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div>
               <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 3 of 5</p>
-              <h1 className="text-[28px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">How do you work?</h1>
+              <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">How do you work?</h1>
               <p className="text-[14px] text-[#9a9aa5] mb-8">We'll show you the most relevant features.</p>
               <div className="flex flex-col gap-3 mb-6">
                 {WORK_TYPES.map(w => (
@@ -168,7 +168,7 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div>
               <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 4 of 5</p>
-              <h1 className="text-[28px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">How did you find Loupe?</h1>
+              <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">How did you find Loupe?</h1>
               <p className="text-[14px] text-[#9a9aa5] mb-8">Helps us know where to focus our energy.</p>
               <div className="grid grid-cols-2 gap-2 mb-6">
                 {SOURCES.map(s => (
@@ -196,7 +196,7 @@ export default function OnboardingPage() {
           {step === 4 && (
             <div>
               <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 5 of 5</p>
-              <h1 className="text-[28px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Connect your tools</h1>
+              <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Connect your tools</h1>
               <p className="text-[14px] text-[#9a9aa5] mb-8">Loupe needs Figma access and a Chrome extension to capture live styles.</p>
 
               {/* Figma PAT */}

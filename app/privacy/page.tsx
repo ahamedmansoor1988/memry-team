@@ -24,7 +24,7 @@ export default function PrivacyPage() {
 
       <main className="max-w-2xl mx-auto px-6 py-16">
         <p className="text-[12px] text-[#9a9aa5] mb-2">Effective {EFFECTIVE}</p>
-        <h1 className="text-[32px] font-semibold text-[#0f0f0f] mb-2 font-[family-name:var(--font-serif)]">Privacy Policy</h1>
+        <h1 className="text-[40px] font-normal text-[#0f0f0f] mb-2 font-[family-name:var(--font-serif)]">Privacy Policy</h1>
         <p className="text-[14px] text-[#6b7280] mb-10">We keep this simple and plain-English. We do not sell your data.</p>
 
         <div className="space-y-8 text-[14px] text-[#374151] leading-relaxed">

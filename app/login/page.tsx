@@ -59,7 +59,7 @@ export default function LoginPage() {
         <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto mb-10 lg:hidden" />
 
         <div className="w-full max-w-[340px]">
-          <h1 className="text-[24px] font-semibold text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Sign in</h1>
+          <h1 className="text-[32px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Sign in</h1>
           <p className="text-[14px] text-[#9a9aa5] mb-8">Welcome back — continue with Google.</p>
 
           <button
