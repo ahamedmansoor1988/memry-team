@@ -593,7 +593,7 @@ export async function POST(req: NextRequest) {
         send("step", { text: `Sending to Groq AI — checking: ${activeChecks.map(c => c.replace("_", " ")).join(", ")}…` });
 
         const groqBody = JSON.stringify({
-          model: "gemma2-9b-it",
+          model: "llama-3.1-8b-instant",
           temperature: 0,
           max_tokens: 3000,
           messages: [
