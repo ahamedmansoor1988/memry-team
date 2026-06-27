@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, ArrowRight, Check, Chrome, ExternalLink, AlertTriangle } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Check, ExternalLink, AlertTriangle, Globe } from "lucide-react";
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -228,7 +228,7 @@ export default function OnboardingPage() {
               <div className="rounded-xl border border-[#e8e8ec] p-4 mb-5">
                 <div className="flex items-start gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f5f5f7] shrink-0">
-                    <Chrome size={16} className="text-[#5b5b66]" />
+                    <Globe size={16} className="text-[#5b5b66]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-[#0f0f0f] mb-0.5">Loupe Chrome Extension</p>
@@ -251,7 +251,7 @@ export default function OnboardingPage() {
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#1a1a1a] transition-colors"
                     >
-                      <Chrome size={11} /> View install instructions
+                      <Globe size={11} /> View install instructions
                     </a>
                   </div>
                 </div>

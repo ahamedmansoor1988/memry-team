@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Check, KeyRound, Chrome, ExternalLink, User } from "lucide-react";
+import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
@@ -96,7 +96,7 @@ export default function SettingsPage() {
         {/* Chrome Extension */}
         <div className="rounded-2xl border border-[#f0f0f0] bg-white p-5">
           <div className="flex items-center gap-2 mb-1">
-            <Chrome size={13} className="text-[#9a9aa5]" />
+            <Globe size={13} className="text-[#9a9aa5]" />
             <p className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-widest">Chrome Extension</p>
           </div>
           <p className="text-[12px] text-[#9a9aa5] mb-4 leading-relaxed">
