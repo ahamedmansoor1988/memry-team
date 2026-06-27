@@ -11,9 +11,16 @@ let browser = null;
 
 async function getBrowser() {
   if (!browser || !browser.isConnected()) {
-    browser = await chromium.connectOverCDP(
-      `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
-    );
+    try {
+      console.log("[scraper] connecting to Browserless...");
+      browser = await chromium.connectOverCDP(
+        `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
+      );
+      console.log("[scraper] connected to Browserless");
+    } catch (err) {
+      console.error("[scraper] Browserless connection failed:", err.message);
+      throw err;
+    }
   }
   return browser;
 }
