@@ -32,7 +32,7 @@ export function Sidebar({ userEmail }: Props) {
 
       {/* Nav */}
       <div className="px-3 pt-4 flex-1">
-        <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#9ca3af]">Agents</p>
+        <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#71717a]">Agents</p>
         <nav className="space-y-0.5">
           {NAV.map((item) => {
             const Icon   = item.icon;
@@ -42,7 +42,7 @@ export function Sidebar({ userEmail }: Props) {
                 key={item.id}
                 href={`/agents/${item.id}`}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
-                  active ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#6b7280] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+                  active ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
                 }`}
               >
                 <Icon size={14} strokeWidth={1.75} />
@@ -58,7 +58,7 @@ export function Sidebar({ userEmail }: Props) {
         <Link
           href="/agents/settings"
           className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
-            pathname.startsWith("/agents/settings") ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#6b7280] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+            pathname.startsWith("/agents/settings") ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
           }`}
         >
           <Settings size={14} strokeWidth={1.75} />
@@ -66,10 +66,10 @@ export function Sidebar({ userEmail }: Props) {
         </Link>
         <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
           <div className="h-6 w-6 shrink-0 rounded-full bg-black/[0.07] flex items-center justify-center">
-            <span className="text-[10px] font-semibold text-[#6b7280]">{userEmail[0]?.toUpperCase()}</span>
+            <span className="text-[10px] font-semibold text-[#4b5563]">{userEmail[0]?.toUpperCase()}</span>
           </div>
-          <span className="flex-1 truncate text-[11px] text-[#9ca3af]">{userEmail}</span>
-          <button onClick={signOut} title="Sign out" className="text-[#9ca3af] hover:text-[#6b7280] transition-colors">
+          <span className="flex-1 truncate text-[11px] text-[#71717a]">{userEmail}</span>
+          <button onClick={signOut} title="Sign out" className="text-[#71717a] hover:text-[#4b5563] transition-colors">
             <LogOut size={13} />
           </button>
         </div>

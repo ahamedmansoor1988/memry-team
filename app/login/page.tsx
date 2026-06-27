@@ -60,7 +60,7 @@ export default function LoginPage() {
 
         <div className="w-full max-w-[340px]">
           <h1 className="text-[32px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Sign in</h1>
-          <p className="text-[14px] text-[#9a9aa5] mb-8">Welcome back — continue with Google.</p>
+          <p className="text-[14px] text-[#71717a] mb-8">Welcome back — continue with Google.</p>
 
           <button
             onClick={signInWithGoogle}
@@ -75,11 +75,11 @@ export default function LoginPage() {
             Continue with Google
           </button>
 
-          <p className="text-[11px] text-[#c8c8d0] text-center mt-6">
+          <p className="text-[11px] text-[#a1a1aa] text-center mt-6">
             By continuing you agree to our{" "}
-            <Link href="/terms" className="underline underline-offset-2 hover:text-[#9a9aa5] transition-colors">Terms</Link>
+            <Link href="/terms" className="underline underline-offset-2 hover:text-[#71717a] transition-colors">Terms</Link>
             {" & "}
-            <Link href="/privacy" className="underline underline-offset-2 hover:text-[#9a9aa5] transition-colors">Privacy Policy</Link>
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-[#71717a] transition-colors">Privacy Policy</Link>
           </p>
         </div>
       </div>

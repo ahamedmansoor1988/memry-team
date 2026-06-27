@@ -154,7 +154,7 @@ export default function CommentWatcherPage() {
           <MessageSquare className="h-5 w-5 text-[#0f0f0f]" strokeWidth={1.75} />
           <div>
             <h1 className="text-[15px] font-semibold tracking-tight">Comment Clarity</h1>
-            <p className="text-[12px] text-[#9ca3af] mt-0.5">
+            <p className="text-[12px] text-[#71717a] mt-0.5">
               Detects vague Figma comments and posts clarifying questions automatically.
             </p>
           </div>
@@ -163,7 +163,7 @@ export default function CommentWatcherPage() {
         {/* Config */}
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Figma File URL</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Figma File URL</label>
             <input
               value={figmaUrl}
               onChange={e => setFigmaUrl(e.target.value)}
@@ -172,7 +172,7 @@ export default function CommentWatcherPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Personal Access Token</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Personal Access Token</label>
             <input
               type="password"
               value={pat}
@@ -200,7 +200,7 @@ export default function CommentWatcherPage() {
               <div key={s.id} className="flex items-start gap-2 text-sm">
                 {s.type === "error"
                   ? <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                  : <ChevronRight className="h-4 w-4 text-[#9ca3af] mt-0.5 shrink-0" />
+                  : <ChevronRight className="h-4 w-4 text-[#71717a] mt-0.5 shrink-0" />
                 }
                 <span className={s.type === "error" ? "text-red-600" : "text-[#374151]"}>{s.text}</span>
               </div>
@@ -232,7 +232,7 @@ export default function CommentWatcherPage() {
         {/* Results table */}
         {comments.length > 0 && (
           <div className="rounded-xl border border-black/[0.08] overflow-hidden">
-            <div className="px-4 py-2.5 border-b border-black/[0.06] bg-[#fafafa] text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af] grid grid-cols-[1fr_80px_1fr_80px] gap-3">
+            <div className="px-4 py-2.5 border-b border-black/[0.06] bg-[#fafafa] text-[11px] font-semibold uppercase tracking-wide text-[#71717a] grid grid-cols-[1fr_80px_1fr_80px] gap-3">
               <span>Comment</span>
               <span>Author</span>
               <span>Clarifying question</span>
@@ -247,8 +247,8 @@ export default function CommentWatcherPage() {
                       {c.text.slice(0, 120)}{c.text.length > 120 ? "…" : ""}
                     </p>
                   </div>
-                  <span className="text-[#9ca3af] text-[12px] truncate pt-0.5">{c.author}</span>
-                  <p className="text-[#6b7280] text-[12px] leading-relaxed pt-0.5">
+                  <span className="text-[#71717a] text-[12px] truncate pt-0.5">{c.author}</span>
+                  <p className="text-[#4b5563] text-[12px] leading-relaxed pt-0.5">
                     {c.question ?? "—"}
                   </p>
                   <div className="pt-0.5">
@@ -258,7 +258,7 @@ export default function CommentWatcherPage() {
                       </span>
                     )}
                     {c.classification === "vague" && !c.replied && (
-                      <span className="text-[12px] text-[#9ca3af]">Pending</span>
+                      <span className="text-[12px] text-[#71717a]">Pending</span>
                     )}
                     {c.classification !== "vague" && (
                       <span className="text-[12px] text-[#d1d5db]">—</span>
@@ -274,9 +274,9 @@ export default function CommentWatcherPage() {
         {!running && steps.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
             <div className="h-12 w-12 rounded-full bg-black/[0.04] flex items-center justify-center">
-              <MessageSquare className="h-5 w-5 text-[#9ca3af]" strokeWidth={1.5} />
+              <MessageSquare className="h-5 w-5 text-[#71717a]" strokeWidth={1.5} />
             </div>
-            <p className="text-sm text-[#9ca3af] max-w-xs leading-relaxed">
+            <p className="text-sm text-[#71717a] max-w-xs leading-relaxed">
               Paste your Figma file URL and run the agent. It will classify every comment and reply to vague ones asking for specifics.
             </p>
           </div>

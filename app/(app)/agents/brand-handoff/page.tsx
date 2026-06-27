@@ -147,7 +147,7 @@ export default function BrandHandoffPage() {
           <Palette className="h-5 w-5 text-[#0f0f0f]" strokeWidth={1.75} />
           <div>
             <h1 className="text-[15px] font-semibold tracking-tight">Brand &amp; Handoff</h1>
-            <p className="text-[12px] text-[#9ca3af] mt-0.5">
+            <p className="text-[12px] text-[#71717a] mt-0.5">
               Check brand consistency and generate CSS tokens for dev handoff.
             </p>
           </div>
@@ -156,14 +156,14 @@ export default function BrandHandoffPage() {
         {/* Config */}
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Figma Frame URL</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Figma Frame URL</label>
             <input
               value={figmaUrl}
               onChange={e => setFigmaUrl(e.target.value)}
               placeholder="https://www.figma.com/design/...?node-id=..."
               className="w-full rounded-xl border border-black/[0.1] bg-white px-3.5 py-2.5 text-sm placeholder:text-[#c4c4cc] focus:outline-none focus:border-black/30 transition-colors"
             />
-            <p className="text-[11px] text-[#9ca3af]">Requires a synced snapshot — run "Sync Design" on Figma vs Live first.</p>
+            <p className="text-[11px] text-[#71717a]">Requires a synced snapshot — run "Sync Design" on Figma vs Live first.</p>
           </div>
           <button
             onClick={run}
@@ -184,7 +184,7 @@ export default function BrandHandoffPage() {
               <div key={s.id} className="flex items-start gap-2 text-sm">
                 {s.type === "error"
                   ? <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                  : <ChevronRight className="h-4 w-4 text-[#9ca3af] mt-0.5 shrink-0" />
+                  : <ChevronRight className="h-4 w-4 text-[#71717a] mt-0.5 shrink-0" />
                 }
                 <span className={s.type === "error" ? "text-red-600" : "text-[#374151]"}>{s.text}</span>
               </div>
@@ -198,7 +198,7 @@ export default function BrandHandoffPage() {
           <div className="space-y-5">
             {/* Summary row */}
             <div className="flex items-center justify-between flex-wrap gap-3">
-              <div className="text-[13px] text-[#6b7280]">
+              <div className="text-[13px] text-[#4b5563]">
                 Frame: <span className="font-medium text-[#0f0f0f]">{result.frameName}</span>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -207,13 +207,13 @@ export default function BrandHandoffPage() {
                     <AlertCircle className="h-3.5 w-3.5" /> {highIssues} critical
                   </span>
                 )}
-                <span className="text-[12px] text-[#9ca3af] bg-[#f5f5f5] border border-black/[0.06] rounded-lg px-2.5 py-1">
+                <span className="text-[12px] text-[#71717a] bg-[#f5f5f5] border border-black/[0.06] rounded-lg px-2.5 py-1">
                   {result.metrics.fontFamilies.length} font{result.metrics.fontFamilies.length !== 1 ? "s" : ""}
                 </span>
-                <span className="text-[12px] text-[#9ca3af] bg-[#f5f5f5] border border-black/[0.06] rounded-lg px-2.5 py-1">
+                <span className="text-[12px] text-[#71717a] bg-[#f5f5f5] border border-black/[0.06] rounded-lg px-2.5 py-1">
                   {result.metrics.colorCount} colors
                 </span>
-                <span className="text-[12px] text-[#9ca3af] bg-[#f5f5f5] border border-black/[0.06] rounded-lg px-2.5 py-1">
+                <span className="text-[12px] text-[#71717a] bg-[#f5f5f5] border border-black/[0.06] rounded-lg px-2.5 py-1">
                   {result.metrics.fontSizes.length} sizes
                 </span>
               </div>
@@ -228,7 +228,7 @@ export default function BrandHandoffPage() {
                   className={`px-4 py-2 text-[13px] font-medium border-b-2 -mb-px transition-colors ${
                     tab === t
                       ? "border-[#0f0f0f] text-[#0f0f0f]"
-                      : "border-transparent text-[#9ca3af] hover:text-[#6b7280]"
+                      : "border-transparent text-[#71717a] hover:text-[#4b5563]"
                   }`}
                 >
                   {t === "brand" ? "Brand Check" : "Dev Handoff"}
@@ -243,15 +243,15 @@ export default function BrandHandoffPage() {
                 {/* Issues */}
                 {result.brandIssues.length > 0 ? (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Issues</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Issues</p>
                     {result.brandIssues.map((issue, i) => (
                       <div key={i} className="rounded-xl border border-black/[0.08] p-4 space-y-1.5">
                         <div className="flex items-center gap-2">
                           <SeverityBadge severity={issue.severity} />
-                          <span className="text-[12px] text-[#9ca3af] capitalize">{issue.category}</span>
+                          <span className="text-[12px] text-[#71717a] capitalize">{issue.category}</span>
                         </div>
                         <p className="text-[13px] text-[#0f0f0f] font-medium">{issue.issue}</p>
-                        <p className="text-[12px] text-[#6b7280]">Fix: {issue.fix}</p>
+                        <p className="text-[12px] text-[#4b5563]">Fix: {issue.fix}</p>
                       </div>
                     ))}
                   </div>
@@ -264,7 +264,7 @@ export default function BrandHandoffPage() {
                 {/* Color palette */}
                 {result.palette.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Color Palette</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Color Palette</p>
                     <div className="flex flex-wrap gap-3">
                       {result.palette.map((c, i) => (
                         <div key={i} className="flex items-center gap-2.5 rounded-xl border border-black/[0.08] px-3 py-2.5">
@@ -274,7 +274,7 @@ export default function BrandHandoffPage() {
                           />
                           <div>
                             <p className="text-[12px] font-mono font-medium text-[#0f0f0f]">{c.hex}</p>
-                            <p className="text-[11px] text-[#9ca3af] capitalize">{c.role} · {c.usage}</p>
+                            <p className="text-[11px] text-[#71717a] capitalize">{c.role} · {c.usage}</p>
                           </div>
                         </div>
                       ))}
@@ -285,17 +285,17 @@ export default function BrandHandoffPage() {
                 {/* Typography scale */}
                 {result.typographyScale.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Typography Scale</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Typography Scale</p>
                     <div className="rounded-xl border border-black/[0.08] overflow-hidden">
-                      <div className="grid grid-cols-[60px_60px_1fr_1fr] gap-3 px-4 py-2.5 bg-[#fafafa] border-b border-black/[0.06] text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">
+                      <div className="grid grid-cols-[60px_60px_1fr_1fr] gap-3 px-4 py-2.5 bg-[#fafafa] border-b border-black/[0.06] text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                         <span>Size</span><span>Weight</span><span>Family</span><span>Role</span>
                       </div>
                       {result.typographyScale.map((row, i) => (
                         <div key={i} className="grid grid-cols-[60px_60px_1fr_1fr] gap-3 px-4 py-2.5 border-b border-black/[0.04] last:border-0 text-[13px]">
                           <span className="font-mono text-[#0f0f0f]">{row.size}px</span>
-                          <span className="text-[#6b7280]">{row.weight}</span>
+                          <span className="text-[#4b5563]">{row.weight}</span>
                           <span className="text-[#374151] truncate">{row.family}</span>
-                          <span className="text-[#9ca3af] capitalize">{row.role}</span>
+                          <span className="text-[#71717a] capitalize">{row.role}</span>
                         </div>
                       ))}
                     </div>
@@ -319,7 +319,7 @@ export default function BrandHandoffPage() {
                 {result.cssTokens && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">CSS Custom Properties</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">CSS Custom Properties</p>
                       <CopyButton text={result.cssTokens} />
                     </div>
                     <pre className="rounded-xl border border-black/[0.08] bg-[#0f0f0f] text-[#e2e2e9] p-4 text-[12px] font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap">
@@ -330,25 +330,25 @@ export default function BrandHandoffPage() {
 
                 {/* Metrics reference */}
                 <div className="space-y-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#9ca3af]">Quick Reference</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Quick Reference</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-black/[0.08] p-4">
-                      <p className="text-[11px] text-[#9ca3af] mb-2">Font families</p>
+                      <p className="text-[11px] text-[#71717a] mb-2">Font families</p>
                       {result.metrics.fontFamilies.map((f, i) => (
                         <p key={i} className="text-[13px] font-medium text-[#0f0f0f]">{f}</p>
                       ))}
                     </div>
                     <div className="rounded-xl border border-black/[0.08] p-4">
-                      <p className="text-[11px] text-[#9ca3af] mb-2">Font weights</p>
+                      <p className="text-[11px] text-[#71717a] mb-2">Font weights</p>
                       <p className="text-[13px] font-medium text-[#0f0f0f]">{result.metrics.fontWeights.join(", ")}</p>
                     </div>
                     <div className="rounded-xl border border-black/[0.08] p-4">
-                      <p className="text-[11px] text-[#9ca3af] mb-2">Font sizes</p>
+                      <p className="text-[11px] text-[#71717a] mb-2">Font sizes</p>
                       <p className="text-[13px] font-medium text-[#0f0f0f]">{result.metrics.fontSizes.slice(0, 8).join(", ")}px</p>
                     </div>
                     {result.metrics.borderRadii.length > 0 && (
                       <div className="rounded-xl border border-black/[0.08] p-4">
-                        <p className="text-[11px] text-[#9ca3af] mb-2">Border radii</p>
+                        <p className="text-[11px] text-[#71717a] mb-2">Border radii</p>
                         <p className="text-[13px] font-medium text-[#0f0f0f]">{result.metrics.borderRadii.join(", ")}px</p>
                       </div>
                     )}
@@ -363,9 +363,9 @@ export default function BrandHandoffPage() {
         {!running && steps.length === 0 && !result && (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
             <div className="h-12 w-12 rounded-full bg-black/[0.04] flex items-center justify-center">
-              <Palette className="h-5 w-5 text-[#9ca3af]" strokeWidth={1.5} />
+              <Palette className="h-5 w-5 text-[#71717a]" strokeWidth={1.5} />
             </div>
-            <p className="text-sm text-[#9ca3af] max-w-xs leading-relaxed">
+            <p className="text-sm text-[#71717a] max-w-xs leading-relaxed">
               Paste a Figma frame URL and click Analyze. Reads from your existing snapshot — no Figma API calls.
             </p>
           </div>

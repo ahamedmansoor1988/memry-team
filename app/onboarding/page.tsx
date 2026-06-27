@@ -62,7 +62,7 @@ export default function OnboardingPage() {
                   )}
                 </div>
                 <div className="pt-0.5 pb-8">
-                  <p className={`text-[13px] font-medium leading-none ${active ? "text-[#0f0f0f]" : done ? "text-[#9a9aa5]" : "text-[#c8c8d0]"}`}>
+                  <p className={`text-[13px] font-medium leading-none ${active ? "text-[#0f0f0f]" : done ? "text-[#71717a]" : "text-[#a1a1aa]"}`}>
                     {s.label}
                   </p>
                 </div>
@@ -86,9 +86,9 @@ export default function OnboardingPage() {
           {/* Step 0 — Name */}
           {step === 0 && (
             <div>
-              <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 1 of 5</p>
+              <p className="text-[12px] font-medium text-[#71717a] uppercase tracking-widest mb-3">Step 1 of 5</p>
               <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">What's your name?</h1>
-              <p className="text-[14px] text-[#9a9aa5] mb-8">We'll use this to personalise your experience.</p>
+              <p className="text-[14px] text-[#71717a] mb-8">We'll use this to personalise your experience.</p>
               <input
                 autoFocus
                 type="text"
@@ -96,7 +96,7 @@ export default function OnboardingPage() {
                 onChange={e => setName(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && name.trim() && next()}
                 placeholder="Alex Morgan"
-                className="w-full border border-[#e8e8ec] rounded-xl px-4 py-3 text-[14px] text-[#0f0f0f] placeholder:text-[#c8c8d0] focus:outline-none focus:border-[#0f0f0f] transition-colors mb-6"
+                className="w-full border border-[#e8e8ec] rounded-xl px-4 py-3 text-[14px] text-[#0f0f0f] placeholder:text-[#a1a1aa] focus:outline-none focus:border-[#0f0f0f] transition-colors mb-6"
               />
               <button
                 onClick={next}
@@ -111,16 +111,16 @@ export default function OnboardingPage() {
           {/* Step 1 — Role */}
           {step === 1 && (
             <div>
-              <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 2 of 5</p>
+              <p className="text-[12px] font-medium text-[#71717a] uppercase tracking-widest mb-3">Step 2 of 5</p>
               <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">What's your role?</h1>
-              <p className="text-[14px] text-[#9a9aa5] mb-8">This helps us tailor Loupe to how you work.</p>
+              <p className="text-[14px] text-[#71717a] mb-8">This helps us tailor Loupe to how you work.</p>
               <div className="grid grid-cols-2 gap-2 mb-6">
                 {ROLES.map(r => (
                   <button
                     key={r}
                     onClick={() => setRole(r)}
                     className={`text-left px-4 py-3 rounded-xl border text-[13px] font-medium transition-all ${
-                      role === r ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
+                      role === r ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#3f3f46] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
                     }`}
                   >
                     {r}
@@ -128,7 +128,7 @@ export default function OnboardingPage() {
                 ))}
               </div>
               <div className="flex gap-3">
-                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
+                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#71717a] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
                 <button onClick={next} disabled={!role} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-4 py-3 text-[13px] font-semibold text-white hover:bg-[#1a1a1a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   Continue <ArrowRight size={14} />
                 </button>
@@ -139,16 +139,16 @@ export default function OnboardingPage() {
           {/* Step 2 — Team or Freelancer */}
           {step === 2 && (
             <div>
-              <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 3 of 5</p>
+              <p className="text-[12px] font-medium text-[#71717a] uppercase tracking-widest mb-3">Step 3 of 5</p>
               <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">How do you work?</h1>
-              <p className="text-[14px] text-[#9a9aa5] mb-8">We'll show you the most relevant features.</p>
+              <p className="text-[14px] text-[#71717a] mb-8">We'll show you the most relevant features.</p>
               <div className="flex flex-col gap-3 mb-6">
                 {WORK_TYPES.map(w => (
                   <button
                     key={w}
                     onClick={() => setWorkType(w)}
                     className={`text-left px-5 py-4 rounded-xl border text-[14px] font-medium transition-all ${
-                      workType === w ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
+                      workType === w ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#3f3f46] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
                     }`}
                   >
                     {w}
@@ -156,7 +156,7 @@ export default function OnboardingPage() {
                 ))}
               </div>
               <div className="flex gap-3">
-                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
+                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#71717a] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
                 <button onClick={next} disabled={!workType} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-4 py-3 text-[13px] font-semibold text-white hover:bg-[#1a1a1a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   Continue <ArrowRight size={14} />
                 </button>
@@ -167,16 +167,16 @@ export default function OnboardingPage() {
           {/* Step 3 — How you found us */}
           {step === 3 && (
             <div>
-              <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 4 of 5</p>
+              <p className="text-[12px] font-medium text-[#71717a] uppercase tracking-widest mb-3">Step 4 of 5</p>
               <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">How did you find Loupe?</h1>
-              <p className="text-[14px] text-[#9a9aa5] mb-8">Helps us know where to focus our energy.</p>
+              <p className="text-[14px] text-[#71717a] mb-8">Helps us know where to focus our energy.</p>
               <div className="grid grid-cols-2 gap-2 mb-6">
                 {SOURCES.map(s => (
                   <button
                     key={s}
                     onClick={() => setSource(s)}
                     className={`text-left px-4 py-3 rounded-xl border text-[13px] font-medium transition-all ${
-                      source === s ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
+                      source === s ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#3f3f46] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
                     }`}
                   >
                     {s}
@@ -184,7 +184,7 @@ export default function OnboardingPage() {
                 ))}
               </div>
               <div className="flex gap-3">
-                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
+                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#71717a] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
                 <button onClick={next} disabled={!source} className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-4 py-3 text-[13px] font-semibold text-white hover:bg-[#1a1a1a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   Continue <ArrowRight size={14} />
                 </button>
@@ -195,16 +195,16 @@ export default function OnboardingPage() {
           {/* Step 4 — Connect tools */}
           {step === 4 && (
             <div>
-              <p className="text-[12px] font-medium text-[#9a9aa5] uppercase tracking-widest mb-3">Step 5 of 5</p>
+              <p className="text-[12px] font-medium text-[#71717a] uppercase tracking-widest mb-3">Step 5 of 5</p>
               <h1 className="text-[36px] font-normal text-[#0f0f0f] mb-1 font-[family-name:var(--font-serif)]">Connect your tools</h1>
-              <p className="text-[14px] text-[#9a9aa5] mb-8">Loupe needs Figma access and a Chrome extension to capture live styles.</p>
+              <p className="text-[14px] text-[#71717a] mb-8">Loupe needs Figma access and a Chrome extension to capture live styles.</p>
 
               {/* Figma PAT */}
               <div className="mb-5">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-[13px] font-semibold text-[#0f0f0f]">Figma Personal Access Token</label>
                   <a href="https://www.figma.com/settings" target="_blank" rel="noopener noreferrer"
-                    className="text-[11px] text-[#9a9aa5] hover:text-[#0f0f0f] flex items-center gap-0.5 transition-colors">
+                    className="text-[11px] text-[#71717a] hover:text-[#0f0f0f] flex items-center gap-0.5 transition-colors">
                     Get token <ExternalLink size={9} />
                   </a>
                 </div>
@@ -214,10 +214,10 @@ export default function OnboardingPage() {
                     value={pat}
                     onChange={e => setPat(e.target.value)}
                     placeholder="figd_••••••••••••••••"
-                    className="w-full border border-[#e8e8ec] rounded-xl px-4 py-3 pr-10 text-[13px] text-[#0f0f0f] placeholder:text-[#c8c8d0] focus:outline-none focus:border-[#0f0f0f] transition-colors font-mono"
+                    className="w-full border border-[#e8e8ec] rounded-xl px-4 py-3 pr-10 text-[13px] text-[#0f0f0f] placeholder:text-[#a1a1aa] focus:outline-none focus:border-[#0f0f0f] transition-colors font-mono"
                   />
                   <button type="button" onClick={() => setShowPat(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#c8c8d0] hover:text-[#5b5b66] transition-colors">
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#a1a1aa] hover:text-[#3f3f46] transition-colors">
                     {showPat ? <EyeOff size={14} /> : <Eye size={14} />}
                   </button>
                 </div>
@@ -228,11 +228,11 @@ export default function OnboardingPage() {
               <div className="rounded-xl border border-[#e8e8ec] p-4 mb-5">
                 <div className="flex items-start gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f5f5f7] shrink-0">
-                    <Globe size={16} className="text-[#5b5b66]" />
+                    <Globe size={16} className="text-[#3f3f46]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-[#0f0f0f] mb-0.5">Loupe Chrome Extension</p>
-                    <p className="text-[12px] text-[#9a9aa5] leading-relaxed mb-3">
+                    <p className="text-[12px] text-[#71717a] leading-relaxed mb-3">
                       Captures live computed styles (fonts, colors) from the page you're testing. Required for accurate comparison.
                     </p>
 
@@ -266,7 +266,7 @@ export default function OnboardingPage() {
                   >
                     {extensionAgreed && <Check size={10} className="text-white" strokeWidth={3} />}
                   </div>
-                  <p className="text-[11px] text-[#6b7280] leading-relaxed select-none" onClick={() => setExtensionAgreed(v => !v)}>
+                  <p className="text-[11px] text-[#4b5563] leading-relaxed select-none" onClick={() => setExtensionAgreed(v => !v)}>
                     I understand the extension reads CSS styles from tabs I open while using Loupe, and I agree to the{" "}
                     <a href="/terms" target="_blank" className="underline hover:text-[#0f0f0f]">Terms</a> and{" "}
                     <a href="/privacy" target="_blank" className="underline hover:text-[#0f0f0f]">Privacy Policy</a>.
@@ -275,7 +275,7 @@ export default function OnboardingPage() {
               </div>
 
               <div className="flex gap-3">
-                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
+                <button onClick={back} className="flex-1 rounded-xl border border-[#e8e8ec] px-4 py-3 text-[13px] font-medium text-[#71717a] hover:border-[#0f0f0f] hover:text-[#0f0f0f] transition-colors">Back</button>
                 <button
                   onClick={finish}
                   disabled={!extensionAgreed}

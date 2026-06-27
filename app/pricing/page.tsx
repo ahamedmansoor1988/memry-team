@@ -110,7 +110,7 @@ export default function PricingPage() {
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#0f0f0f] font-medium">Pricing</Link>
-            <Link href="/login" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
+            <Link href="/login" className="text-[13px] text-[#4b5563] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
             <Link href="/login" className="rounded-lg bg-[#0f0f0f] px-3.5 py-1.5 text-[13px] font-medium text-white hover:bg-[#1a1a1a] transition-colors">
               Get started free
             </Link>
@@ -123,7 +123,7 @@ export default function PricingPage() {
         <h1 className="text-[52px] font-normal text-[#0f0f0f] leading-tight mb-4 font-[family-name:var(--font-serif)]">
           Pay for what you ship,<br />not what you try
         </h1>
-        <p className="text-[17px] text-[#6b7280] max-w-lg mx-auto">
+        <p className="text-[17px] text-[#4b5563] max-w-lg mx-auto">
           Start free with no limits on time. Upgrade when your team grows or your projects do.
         </p>
       </section>
@@ -156,11 +156,11 @@ export default function PricingPage() {
                   <span className={`text-[38px] font-semibold tracking-tight ${plan.highlight ? "text-white" : "text-[#0f0f0f]"}`}>
                     {plan.price}
                   </span>
-                  <span className={`text-[13px] ${plan.highlight ? "text-white/50" : "text-[#9a9aa5]"}`}>
+                  <span className={`text-[13px] ${plan.highlight ? "text-white/50" : "text-[#71717a]"}`}>
                     /{plan.period}
                   </span>
                 </div>
-                <p className={`text-[13px] leading-relaxed ${plan.highlight ? "text-white/60" : "text-[#6b7280]"}`}>
+                <p className={`text-[13px] leading-relaxed ${plan.highlight ? "text-white/60" : "text-[#4b5563]"}`}>
                   {plan.desc}
                 </p>
               </div>
@@ -182,15 +182,15 @@ export default function PricingPage() {
                 {plan.features.map(f => (
                   <div key={f} className="flex items-start gap-2.5">
                     <Check size={13} className={`mt-0.5 shrink-0 ${plan.highlight ? "text-emerald-400" : "text-emerald-500"}`} />
-                    <span className={`text-[13px] ${plan.highlight ? "text-white/80" : "text-[#5b5b66]"}`}>{f}</span>
+                    <span className={`text-[13px] ${plan.highlight ? "text-white/80" : "text-[#3f3f46]"}`}>{f}</span>
                   </div>
                 ))}
                 {plan.missing.map(f => (
                   <div key={f} className="flex items-start gap-2.5 opacity-30">
                     <div className="mt-0.5 shrink-0 h-[13px] w-[13px] flex items-center justify-center">
-                      <div className={`h-px w-2.5 ${plan.highlight ? "bg-white" : "bg-[#9a9aa5]"}`} />
+                      <div className={`h-px w-2.5 ${plan.highlight ? "bg-white" : "bg-[#71717a]"}`} />
                     </div>
-                    <span className={`text-[13px] ${plan.highlight ? "text-white" : "text-[#9a9aa5]"}`}>{f}</span>
+                    <span className={`text-[13px] ${plan.highlight ? "text-white" : "text-[#71717a]"}`}>{f}</span>
                   </div>
                 ))}
               </div>
@@ -207,10 +207,10 @@ export default function PricingPage() {
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
-                  <th className="px-5 py-3 text-left font-medium text-[#9a9aa5]">Feature</th>
-                  <th className="px-5 py-3 text-center font-medium text-[#9a9aa5]">Free</th>
+                  <th className="px-5 py-3 text-left font-medium text-[#71717a]">Feature</th>
+                  <th className="px-5 py-3 text-center font-medium text-[#71717a]">Free</th>
                   <th className="px-5 py-3 text-center font-medium text-[#0f0f0f]">Pro</th>
-                  <th className="px-5 py-3 text-center font-medium text-[#9a9aa5]">Team</th>
+                  <th className="px-5 py-3 text-center font-medium text-[#71717a]">Team</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,9 +227,9 @@ export default function PricingPage() {
                 ].map(([feature, free, pro, team], i) => (
                   <tr key={feature} className={`border-b border-[#f7f7f8] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]/50"}`}>
                     <td className="px-5 py-3 text-[#17171c] font-medium">{feature}</td>
-                    <td className="px-5 py-3 text-center text-[#9a9aa5]">{free}</td>
+                    <td className="px-5 py-3 text-center text-[#71717a]">{free}</td>
                     <td className="px-5 py-3 text-center text-[#0f0f0f] font-medium">{pro}</td>
-                    <td className="px-5 py-3 text-center text-[#9a9aa5]">{team}</td>
+                    <td className="px-5 py-3 text-center text-[#71717a]">{team}</td>
                   </tr>
                 ))}
               </tbody>
@@ -246,7 +246,7 @@ export default function PricingPage() {
             {FAQ.map(({ q, a }) => (
               <div key={q} className="border-b border-[#f5f5f7] pb-6 last:border-0">
                 <p className="text-[14px] font-semibold text-[#0f0f0f] mb-2">{q}</p>
-                <p className="text-[13px] text-[#6b7280] leading-relaxed">{a}</p>
+                <p className="text-[13px] text-[#4b5563] leading-relaxed">{a}</p>
               </div>
             ))}
           </div>
@@ -258,7 +258,7 @@ export default function PricingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
             <h2 className="text-[28px] font-semibold text-white mb-3">Start for free today</h2>
-            <p className="text-[14px] text-[#9a9aa5] mb-7">No credit card. No setup. Just install the extension and run.</p>
+            <p className="text-[14px] text-[#71717a] mb-7">No credit card. No setup. Just install the extension and run.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[13px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={13} />
             </Link>
@@ -273,12 +273,12 @@ export default function PricingPage() {
             <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
-            <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
-            <Link href="/terms" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Terms</Link>
-            <Link href="/privacy" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Privacy</Link>
-            <Link href="/login" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
+            <Link href="/pricing" className="text-[12px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
+            <Link href="/terms" className="text-[12px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">Terms</Link>
+            <Link href="/privacy" className="text-[12px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">Privacy</Link>
+            <Link href="/login" className="text-[12px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
           </div>
-          <p className="text-[12px] text-[#c8c8d0]">© 2026 Loupe</p>
+          <p className="text-[12px] text-[#a1a1aa]">© 2026 Loupe</p>
         </div>
       </footer>
 

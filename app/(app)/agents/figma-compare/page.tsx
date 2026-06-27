@@ -440,9 +440,9 @@ export default function FigmaComparePage() {
         {/* Top bar */}
         <div className="flex h-[45px] items-center justify-between border-b border-[#f0f0f0] px-5 shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles size={13} className="text-[#9a9aa5]" />
+            <Sparkles size={13} className="text-[#71717a]" />
             <span className="text-[13px] font-medium text-[#17171c]">Figma vs Live</span>
-            <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#9a9aa5]">Design QA</span>
+            <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#71717a]">Design QA</span>
           </div>
           <div className="flex items-center gap-2">
             {/* Snapshot status */}
@@ -458,7 +458,7 @@ export default function FigmaComparePage() {
             )}
             {/* Live styles status */}
             {scrapeStatus === "fetching" && (
-              <span className="flex items-center gap-1.5 rounded-full bg-[#f0f0f0] px-2.5 py-1 text-[11px] font-medium text-[#9a9aa5]">
+              <span className="flex items-center gap-1.5 rounded-full bg-[#f0f0f0] px-2.5 py-1 text-[11px] font-medium text-[#71717a]">
                 <Loader2 size={10} className="animate-spin" />Fetching styles…
               </span>
             )}
@@ -469,7 +469,7 @@ export default function FigmaComparePage() {
               </span>
             )}
             {runMsgs.length > 0 && (
-              <button onClick={() => setRunMsgs([])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-[#9a9aa5] hover:bg-[#f7f7f8] hover:text-[#17171c] transition-colors">
+              <button onClick={() => setRunMsgs([])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-[#71717a] hover:bg-[#f7f7f8] hover:text-[#17171c] transition-colors">
                 <Trash2 size={12} />Clear
               </button>
             )}
@@ -485,7 +485,7 @@ export default function FigmaComparePage() {
             </div>
             <div className="text-center">
               <p className="text-[15px] font-semibold text-[#17171c]">Figma vs Live</p>
-              <p className="mt-1 text-[12px] text-[#9a9aa5]">Configure below and run to find design discrepancies.</p>
+              <p className="mt-1 text-[12px] text-[#71717a]">Configure below and run to find design discrepancies.</p>
             </div>
             <div className="w-full max-w-md space-y-2">
               <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
@@ -550,24 +550,24 @@ export default function FigmaComparePage() {
             )}
             <div className="flex items-center gap-2">
               <button onClick={() => setConfigOpen(o => !o)}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}>
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#71717a] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}>
                 Configure
               </button>
               <div className="flex flex-wrap gap-1 mx-1">
                 {CHECK_OPTIONS.filter(c => checks.has(c.id)).map(c => (
-                  <span key={c.id} className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] text-[#5b5b66]">{c.label}</span>
+                  <span key={c.id} className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] text-[#3f3f46]">{c.label}</span>
                 ))}
               </div>
               <div className="ml-auto flex items-center gap-2">
                 {lastSnapshotId && (
                   <button onClick={publishComments} disabled={publishing || running}
-                    className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] text-[#5b5b66] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
+                    className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] text-[#3f3f46] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
                     {publishing ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
                     {publishing ? "Publishing…" : "Publish to Figma"}
                   </button>
                 )}
                 <button onClick={() => run(true)} disabled={!canRun}
-                  className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
+                  className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] text-[#71717a] hover:border-[#0f0f0f] hover:text-[#0f0f0f] disabled:opacity-40 transition-all">
                   <ArrowUp size={11} />Refresh Design
                 </button>
                 <button onClick={() => run(false)} disabled={!canRun}
@@ -601,7 +601,7 @@ function MdText({ text }: { text: string }) {
         const isList = isBullet || isNumbered;
         return (
           <div key={i} className={isList ? "flex gap-1.5" : ""}>
-            {isList && <span className="mt-0.5 shrink-0 text-[#9a9aa5]">{marker}</span>}
+            {isList && <span className="mt-0.5 shrink-0 text-[#71717a]">{marker}</span>}
             <span className={isList ? "flex-1" : ""}>{renderInline(content)}</span>
           </div>
         );
@@ -632,13 +632,13 @@ function renderInline(text: string): React.ReactNode {
 function ChecklistPanel({ checks, onToggle }: { checks: Set<string>; onToggle: (id: string) => void }) {
   return (
     <div>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#9a9aa5]">What to check</p>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What to check</p>
       <div className="flex flex-wrap gap-1.5">
         {CHECK_OPTIONS.map(opt => {
           const active = checks.has(opt.id);
           return (
             <button key={opt.id} onClick={() => onToggle(opt.id)}
-              className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all ${active ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#9a9aa5]"}`}>
+              className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all ${active ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#71717a] hover:border-[#71717a]"}`}>
               {active && <Check size={9} />}{opt.label}
             </button>
           );
@@ -654,15 +654,15 @@ function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, bad
 }) {
   return (
     <div className="flex items-start gap-3 rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
-      <Icon size={13} className="mt-0.5 shrink-0 text-[#9a9aa5]" />
+      <Icon size={13} className="mt-0.5 shrink-0 text-[#71717a]" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[10px] font-semibold text-[#9a9aa5] uppercase tracking-wide">{label}</span>
+          <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-wide">{label}</span>
           {badge && <span className="rounded-full bg-[#e8f6ee] px-2 py-0.5 text-[10px] font-medium text-[#1a9457]">{badge}</span>}
         </div>
         <input type={secret ? "password" : "text"} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          className="w-full bg-transparent text-[12px] text-[#17171c] placeholder:text-[#c8c8d0] outline-none" />
-        {hint && <p className="mt-0.5 text-[10px] text-[#c8c8d0]">{hint}</p>}
+          className="w-full bg-transparent text-[12px] text-[#17171c] placeholder:text-[#a1a1aa] outline-none" />
+        {hint && <p className="mt-0.5 text-[10px] text-[#a1a1aa]">{hint}</p>}
       </div>
     </div>
   );
@@ -682,7 +682,7 @@ function RunBubble({ msg }: { msg: RunMessage }) {
     </div>
   );
   if (msg.type === "figma-log") return (
-    <div className="flex items-center gap-2 text-[10px] font-mono text-[#c8c8d0] pl-4">
+    <div className="flex items-center gap-2 text-[10px] font-mono text-[#a1a1aa] pl-4">
       <span className="shrink-0">↳</span>{msg.text}
     </div>
   );
@@ -704,11 +704,11 @@ function RunBubble({ msg }: { msg: RunMessage }) {
 
     function IssueDiff({ issue }: { issue: string }) {
       const m = issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
-      if (!m) return <span className="text-[#5b5b66]">{issue}</span>;
+      if (!m) return <span className="text-[#3f3f46]">{issue}</span>;
       return (
         <span className="flex items-center gap-1.5 flex-wrap">
           <span className="rounded px-1.5 py-0.5 bg-[#f0f0f0] text-[#17171c] font-mono text-[10px]">{m[1]}</span>
-          <span className="text-[#c8c8d0] text-[10px]">→</span>
+          <span className="text-[#a1a1aa] text-[10px]">→</span>
           <span className="rounded px-1.5 py-0.5 bg-[#fff0f0] text-red-600 font-mono text-[10px]">{m[2]}</span>
         </span>
       );
@@ -740,10 +740,10 @@ function RunBubble({ msg }: { msg: RunMessage }) {
             <table className="w-full text-[12px]">
               <thead>
                 <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
-                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5] w-6">#</th>
-                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5]">Element</th>
-                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5]">Type</th>
-                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5]">Issue</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#71717a] w-6">#</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#71717a]">Element</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#71717a]">Type</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#71717a]">Issue</th>
                 </tr>
               </thead>
               <tbody>
@@ -752,7 +752,7 @@ function RunBubble({ msg }: { msg: RunMessage }) {
                   const isHigh = row.severity === "high" || row.category === "missing_elements";
                   return (
                     <tr key={i} style={isHigh ? { backgroundColor: "#fff8f8" } : {}} className="border-b border-[#f7f7f8] last:border-0 hover:bg-[#fafafa]">
-                      <td className="px-3 py-2.5 text-[#c8c8d0] text-[11px]">{i + 1}</td>
+                      <td className="px-3 py-2.5 text-[#a1a1aa] text-[11px]">{i + 1}</td>
                       <td className="px-3 py-2.5 font-semibold text-[#17171c]">{row.element}</td>
                       <td className="px-3 py-2.5">
                         <span style={{ backgroundColor: cat.bg, color: cat.text }} className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium">
@@ -780,7 +780,7 @@ function LogLine({ msg }: { msg: RunMessage }) {
     </div>
   );
   if (msg.type === "step") return (
-    <div className="flex items-start gap-2 text-[12px] text-[#9a9aa5] leading-relaxed">
+    <div className="flex items-start gap-2 text-[12px] text-[#71717a] leading-relaxed">
       <ChevronRight size={12} className="mt-0.5 shrink-0 text-[#d0d0d8]" />
       <span>{msg.text}</span>
     </div>

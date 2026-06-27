@@ -23,11 +23,11 @@ const categoryColors: Record<string, { bg: string; text: string; label: string }
 
 function IssueDiff({ issue }: { issue: string }) {
   const m = issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
-  if (!m) return <span className="text-[#5b5b66]">{issue}</span>;
+  if (!m) return <span className="text-[#3f3f46]">{issue}</span>;
   return (
     <span className="flex items-center gap-1.5 flex-wrap">
       <span className="rounded px-1.5 py-0.5 bg-[#f0f0f0] text-[#17171c] font-mono text-[10px]">{m[1]}</span>
-      <span className="text-[#c8c8d0] text-[10px]">→</span>
+      <span className="text-[#a1a1aa] text-[10px]">→</span>
       <span className="rounded px-1.5 py-0.5 bg-[#fff0f0] text-red-600 font-mono text-[10px]">{m[2]}</span>
     </span>
   );
@@ -57,12 +57,12 @@ export default function SharePage() {
         <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
         
         <span className="text-[#e0e0e6] text-[14px]">/</span>
-        <span className="text-[13px] text-[#9a9aa5]">Shared QA Report</span>
+        <span className="text-[13px] text-[#71717a]">Shared QA Report</span>
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-5">
         {!data && !error && (
-          <div className="text-center py-16 text-[13px] text-[#9a9aa5]">Loading report…</div>
+          <div className="text-center py-16 text-[13px] text-[#71717a]">Loading report…</div>
         )}
 
         {error && (
@@ -80,10 +80,10 @@ export default function SharePage() {
                 <div className="flex items-center gap-2 mb-1">
                   <a href={data.live_url} target="_blank" rel="noopener noreferrer"
                     className="text-[14px] font-semibold text-[#17171c] hover:underline flex items-center gap-1.5">
-                    {data.live_url}<ExternalLink size={12} className="text-[#9a9aa5]" />
+                    {data.live_url}<ExternalLink size={12} className="text-[#71717a]" />
                   </a>
                 </div>
-                <p className="text-[12px] text-[#9a9aa5]">Scanned {date} at {time}</p>
+                <p className="text-[12px] text-[#71717a]">Scanned {date} at {time}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {highCount > 0 && (
@@ -91,23 +91,23 @@ export default function SharePage() {
                     {highCount} high
                   </span>
                 )}
-                <span className="rounded-full bg-[#f0f0f0] px-2.5 py-1 text-[11px] font-medium text-[#5b5b66]">
+                <span className="rounded-full bg-[#f0f0f0] px-2.5 py-1 text-[11px] font-medium text-[#3f3f46]">
                   {data.issues.length} issues
                 </span>
               </div>
             </div>
 
             {data.issues.length === 0 ? (
-              <div className="text-center py-10 text-[13px] text-[#9a9aa5]">No issues found in this run.</div>
+              <div className="text-center py-10 text-[13px] text-[#71717a]">No issues found in this run.</div>
             ) : (
               <div className="rounded-2xl border border-[#f0f0f0] bg-white overflow-hidden">
                 <table className="w-full text-[12px]">
                   <thead>
                     <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
-                      <th className="px-4 py-3 text-left font-medium text-[#9a9aa5] w-8">#</th>
-                      <th className="px-4 py-3 text-left font-medium text-[#9a9aa5]">Element</th>
-                      <th className="px-4 py-3 text-left font-medium text-[#9a9aa5]">Type</th>
-                      <th className="px-4 py-3 text-left font-medium text-[#9a9aa5]">Issue</th>
+                      <th className="px-4 py-3 text-left font-medium text-[#71717a] w-8">#</th>
+                      <th className="px-4 py-3 text-left font-medium text-[#71717a]">Element</th>
+                      <th className="px-4 py-3 text-left font-medium text-[#71717a]">Type</th>
+                      <th className="px-4 py-3 text-left font-medium text-[#71717a]">Issue</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -116,7 +116,7 @@ export default function SharePage() {
                       const isHigh = issue.severity === "high" || issue.category === "missing_elements";
                       return (
                         <tr key={issue.id} style={isHigh ? { backgroundColor: "#fff8f8" } : {}} className="border-b border-[#f7f7f8] last:border-0">
-                          <td className="px-4 py-3 text-[#c8c8d0]">{i + 1}</td>
+                          <td className="px-4 py-3 text-[#a1a1aa]">{i + 1}</td>
                           <td className="px-4 py-3 font-semibold text-[#17171c]">{issue.element}</td>
                           <td className="px-4 py-3">
                             <span style={{ backgroundColor: cat.bg, color: cat.text }} className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium">

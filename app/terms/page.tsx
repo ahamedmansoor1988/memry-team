@@ -17,16 +17,16 @@ export default function TermsPage() {
             <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
-            <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
-            <Link href="/login" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
+            <Link href="/pricing" className="text-[13px] text-[#4b5563] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
+            <Link href="/login" className="text-[13px] text-[#4b5563] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
           </div>
         </nav>
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-16">
-        <p className="text-[12px] text-[#9a9aa5] mb-2">Effective {EFFECTIVE}</p>
+        <p className="text-[12px] text-[#71717a] mb-2">Effective {EFFECTIVE}</p>
         <h1 className="text-[40px] font-normal text-[#0f0f0f] mb-2 font-[family-name:var(--font-serif)]">Terms of Service</h1>
-        <p className="text-[14px] text-[#6b7280] mb-10">Please read these terms carefully before using Loupe.</p>
+        <p className="text-[14px] text-[#4b5563] mb-10">Please read these terms carefully before using Loupe.</p>
 
         <div className="prose prose-sm max-w-none space-y-8 text-[14px] text-[#374151] leading-relaxed">
 
@@ -49,7 +49,7 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">4. Acceptable use</h2>
             <p>You agree not to:</p>
-            <ul className="list-disc pl-5 space-y-1.5 text-[#5b5b66]">
+            <ul className="list-disc pl-5 space-y-1.5 text-[#3f3f46]">
               <li>Use the Service to scan websites you do not own or have explicit permission to scan</li>
               <li>Attempt to reverse-engineer, copy, or resell the Service</li>
               <li>Use the Service in a way that violates any applicable law or regulation</li>
@@ -107,8 +107,8 @@ export default function TermsPage() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-[#f5f5f7] flex gap-6">
-          <Link href="/privacy" className="text-[13px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Privacy Policy</Link>
-          <Link href="/" className="text-[13px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">← Back to home</Link>
+          <Link href="/privacy" className="text-[13px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">Privacy Policy</Link>
+          <Link href="/" className="text-[13px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">← Back to home</Link>
         </div>
       </main>
     </div>

@@ -16,16 +16,16 @@ export default function PrivacyPage() {
             <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
-            <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
-            <Link href="/login" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
+            <Link href="/pricing" className="text-[13px] text-[#4b5563] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
+            <Link href="/login" className="text-[13px] text-[#4b5563] hover:text-[#0f0f0f] transition-colors">Sign in</Link>
           </div>
         </nav>
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-16">
-        <p className="text-[12px] text-[#9a9aa5] mb-2">Effective {EFFECTIVE}</p>
+        <p className="text-[12px] text-[#71717a] mb-2">Effective {EFFECTIVE}</p>
         <h1 className="text-[40px] font-normal text-[#0f0f0f] mb-2 font-[family-name:var(--font-serif)]">Privacy Policy</h1>
-        <p className="text-[14px] text-[#6b7280] mb-10">We keep this simple and plain-English. We do not sell your data.</p>
+        <p className="text-[14px] text-[#4b5563] mb-10">We keep this simple and plain-English. We do not sell your data.</p>
 
         <div className="space-y-8 text-[14px] text-[#374151] leading-relaxed">
 
@@ -35,8 +35,8 @@ export default function PrivacyPage() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
-                    <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Data</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Why</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-[#71717a]">Data</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-[#71717a]">Why</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -50,18 +50,18 @@ export default function PrivacyPage() {
                   ].map(([data, why]) => (
                     <tr key={data} className="border-b border-[#f7f7f8] last:border-0">
                       <td className="px-4 py-2.5 font-medium text-[#17171c]">{data}</td>
-                      <td className="px-4 py-2.5 text-[#6b7280]">{why}</td>
+                      <td className="px-4 py-2.5 text-[#4b5563]">{why}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <p className="text-[#6b7280]">We do <strong className="text-[#0f0f0f]">not</strong> collect your Figma personal access token — it is stored only in your browser&apos;s localStorage and never sent to our servers.</p>
+            <p className="text-[#4b5563]">We do <strong className="text-[#0f0f0f]">not</strong> collect your Figma personal access token — it is stored only in your browser&apos;s localStorage and never sent to our servers.</p>
           </section>
 
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">2. How we use your data</h2>
-            <ul className="list-disc pl-5 space-y-1.5 text-[#5b5b66]">
+            <ul className="list-disc pl-5 space-y-1.5 text-[#3f3f46]">
               <li>To provide and improve the Service</li>
               <li>To display your run history and results</li>
               <li>To generate shareable public report links</li>
@@ -77,9 +77,9 @@ export default function PrivacyPage() {
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
-                    <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Service</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Purpose</th>
-                    <th className="px-4 py-2.5 text-left font-medium text-[#9a9aa5]">Data shared</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-[#71717a]">Service</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-[#71717a]">Purpose</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-[#71717a]">Data shared</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -91,8 +91,8 @@ export default function PrivacyPage() {
                   ].map(([svc, purpose, shared]) => (
                     <tr key={svc} className="border-b border-[#f7f7f8] last:border-0">
                       <td className="px-4 py-2.5 font-medium text-[#17171c]">{svc}</td>
-                      <td className="px-4 py-2.5 text-[#6b7280]">{purpose}</td>
-                      <td className="px-4 py-2.5 text-[#6b7280]">{shared}</td>
+                      <td className="px-4 py-2.5 text-[#4b5563]">{purpose}</td>
+                      <td className="px-4 py-2.5 text-[#4b5563]">{shared}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -113,7 +113,7 @@ export default function PrivacyPage() {
 
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">6. Data retention</h2>
-            <ul className="list-disc pl-5 space-y-1.5 text-[#5b5b66]">
+            <ul className="list-disc pl-5 space-y-1.5 text-[#3f3f46]">
               <li>Free accounts: run history kept for 7 days</li>
               <li>Pro / Team accounts: run history kept indefinitely while your account is active</li>
               <li>On account deletion: all data removed within 30 days</li>
@@ -123,7 +123,7 @@ export default function PrivacyPage() {
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">7. Your rights</h2>
             <p>You have the right to:</p>
-            <ul className="list-disc pl-5 space-y-1.5 text-[#5b5b66]">
+            <ul className="list-disc pl-5 space-y-1.5 text-[#3f3f46]">
               <li>Access the personal data we hold about you</li>
               <li>Request correction of inaccurate data</li>
               <li>Request deletion of your data</li>
@@ -155,8 +155,8 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-12 pt-8 border-t border-[#f5f5f7] flex gap-6">
-          <Link href="/terms" className="text-[13px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Terms of Service</Link>
-          <Link href="/" className="text-[13px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">← Back to home</Link>
+          <Link href="/terms" className="text-[13px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">Terms of Service</Link>
+          <Link href="/" className="text-[13px] text-[#71717a] hover:text-[#0f0f0f] transition-colors">← Back to home</Link>
         </div>
       </main>
     </div>
