@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { History, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
+import { History, ExternalLink, ChevronDown, ChevronRight, Link2, Check } from "lucide-react";
 
 interface Issue {
   id: string;
@@ -38,10 +38,17 @@ function IssueDiff({ issue }: { issue: string }) {
   );
 }
 
+function makeShareSlug(liveUrl: string, scannedAt: string) {
+  const minute = scannedAt.slice(0, 16); // "2025-06-27T12:34"
+  const raw    = `${liveUrl}||${minute}`;
+  return btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+}
+
 export default function HistoryPage() {
   const [runs, setRuns]       = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [copied, setCopied]     = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/history")
@@ -52,6 +59,15 @@ export default function HistoryPage() {
 
   function toggle(key: string) {
     setExpanded(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  }
+
+  function copyShareLink(run: Run, key: string) {
+    const slug = makeShareSlug(run.live_url, run.scanned_at);
+    const url  = `${window.location.origin}/share/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(key);
+      setTimeout(() => setCopied(null), 2000);
+    });
   }
 
   if (loading) return (
@@ -105,6 +121,13 @@ export default function HistoryPage() {
                   <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#5b5b66]">
                     {run.issues.length} issues
                   </span>
+                  <button
+                    onClick={e => { e.stopPropagation(); copyShareLink(run, key); }}
+                    className="text-[#9a9aa5] hover:text-[#5b5b66] transition-colors"
+                    title="Copy share link"
+                  >
+                    {copied === key ? <Check size={12} className="text-emerald-500" /> : <Link2 size={12} />}
+                  </button>
                   <a
                     href={run.live_url}
                     target="_blank"

@@ -477,37 +477,73 @@ export default function FigmaComparePage() {
 
 
         {/* Execution area */}
-        <div className="flex-1 overflow-y-auto">
-          {runMsgs.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-5 px-6 py-12">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f0f0f]">
-                <Sparkles size={18} className="text-white" />
+        {runMsgs.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-12">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f0f0f]">
+              <Sparkles size={18} className="text-white" />
+            </div>
+            <div className="text-center">
+              <p className="text-[15px] font-semibold text-[#17171c]">Figma vs Live</p>
+              <p className="mt-1 text-[12px] text-[#9a9aa5]">Configure below and run to find design discrepancies.</p>
+            </div>
+            <div className="w-full max-w-md space-y-2">
+              <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
+              <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
+              <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+              <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
+                <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
-              <div className="text-center">
-                <p className="text-[15px] font-semibold text-[#17171c]">Figma vs Live</p>
-                <p className="mt-1 text-[12px] text-[#9a9aa5]">Configure below and run to find design discrepancies.</p>
+              <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
+                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* ── Split screen: log left | results right ── */
+          <div className="flex flex-1 overflow-hidden min-h-0">
+            {/* Left: execution log */}
+            <div className="w-[38%] shrink-0 flex flex-col border-r border-[#1a1a1a] bg-[#111111] overflow-y-auto">
+              <div className="px-4 py-3 border-b border-[#1e1e1e]">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#444]">Execution log</p>
               </div>
-              <div className="w-full max-w-md space-y-2">
-                <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
-                <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
-                <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-                <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
-                  <ChecklistPanel checks={checks} onToggle={toggleCheck} />
-                </div>
-                <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
-                  {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
-                </button>
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 font-mono">
+                {runMsgs.filter(m => m.type !== "result").map(msg => (
+                  <LogLine key={msg.id} msg={msg} />
+                ))}
+                {running && (
+                  <div className="flex items-center gap-2 text-[11px] text-[#555]">
+                    <Loader2 size={10} className="animate-spin text-[#555]" />
+                    <span>analyzing…</span>
+                  </div>
+                )}
+                <div ref={runBottomRef} />
               </div>
             </div>
-          ) : (
-            <div className="mx-auto max-w-2xl px-5 py-5 space-y-3">
-              {runMsgs.map(msg => <RunBubble key={msg.id} msg={msg} />)}
-              {running && <div className="flex items-center gap-2 text-[12px] text-[#9a9aa5]"><Loader2 size={12} className="animate-spin" />Analyzing…</div>}
-              <div ref={runBottomRef} />
+
+            {/* Right: results */}
+            <div className="flex-1 overflow-y-auto">
+              {(() => {
+                const resultMsg = [...runMsgs].reverse().find(m => m.type === "result");
+                if (!resultMsg) {
+                  return (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="text-center space-y-2">
+                        <Loader2 size={20} className={`mx-auto text-[#d0d0d8] ${running ? "animate-spin" : ""}`} />
+                        <p className="text-[12px] text-[#9a9aa5]">{running ? "Running comparison…" : "Results will appear here"}</p>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="px-5 py-5">
+                    <RunBubble msg={resultMsg} />
+                  </div>
+                );
+              })()}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Bottom bar */}
         {runMsgs.length > 0 && (
@@ -741,5 +777,29 @@ function RunBubble({ msg }: { msg: RunMessage }) {
       </div>
     );
   }
+  return null;
+}
+
+function LogLine({ msg }: { msg: RunMessage }) {
+  if (msg.type === "user") return (
+    <div className="text-[11px] text-[#666] pt-2 pb-0.5 border-t border-[#1e1e1e] mt-1">
+      <span className="text-[#444]">▶</span> {msg.text}
+    </div>
+  );
+  if (msg.type === "step") return (
+    <div className="text-[11px] text-[#888] leading-relaxed">
+      <span className="text-[#3a3a3a] select-none">› </span>{msg.text}
+    </div>
+  );
+  if (msg.type === "figma-log") return (
+    <div className="text-[10px] text-[#555] pl-3 leading-relaxed">
+      ↳ {msg.text}
+    </div>
+  );
+  if (msg.type === "error") return (
+    <div className="text-[11px] text-[#e05555] leading-relaxed">
+      <span className="select-none">✗ </span>{msg.text}
+    </div>
+  );
   return null;
 }
