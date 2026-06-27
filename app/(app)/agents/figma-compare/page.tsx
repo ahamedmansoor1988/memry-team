@@ -503,17 +503,15 @@ export default function FigmaComparePage() {
           /* ── Split screen: log left | results right ── */
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left: execution log */}
-            <div className="w-[38%] shrink-0 flex flex-col border-r border-[#f0f0f0] bg-[#fafafa] overflow-y-auto">
-              <div className="px-4 py-3 border-b border-[#f0f0f0]">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#c0c0c8]">Execution log</p>
-              </div>
-              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 font-mono">
+            <div className="w-[40%] shrink-0 flex flex-col border-r border-[#f0f0f0] bg-[#fafafa] overflow-hidden">
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1.5 font-mono">
+                <p className="text-[9px] font-semibold uppercase tracking-widest text-[#d0d0d8] mb-3 select-none">Execution log</p>
                 {runMsgs.filter(m => m.type !== "result").map(msg => (
                   <LogLine key={msg.id} msg={msg} />
                 ))}
                 {running && (
-                  <div className="flex items-center gap-2 text-[11px] text-[#b0b0b8]">
-                    <Loader2 size={10} className="animate-spin text-[#b0b0b8]" />
+                  <div className="flex items-center gap-2 text-[11px] text-[#c0c0c8]">
+                    <Loader2 size={10} className="animate-spin" />
                     <span>analyzing…</span>
                   </div>
                 )}
@@ -522,21 +520,21 @@ export default function FigmaComparePage() {
             </div>
 
             {/* Right: results */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto bg-white">
               {(() => {
                 const resultMsg = [...runMsgs].reverse().find(m => m.type === "result");
                 if (!resultMsg) {
                   return (
                     <div className="flex h-full items-center justify-center">
                       <div className="text-center space-y-2">
-                        <Loader2 size={20} className={`mx-auto text-[#d0d0d8] ${running ? "animate-spin" : ""}`} />
-                        <p className="text-[12px] text-[#9a9aa5]">{running ? "Running comparison…" : "Results will appear here"}</p>
+                        <Loader2 size={18} className={`mx-auto text-[#e0e0e6] ${running ? "animate-spin" : ""}`} />
+                        <p className="text-[12px] text-[#b0b0b8]">{running ? "Running comparison…" : "Results will appear here"}</p>
                       </div>
                     </div>
                   );
                 }
                 return (
-                  <div className="px-5 py-5">
+                  <div className="px-6 py-5">
                     <RunBubble msg={resultMsg} />
                   </div>
                 );
