@@ -2,7 +2,6 @@ const LOUPE_API = "https://memry-team-opal.vercel.app/api/extension-styles";
 const LOUPE_APP = "https://memry-team-opal.vercel.app/agents/figma-compare";
 
 const figmaInput  = document.getElementById("figmaUrl");
-const assignInput = document.getElementById("assignTo");
 const btn         = document.getElementById("btn");
 const status      = document.getElementById("status");
 
@@ -16,9 +15,8 @@ const CHECK_MAP = {
 };
 
 // Load saved settings
-chrome.storage.local.get(["figmaUrl", "assignTo", "checks"], ({ figmaUrl, assignTo, checks }) => {
+chrome.storage.local.get(["figmaUrl", "checks"], ({ figmaUrl, checks }) => {
   if (figmaUrl) figmaInput.value = figmaUrl;
-  if (assignTo) assignInput.value = assignTo;
   if (checks) {
     CHECK_IDS.forEach(id => {
       const el = document.getElementById(`chk-${id}`);
@@ -31,11 +29,10 @@ btn.addEventListener("click", async () => {
   const figmaUrl = figmaInput.value.trim();
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
 
-  const assignTo = assignInput.value.trim();
-  const checks   = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
+  const checks    = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
   const checkKeys = checks.map(id => CHECK_MAP[id]);
 
-  chrome.storage.local.set({ figmaUrl, assignTo, checks });
+  chrome.storage.local.set({ figmaUrl, checks });
   btn.disabled = true;
   setStatus("Extracting styles…");
 
@@ -73,7 +70,6 @@ btn.addEventListener("click", async () => {
     figmaUrl,
     autorun:  "1",
     checks:   checkKeys.join(","),
-    ...(assignTo ? { assignTo } : {}),
   });
   const loupeUrl = `${LOUPE_APP}?${params}`;
   const existing = await chrome.tabs.query({ url: `${LOUPE_APP}*` });
