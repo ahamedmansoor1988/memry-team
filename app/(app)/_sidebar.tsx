@@ -26,10 +26,8 @@ export function Sidebar({ userEmail }: Props) {
     <aside className="flex h-screen w-[220px] shrink-0 flex-col bg-white border-r border-black/[0.06] text-[#0f0f0f]">
       {/* Logo */}
       <div className="flex h-[45px] items-center gap-2.5 px-4 border-b border-black/[0.06] shrink-0">
-        <div className="flex h-6 w-6 items-center justify-center rounded-md shrink-0" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
-          <span className="text-[11px] font-bold text-white">L</span>
-        </div>
-        <span className="text-[14px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
+        <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
+        
       </div>
 
       {/* Nav */}

@@ -1,144 +1,128 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, CheckCircle2 } from "lucide-react";
-
-interface WorkspaceSettings {
-  id: string;
-  name: string;
-  slack_channel_id: string | null;
-  slack_team_name:  string | null;
-  slack_connected:  boolean;
-}
+import { Eye, EyeOff, Check, KeyRound, Chrome, ExternalLink, User } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
-  const [ws, setWs]           = useState<WorkspaceSettings | null>(null);
-  const [channelId, setChannel] = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const [error, setError]     = useState("");
+  const [pat, setPat] = useState("");
+  const [showPat, setShowPat] = useState(false);
+  const [patSaved, setPatSaved] = useState(false);
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
-    fetch("/api/integrations/settings")
-      .then(r => r.json())
-      .then((data: any) => {
-        setWs({
-          id:               data.workspace_id,
-          name:             data.workspace_name,
-          slack_channel_id: data.slack?.team_name ?? null,
-          slack_team_name:  data.slack?.team_name ?? null,
-          slack_connected:  data.slack?.connected ?? false,
-        });
-        setChannel(data.slack_channel_id ?? "");
-      });
+    // Load PAT from localStorage
+    const saved = localStorage.getItem("loupe_pat") ?? "";
+    setPat(saved);
+
+    // Load user email
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setEmail(data.user?.email ?? "");
+    });
   }, []);
 
-  async function save() {
-    setSaving(true);
-    setError("");
-    const res = await fetch("/api/integrations/settings", {
-      method:  "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ slack_channel_id: channelId.trim() || null }),
-    });
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
-    else        { setError("Failed to save — try again."); }
+  function savePat() {
+    localStorage.setItem("loupe_pat", pat.trim());
+    setPatSaved(true);
+    setTimeout(() => setPatSaved(false), 2000);
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-10">
+    <div className="max-w-2xl mx-auto px-6 py-10">
+      {/* Header */}
       <div className="mb-8">
-        <h1 className="text-xl font-semibold text-text mb-1">Settings</h1>
-        <p className="text-sm text-text-2">Workspace configuration and Slack channel defaults.</p>
+        <h1 className="text-[20px] font-semibold text-[#0f0f0f] mb-1">Settings</h1>
+        <p className="text-[13px] text-[#9a9aa5]">Manage your account and connected tools.</p>
       </div>
 
       <div className="space-y-4">
-        {/* Workspace info */}
-        <div className="bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-semibold text-text-3 uppercase tracking-wider mb-3">Workspace</p>
-          <div className="flex items-center justify-between">
+
+        {/* Account */}
+        <div className="rounded-2xl border border-[#f0f0f0] bg-white p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <User size={13} className="text-[#9a9aa5]" />
+            <p className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-widest">Account</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-[#f5f5f7] flex items-center justify-center shrink-0">
+              <span className="text-[12px] font-semibold text-[#5b5b66]">{email[0]?.toUpperCase()}</span>
+            </div>
             <div>
-              <p className="text-sm font-medium text-text">{ws?.name ?? "—"}</p>
-              {ws?.slack_team_name && (
-                <p className="text-xs text-text-3 mt-0.5">Slack: {ws.slack_team_name}</p>
-              )}
+              <p className="text-[13px] font-medium text-[#0f0f0f]">{email || "—"}</p>
+              <p className="text-[11px] text-[#9a9aa5]">Signed in with Google</p>
             </div>
           </div>
         </div>
 
-        {/* Default Slack channel */}
-        <div className="bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-semibold text-text-3 uppercase tracking-wider mb-1">Default Slack channel</p>
-          <p className="text-xs text-text-3 mb-4">
-            Blocker alerts, clarification requests, and summaries are posted here when no project channel is set.
-            Enter the channel ID (e.g. <code className="bg-border-2 px-1 rounded">C0123456789</code>) — found in Slack → right-click channel → View channel details → bottom of About tab.
+        {/* Figma PAT */}
+        <div className="rounded-2xl border border-[#f0f0f0] bg-white p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <KeyRound size={13} className="text-[#9a9aa5]" />
+            <p className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-widest">Figma Personal Access Token</p>
+          </div>
+          <p className="text-[12px] text-[#9a9aa5] mb-4 leading-relaxed">
+            Used to fetch your Figma designs. Stored only in your browser — never sent to our servers.{" "}
+            <a href="https://www.figma.com/settings" target="_blank" rel="noopener noreferrer"
+              className="text-[#0f0f0f] underline underline-offset-2 hover:opacity-70 inline-flex items-center gap-0.5">
+              Generate one in Figma Settings <ExternalLink size={10} />
+            </a>
           </p>
-          <div className="flex gap-2">
+          <div className="relative mb-3">
             <input
-              value={channelId}
-              onChange={e => setChannel(e.target.value)}
-              placeholder="C0123456789"
-              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-text placeholder:text-text-3 outline-none focus:border-accent-border transition-colors font-mono"
+              type={showPat ? "text" : "password"}
+              value={pat}
+              onChange={e => setPat(e.target.value)}
+              placeholder="figd_••••••••••••••••"
+              className="w-full border border-[#e8e8ec] rounded-xl px-4 py-2.5 pr-10 text-[13px] text-[#0f0f0f] placeholder:text-[#c8c8d0] focus:outline-none focus:border-[#0f0f0f] transition-colors font-mono"
             />
-            <button
-              onClick={save}
-              disabled={saving}
-              className="flex items-center gap-1.5 bg-accent text-accent-ink text-sm font-medium px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {saving ? <Loader2 size={13} className="animate-spin" /> : saved ? <CheckCircle2 size={13} /> : null}
-              {saving ? "Saving…" : saved ? "Saved" : "Save"}
+            <button type="button" onClick={() => setShowPat(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#c8c8d0] hover:text-[#5b5b66] transition-colors">
+              {showPat ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
-          {error && <p className="text-xs text-red mt-2">{error}</p>}
+          <button
+            onClick={savePat}
+            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
+              patSaved
+                ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                : "bg-[#0f0f0f] text-white hover:bg-[#1a1a1a]"
+            }`}
+          >
+            {patSaved ? <><Check size={13} /> Saved</> : "Save token"}
+          </button>
         </div>
 
-        {/* Events API — critical for real-time Slack capture */}
-        <div className="bg-surface border border-border rounded-xl p-5 border-amber/40">
+        {/* Chrome Extension */}
+        <div className="rounded-2xl border border-[#f0f0f0] bg-white p-5">
           <div className="flex items-center gap-2 mb-1">
-            <p className="text-xs font-semibold text-text-3 uppercase tracking-wider">Slack Events API</p>
-            <span className="text-2xs bg-amber-soft text-amber px-1.5 py-0.5 rounded-full font-medium">Required for real-time</span>
+            <Chrome size={13} className="text-[#9a9aa5]" />
+            <p className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-widest">Chrome Extension</p>
           </div>
-          <p className="text-xs text-text-2 mb-3">
-            Without this, new Slack messages are <strong>not captured in real time</strong>. Set it up in your Slack app dashboard:
+          <p className="text-[12px] text-[#9a9aa5] mb-4 leading-relaxed">
+            Captures real computed styles from live pages for accurate comparison. Load it manually in Chrome.
           </p>
-          <ol className="text-xs text-text-3 space-y-1 mb-3 list-decimal list-inside">
-            <li>Go to <strong>api.slack.com/apps</strong> → your Memry app</li>
-            <li>Click <strong>Event Subscriptions</strong> → toggle <strong>Enable Events</strong> ON</li>
-            <li>Paste this URL in the <strong>Request URL</strong> field:</li>
-          </ol>
-          <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2 mb-3">
-            https://getloupe.vercel.app/api/slack/events
-          </code>
-          <p className="text-xs text-text-3">
-            4. Under <strong>Subscribe to bot events</strong> → add <code className="bg-border-2 px-1 rounded">message.channels</code> → Save Changes.
-          </p>
+          <div className="rounded-xl bg-[#fffbeb] border border-[#fde68a] px-4 py-3 mb-4">
+            <p className="text-[12px] text-[#92400e] leading-relaxed">
+              Not yet reviewed on the Chrome Web Store. Install manually — the extension only activates when you run a Loupe comparison.
+            </p>
+          </div>
+          <div className="text-[12px] text-[#5b5b66] space-y-1.5 mb-4">
+            <p>1. Download the extension source from GitHub</p>
+            <p>2. Go to <span className="font-mono bg-[#f5f5f7] px-1.5 py-0.5 rounded text-[11px]">chrome://extensions</span></p>
+            <p>3. Enable <strong>Developer mode</strong> (top right)</p>
+            <p>4. Click <strong>Load unpacked</strong> → select the <span className="font-mono bg-[#f5f5f7] px-1.5 py-0.5 rounded text-[11px]">loupe-extension</span> folder</p>
+          </div>
+          <a
+            href="https://github.com/ahamedmansoor1988/memry-team/tree/main/loupe-extension"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-4 py-2 text-[13px] font-medium text-[#0f0f0f] hover:border-[#0f0f0f] transition-colors"
+          >
+            <ExternalLink size={12} /> View on GitHub
+          </a>
         </div>
 
-        {/* Slack commands */}
-        <div className="bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-semibold text-text-3 uppercase tracking-wider mb-3">Slack slash command</p>
-          <p className="text-xs text-text-2 mb-2">
-            Use <code className="bg-border-2 px-1 rounded">/memry ask &lt;question&gt;</code> in any Slack channel to search captured decisions.
-          </p>
-          <p className="text-xs text-text-3 mb-2">
-            In your Slack app: <strong>Slash Commands</strong> → create command <code className="bg-border-2 px-1 rounded">/memry</code> → request URL:
-          </p>
-          <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
-            https://getloupe.vercel.app/api/slack/commands
-          </code>
-        </div>
-
-        {/* Interactions URL */}
-        <div className="bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-semibold text-text-3 uppercase tracking-wider mb-3">Slack interactivity</p>
-          <p className="text-xs text-text-3 mb-2">
-            In your Slack app: <strong>Interactivity & Shortcuts</strong> → toggle ON → request URL:
-          </p>
-          <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
-            https://getloupe.vercel.app/api/slack/interactions
-          </code>
-        </div>
       </div>
     </div>
   );

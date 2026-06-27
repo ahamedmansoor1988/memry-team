@@ -41,10 +41,7 @@ export default function OnboardingPage() {
       <div className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-[#f0f0f0] px-8 py-10">
         {/* Logo */}
         <div className="flex items-center gap-2 mb-12">
-          <div className="flex h-6 w-6 items-center justify-center rounded-md shrink-0" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
-            <span className="text-[11px] font-bold text-white">L</span>
-          </div>
-          <span className="text-[14px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
+          <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
         </div>
 
         {/* Steps */}

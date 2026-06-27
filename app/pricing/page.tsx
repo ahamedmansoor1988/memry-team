@@ -106,10 +106,7 @@ export default function PricingPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
-              <span className="text-[11px] font-bold text-white">L</span>
-            </div>
-            <span className="text-[15px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
+            <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#0f0f0f] font-medium">Pricing</Link>
@@ -273,10 +270,7 @@ export default function PricingPage() {
       <footer className="border-t border-[#f5f5f7] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-5 w-5 items-center justify-center rounded" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
-              <span className="text-[10px] font-bold text-white">L</span>
-            </div>
-            <span className="text-[13px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
+            <img src="/loupe.svg" alt="Loupe" className="h-4 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[12px] text-[#9a9aa5] hover:text-[#0f0f0f] transition-colors">Pricing</Link>

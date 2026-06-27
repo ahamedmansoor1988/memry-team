@@ -14,10 +14,7 @@ export default function TermsPage() {
       <header className="border-b border-black/[0.06]">
         <nav className="max-w-6xl mx-auto px-6 h-[52px] flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, #a855f7, #ec4899, #f97316)" }}>
-              <span className="text-[11px] font-bold text-white">L</span>
-            </div>
-            <span className="text-[15px] font-semibold text-[#0f0f0f] font-[family-name:var(--font-serif)] italic">Loupe</span>
+            <img src="/loupe.svg" alt="Loupe" className="h-5 w-auto" />
           </Link>
           <div className="flex items-center gap-6">
             <Link href="/pricing" className="text-[13px] text-[#6b7280] hover:text-[#0f0f0f] transition-colors">Pricing</Link>
