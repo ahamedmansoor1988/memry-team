@@ -25,14 +25,15 @@ interface SnapshotMeta {
 }
 
 const CHECK_OPTIONS = [
-  { id: "font_family", label: "Font Family" },
-  { id: "font_size",   label: "Font Size"   },
-  { id: "font_weight", label: "Font Weight" },
-  { id: "color",       label: "Color"       },
-  { id: "spacing",     label: "Spacing"     },
-  { id: "menu",        label: "Menu / Nav"  },
-  { id: "footer",      label: "Footer"      },
-  { id: "buttons",     label: "Buttons"     },
+  { id: "missing_elements", label: "Missing Elements" },
+  { id: "font_family",      label: "Font Family"      },
+  { id: "font_size",        label: "Font Size"        },
+  { id: "font_weight",      label: "Font Weight"      },
+  { id: "color",            label: "Color"            },
+  { id: "spacing",          label: "Spacing"          },
+  { id: "menu",             label: "Menu / Nav"       },
+  { id: "footer",           label: "Footer"           },
+  { id: "buttons",          label: "Buttons"          },
 ];
 
 /* ── Page ────────────────────────────────────────────────────────── */
@@ -42,7 +43,7 @@ export default function FigmaComparePage() {
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
   const [checks, setChecks] = useState<Set<string>>(
-    new Set(["font_family", "font_size", "font_weight", "color"])
+    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"])
   );
   const [configOpen, setConfigOpen] = useState(false);
 

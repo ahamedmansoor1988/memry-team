@@ -494,9 +494,9 @@ export async function POST(req: NextRequest) {
           ? liveStyles
           : (liveData?.styles ?? []);
 
+        const unmatchedFigma: string[] = [];
         if (rawStyles.length > 0) {
           const matchedLines: string[] = [];
-          const unmatchedFigma: string[] = [];
 
           for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize).slice(0, 30)) {
             const figmaText = n.characters.trim().toLowerCase();
@@ -680,6 +680,17 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
         });
 
         send("step", { text: `AI identified ${discrepancies.length} discrepancies.` });
+
+        // Prepend missing elements (no AI needed — direct from unmatched nodes)
+        if (activeChecks.includes("missing_elements") && unmatchedFigma.length > 0) {
+          const missingItems = unmatchedFigma.map(label => ({
+            element: label.replace(/" \(no live match.*$/, "").replace(/^"/, ""),
+            category: "missing_elements",
+            issue: "Missing on live page",
+            severity: "high",
+          }));
+          discrepancies = [...missingItems, ...discrepancies];
+        }
 
         // ── Step 6: Save issues to internal database (zero Figma API calls) ────
         const table: Array<{ element: string; issue: string; commentId?: string }> = [];
