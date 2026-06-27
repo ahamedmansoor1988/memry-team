@@ -112,7 +112,7 @@ function extractStyles() {
     const rect  = el.getBoundingClientRect();
     const inTopZone = rect.top < window.innerHeight * 0.2;
 
-    const entry = { text: text.slice(0, 60), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color), inNav: inNav || inTopZone };
+    const entry = { text: text.slice(0, 200), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color), inNav: inNav || inTopZone };
     if (!textMap.has(text) || isSystem(textMap.get(text).fontFamily)) textMap.set(text, entry);
   }
   return [...textMap.values()];

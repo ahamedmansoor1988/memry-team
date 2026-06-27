@@ -515,7 +515,7 @@ export async function POST(req: NextRequest) {
         if (rawStyles.length > 0) {
           const matchedLines: string[] = [];
 
-          for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize).slice(0, 30)) {
+          for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize).slice(0, 80)) {
             const figmaText = n.characters.trim().toLowerCase();
 
             const isShortNavText = figmaText.length <= 20;
@@ -566,7 +566,7 @@ export async function POST(req: NextRequest) {
         let contentPairs = "";
         if (inclContent && rawStyles.length > 0) {
           const contentLines: string[] = [];
-          for (const n of textNodes.slice(0, 40)) {
+          for (const n of textNodes) {
             const figmaText = n.characters.trim();
             if (figmaText.length < 3) continue;
             const figmaWords = figmaText.toLowerCase().split(/\s+/);
