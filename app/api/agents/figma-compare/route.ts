@@ -592,21 +592,14 @@ export async function POST(req: NextRequest) {
 
         send("step", { text: `Sending to Groq AI — checking: ${activeChecks.map(c => c.replace("_", " ")).join(", ")}…` });
 
-        const aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method:  "POST",
-          signal:  AbortSignal.timeout(55_000),
-          headers: {
-            Authorization:  `Bearer ${process.env.GROQ_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            temperature: 0,
-            max_tokens: 3000,
-            messages: [
-              {
-                role: "system",
-                content: `You are a design QA engineer. You are given pre-matched Figma vs live pairs — each line shows "text" | figma value → live value for each property.
+        const groqBody = JSON.stringify({
+          model: "gemma2-9b-it",
+          temperature: 0,
+          max_tokens: 3000,
+          messages: [
+            {
+              role: "system",
+              content: `You are a design QA engineer. You are given pre-matched Figma vs live pairs — each line shows "text" | figma value → live value for each property.
 
 Rules:
 - ONLY check these properties: ${checkListStr}
@@ -624,18 +617,36 @@ For each discrepancy return JSON:
 - "severity": high | medium | low
 
 Return ONLY a valid JSON array. No explanation outside the array.`,
-              },
-              {
-                role: "user",
-                content: `MATCHED FIGMA → LIVE PAIRS (${liveUrl}):\n${liveContext}\n\nFind discrepancies for: ${checkListStr}.`,
-              },
-            ],
-          }),
+            },
+            {
+              role: "user",
+              content: `MATCHED FIGMA → LIVE PAIRS (${liveUrl}):\n${liveContext}\n\nFind discrepancies for: ${checkListStr}.`,
+            },
+          ],
         });
 
-        if (!aiRes.ok) {
-          const errTxt = await aiRes.text().catch(() => "");
-          send("error", { text: `AI comparison failed: ${aiRes.status} — ${errTxt.slice(0, 200)}` });
+        // Retry up to 3 times on 429 rate limit
+        let aiRes: Response | null = null;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          if (attempt > 0) {
+            send("step", { text: `AI rate limited — retrying in ${attempt * 3}s…` });
+            await new Promise(r => setTimeout(r, attempt * 3000));
+          }
+          aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            signal: AbortSignal.timeout(55_000),
+            headers: {
+              Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: groqBody,
+          });
+          if (aiRes.status !== 429) break;
+        }
+
+        if (!aiRes || !aiRes.ok) {
+          const errTxt = await aiRes?.text().catch(() => "") ?? "";
+          send("error", { text: `AI comparison failed: ${aiRes?.status} — ${errTxt.slice(0, 200)}` });
           controller.close();
           return;
         }
