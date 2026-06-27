@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Eye, EyeOff, ArrowRight, Check } from "lucide-react";
+import { completeOnboarding } from "./actions";
 
 type Step = "info" | "figma";
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const [step, setStep] = useState<Step>("info");
 
   // Step 1
@@ -34,37 +32,7 @@ export default function OnboardingPage() {
     setError("");
 
     try {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      // Update user display name
-      await supabase.auth.updateUser({ data: { full_name: name.trim() } });
-
-      // Create workspace
-      const { data: workspace, error: wsErr } = await supabase
-        .from("workspaces")
-        .insert({ name: workspaceName.trim() })
-        .select("id")
-        .single();
-      if (wsErr) throw wsErr;
-
-      // Add user as workspace member
-      const { error: memberErr } = await supabase
-        .from("workspace_members")
-        .insert({ workspace_id: workspace.id, user_id: user.id, role: "owner" });
-      if (memberErr) throw memberErr;
-
-      // Save Figma PAT if provided
-      if (pat.trim()) {
-        const { error: patErr } = await supabase
-          .from("workspaces")
-          .update({ figma_access_token: pat.trim(), figma_connected_at: new Date().toISOString() })
-          .eq("id", workspace.id);
-        if (patErr) throw patErr;
-      }
-
-      router.push("/");
+      await completeOnboarding({ name, workspaceName, figmaPat: pat });
     } catch (err: any) {
       setError(err.message ?? "Something went wrong");
       setLoading(false);
