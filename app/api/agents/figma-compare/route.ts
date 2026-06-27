@@ -502,12 +502,21 @@ export async function POST(req: NextRequest) {
           for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize).slice(0, 30)) {
             const figmaText = n.characters.trim().toLowerCase();
 
-            // 1. Exact match
-            let live = rawStyles.find(s => s.text?.trim().toLowerCase() === figmaText);
-            // 2. Substring match — live text must contain figma text (not reverse, avoids false matches)
+            const isShortNavText = figmaText.length <= 20;
+
+            // 1. Exact match — for short nav-like text, require live text is also short (not body text)
+            let live = rawStyles.find(s => {
+              const lt = s.text?.trim().toLowerCase() ?? "";
+              if (lt !== figmaText) return false;
+              if (isShortNavText && (s.text?.trim().length ?? 0) > 30) return false;
+              return true;
+            });
+            // 2. Substring match — live text must contain figma text and be similarly short
             if (!live) live = rawStyles.find(s => {
               const lt = s.text?.trim().toLowerCase() ?? "";
-              return lt.includes(figmaText) && figmaText.length >= 4;
+              if (!lt.includes(figmaText) || figmaText.length < 4) return false;
+              if (isShortNavText && (s.text?.trim().length ?? 0) > figmaText.length + 5) return false;
+              return true;
             });
 
             if (live) {
