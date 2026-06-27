@@ -58,8 +58,6 @@ export default function FigmaComparePage() {
   liveStylesRef.current = liveStyles;
   liveDataRef.current   = liveData;
 
-  const assignTo = "";
-
   // Snapshot
   const [snapshot,   setSnapshot]   = useState<SnapshotMeta | null>(null);
   const [syncing,    setSyncing]    = useState(false);
@@ -81,7 +79,7 @@ export default function FigmaComparePage() {
     const fileKeyMatch = url.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
     const nodeIdMatch  = url.match(/node-id=([^&]+)/);
     if (!fileKeyMatch || !nodeIdMatch) return null;
-    return { fileKey: fileKeyMatch[1], nodeId: decodeURIComponent(nodeIdMatch[1]).replace("-", ":") };
+    return { fileKey: fileKeyMatch[1], nodeId: decodeURIComponent(nodeIdMatch[1]).replace(/-/g, ":") };
   }
 
   // Check Supabase for an existing snapshot on mount / URL change
@@ -123,7 +121,6 @@ export default function FigmaComparePage() {
     const urlFigma   = params.get("figmaUrl");
     const urlLive    = params.get("liveUrl");
     const urlChecks  = params.get("checks");
-    const urlAssign  = params.get("assignTo");
     const autorun    = params.get("autorun") === "1";
 
     const savedFigma = urlFigma ?? localStorage.getItem("loupe_figma_url") ?? "";
@@ -255,7 +252,6 @@ export default function FigmaComparePage() {
           fileKey:    parsed.fileKey,
           nodeId:     parsed.nodeId,
           pat:        pat.trim(),
-          assignTo:   assignTo || undefined,
         }),
       });
       const d = await r.json();
@@ -392,7 +388,6 @@ export default function FigmaComparePage() {
           liveStyles: effectiveLiveStyles,
           pat: pat.trim(),
           checks: Array.from(checks),
-          assignTo: assignTo || null,
           forceRefresh,
         }),
       });

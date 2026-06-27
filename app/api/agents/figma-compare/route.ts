@@ -88,7 +88,7 @@ function extractStyleIdsFromNode(node: any, ids: Set<string> = new Set()): strin
 function parseNodeId(url: string): string | null {
   const m = url.match(/node-id=([^&]+)/);
   if (!m) return null;
-  return decodeURIComponent(m[1]).replace("-", ":");
+  return decodeURIComponent(m[1]).replace(/-/g, ":");
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
@@ -548,10 +548,8 @@ export async function POST(req: NextRequest) {
               if (inclWeight) parts.push(`weight: ${n.fontWeight} → ${live.fontWeight}`);
               if (inclColor)  parts.push(`color: ${n.color} → ${live.color}`);
               matchedLines.push(parts.join(" | "));
-              send("step", { text: `[MATCH] figma="${n.characters.slice(0, 40)}" (${n.fontFamily}) → live="${live.text?.slice(0, 40)}" (${live.fontFamily})` });
             } else {
               unmatchedFigma.push(`"${n.characters.slice(0, 40)}" (no live match — skipped)`);
-              send("step", { text: `[NO MATCH] figma="${n.characters.slice(0, 40)}"` });
             }
           }
 
