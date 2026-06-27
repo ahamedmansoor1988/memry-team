@@ -417,7 +417,22 @@ export async function POST(req: NextRequest) {
               }
             } else if (figmaRes && !figmaRes.ok) {
               const txt = await figmaRes.text().catch(() => "");
-              send("error", { text: `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}` });
+              let errMsg = `Figma API error ${figmaRes.status}: ${txt.slice(0, 200)}`;
+              if (figmaRes.status === 403) {
+                try {
+                  const parsed = JSON.parse(txt);
+                  if (parsed?.err?.toLowerCase().includes("token expired") || parsed?.err?.toLowerCase().includes("expired")) {
+                    errMsg = "Figma token expired. Go to Settings → update your Personal Access Token.";
+                  } else if (parsed?.err?.toLowerCase().includes("quota") || parsed?.message?.toLowerCase().includes("quota")) {
+                    errMsg = "Monthly Figma API quota exhausted. Resets in ~3 days. Upgrade to Figma Professional to remove the cap, or wait for the reset.";
+                  } else {
+                    errMsg = `Figma access denied (403): ${parsed?.err ?? txt.slice(0, 100)}`;
+                  }
+                } catch { /* use default */ }
+              } else if (figmaRes.status === 429) {
+                errMsg = "Figma API quota exhausted. Resets in ~3 days. Upgrade to Figma Professional to remove the monthly cap, or wait for the reset.";
+              }
+              send("error", { text: errMsg });
               controller.close();
               return;
             } else if (figmaRes) {
