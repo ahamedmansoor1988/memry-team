@@ -11,12 +11,15 @@ function getAdminClient() {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Verify JWT
+    // 1. Verify JWT using anon key (confirmed correct)
     const token = req.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) return NextResponse.json({ error: "No token" }, { status: 401 });
 
-    const admin = getAdminClient();
-    const { data: { user }, error: authErr } = await admin.auth.getUser(token);
+    const anonClient = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    const { data: { user }, error: authErr } = await anonClient.auth.getUser(token);
     if (authErr || !user) {
       return NextResponse.json({ error: "Auth: " + (authErr?.message ?? "no user") }, { status: 401 });
     }
