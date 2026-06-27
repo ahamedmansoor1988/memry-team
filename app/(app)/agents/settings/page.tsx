@@ -61,8 +61,11 @@ export default function SettingsPage() {
             <KeyRound size={13} className="text-[#9a9aa5]" />
             <p className="text-[11px] font-semibold text-[#9a9aa5] uppercase tracking-widest">Figma Personal Access Token</p>
           </div>
+          <p className="text-[12px] text-[#9a9aa5] mb-2 leading-relaxed">
+            Loupe uses your Figma PAT to fetch design frames directly from the Figma API. Without it, comparisons can't run.
+          </p>
           <p className="text-[12px] text-[#9a9aa5] mb-4 leading-relaxed">
-            Used to fetch your Figma designs. Stored only in your browser — never sent to our servers.{" "}
+            The first run fetches and caches your design — subsequent runs are instant with zero Figma API calls. Stored only in your browser, never on our servers.{" "}
             <a href="https://www.figma.com/settings" target="_blank" rel="noopener noreferrer"
               className="text-[#0f0f0f] underline underline-offset-2 hover:opacity-70 inline-flex items-center gap-0.5">
               Generate one in Figma Settings <ExternalLink size={10} />
