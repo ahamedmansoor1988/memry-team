@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight, Check } from "lucide-react";
-import { completeOnboarding } from "./actions";
 
 type Step = "info" | "figma";
 
@@ -33,9 +32,14 @@ export default function OnboardingPage() {
     setLoading(true);
     setError("");
 
-    const result = await completeOnboarding({ name, workspaceName, figmaPat: pat });
-    if (result?.error) {
-      setError(result.error);
+    const res = await fetch("/api/onboarding", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, workspaceName, figmaPat: pat }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Something went wrong");
       setLoading(false);
     } else {
       router.push("/");
