@@ -187,7 +187,7 @@ export default function FigmaComparePage() {
 
   async function syncDesign(): Promise<SnapshotMeta | null> {
     const parsed = parseFigmaUrl(figmaUrl);
-    if (!parsed || !pat.trim()) { setConfigOpen(true); return null; }
+    if (!parsed) { setConfigOpen(true); return null; }
     setSyncing(true);
     const t0 = Date.now();
     addRun({ type: "step", text: "Syncing design from Figma — fetching nodes…" });
@@ -244,7 +244,7 @@ export default function FigmaComparePage() {
 
   async function publishComments() {
     const parsed = parseFigmaUrl(figmaUrl);
-    if (!parsed || !pat.trim() || !lastSnapshotId) return;
+    if (!parsed || !lastSnapshotId) return;
     setPublishing(true);
     try {
       const r = await fetch("/api/figma-publish", {
@@ -270,7 +270,7 @@ export default function FigmaComparePage() {
 
   async function run(forceRefresh = false) {
     if (scanGuardRef.current) return; // prevent concurrent scans
-    if (!figmaUrl.trim() || !liveUrl.trim() || !pat.trim()) { setConfigOpen(true); return; }
+    if (!figmaUrl.trim() || !liveUrl.trim()) { setConfigOpen(true); return; }
     if (checks.size === 0) { addRun({ type: "error", text: "Select at least one check." }); return; }
 
     scanGuardRef.current = true;
@@ -430,7 +430,7 @@ export default function FigmaComparePage() {
   }
 
 
-  const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && !!pat.trim() && checks.size > 0;
+  const canRun = !running && !!figmaUrl.trim() && !!liveUrl.trim() && checks.size > 0;
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -545,7 +545,6 @@ export default function FigmaComparePage() {
               <div className="mb-3 rounded-xl border border-[#f0f0f0] bg-[#fafafa] p-3 space-y-2">
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
-                <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
                 <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
             )}
