@@ -326,15 +326,20 @@ export default function FigmaComparePage() {
         try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes, styleNameMap })); } catch {}
       }
 
-      // Use extension styles if available, otherwise call the Render scraper
-      let effectiveLiveStyles: any[] | null = liveDataRef.current
-        ? null
-        : (liveStylesRef.current ?? []).map((s: any) => ({
-            text: s.text, fontFamily: s.fontFamily,
-            fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
-          }));
+      // 1. Try extension styles captured from real Chrome (most accurate)
+      let effectiveLiveStyles: any[] | null = null;
 
-      if (!liveDataRef.current && (!effectiveLiveStyles || effectiveLiveStyles.length === 0)) {
+      const extRes = await fetch(`/api/extension-styles?url=${encodeURIComponent(liveUrl.trim())}`).catch(() => null);
+      if (extRes?.ok) {
+        const extData = await extRes.json();
+        if (Array.isArray(extData.styles) && extData.styles.length > 0) {
+          effectiveLiveStyles = extData.styles;
+          addRun({ type: "step", text: `Extension captured ${effectiveLiveStyles.length} live styles from real Chrome.` });
+        }
+      }
+
+      // 2. Fall back to Render scraper if no extension styles
+      if (!effectiveLiveStyles || effectiveLiveStyles.length === 0) {
         addRun({ type: "step", text: "No extension styles — fetching from Render scraper…" });
         try {
           const scraperRes = await fetch("/api/scrape-styles", {
