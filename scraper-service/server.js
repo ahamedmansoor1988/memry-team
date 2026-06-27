@@ -94,6 +94,9 @@ async function extractStyles(page) {
       const el = node.parentElement;
       if (!el) continue;
       const cs              = window.getComputedStyle(el);
+      if (text.toLowerCase().includes("sign")) {
+        console.log("[raw-font]", text, "|", cs.fontFamily);
+      }
       const computedFont    = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
       // Prefer the first declared font (intended) over computed (rendered fallback)
       const declaredFont    = getDeclaredFont(el);
@@ -110,6 +113,13 @@ async function extractStyles(page) {
       // Keep web font over system font when same text appears multiple times
       if (!textMap.has(text) || isSystemFont(textMap.get(text).fontFamily)) {
         textMap.set(text, entry);
+      }
+    }
+
+    // Debug: log font info for sign-in elements
+    for (const [text, entry] of textMap) {
+      if (text.toLowerCase().includes("sign")) {
+        console.log("[font-debug]", JSON.stringify({ text, fontFamily: entry.fontFamily }));
       }
     }
 
