@@ -48,8 +48,9 @@ export default function FigmaComparePage() {
   const [configOpen, setConfigOpen] = useState(false);
 
   // Execution
-  const [running,   setRunning]   = useState(false);
-  const [runMsgs,   setRunMsgs]   = useState<RunMessage[]>([]);
+  const [running,          setRunning]          = useState(false);
+  const [runMsgs,          setRunMsgs]          = useState<RunMessage[]>([]);
+  const [currentResult,    setCurrentResult]    = useState<RunMessage | null>(null);
 
   // Extension bridge
   const [liveStyles,        setLiveStyles]        = useState<any[] | null>(null);
@@ -277,6 +278,7 @@ export default function FigmaComparePage() {
 
     scanGuardRef.current = true;
     setRunning(true);
+    setCurrentResult(null);
     setConfigOpen(false);
     const checkLabels = CHECK_OPTIONS.filter(c => checks.has(c.id)).map(c => c.label).join(", ");
     addRun({ type: "user", text: `Check ${checkLabels} — Figma vs ${liveUrl.trim()}` });
@@ -411,7 +413,9 @@ export default function FigmaComparePage() {
             if (data.type === "error")     addRun({ type: "error",     text: data.text });
             if (data.type === "figma-log") addRun({ type: "figma-log", text: `${data.method} ${data.path} → ${data.status} (${data.durationMs}ms${data.kb != null ? ` · ${data.kb}KB` : ""})${data.retried ? " [retried]" : ""}` });
             if (data.type === "result") {
-              addRun({ type: "result", text: data.text, table: data.table, figmaApiReport: data.figmaApiReport });
+              const msg: RunMessage = { id: crypto.randomUUID(), type: "result", text: data.text, table: data.table, figmaApiReport: data.figmaApiReport };
+              setRunMsgs(prev => [...prev, msg]);
+              setCurrentResult(msg);
               if (data.snapshotId) setLastSnapshotId(data.snapshotId);
             }
             if (data.type === "cache") {
@@ -521,24 +525,18 @@ export default function FigmaComparePage() {
 
             {/* Right: results */}
             <div className="flex-1 overflow-y-auto">
-              {(() => {
-                const resultMsg = [...runMsgs].reverse().find(m => m.type === "result");
-                if (!resultMsg) {
-                  return (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 px-8">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5f5f7] ${running ? "" : ""}`}>
-                        <Sparkles size={16} className="text-[#c0c0c8]" />
-                      </div>
-                      <p className="text-[13px] text-[#b0b0b8] text-center">{running ? "Running comparison…" : "Results will appear here"}</p>
-                    </div>
-                  );
-                }
-                return (
-                  <div className="px-6 py-5">
-                    <RunBubble msg={resultMsg} />
+              {!currentResult ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 px-8">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#f5f5f7]">
+                    <Sparkles size={16} className="text-[#c0c0c8]" />
                   </div>
-                );
-              })()}
+                  <p className="text-[13px] text-[#b0b0b8] text-center">{running ? "Running comparison…" : "Results will appear here"}</p>
+                </div>
+              ) : (
+                <div className="px-6 py-5">
+                  <RunBubble msg={currentResult} />
+                </div>
+              )}
             </div>
           </div>
         )}
