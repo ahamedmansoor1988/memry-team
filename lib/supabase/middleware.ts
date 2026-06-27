@@ -26,10 +26,14 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/auth");
   const isPublicPage =
+    pathname === "/" ||
     pathname.startsWith("/share") ||
     pathname.startsWith("/threads") ||
     pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/invite");
+    pathname.startsWith("/invite") ||
+    pathname.startsWith("/pricing") ||
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/privacy");
   const isApiRoute = pathname.startsWith("/api/");
 
   if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
