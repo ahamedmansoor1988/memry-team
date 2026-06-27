@@ -60,11 +60,7 @@ export default function FigmaComparePage() {
   liveStylesRef.current = liveStyles;
   liveDataRef.current   = liveData;
 
-  // Collaborators — lazy loaded, never automatic
-  const [collaborators,       setCollaborators]       = useState<Array<{ id: string; handle: string; img_url: string }>>([]);
-  const [collaboratorsLoading, setCollaboratorsLoading] = useState(false);
-  const [collaboratorsLoaded,  setCollaboratorsLoaded]  = useState(false);
-  const [assignTo,             setAssignTo]             = useState<string>("");
+  const assignTo = "";
 
   // Snapshot
   const [snapshot,   setSnapshot]   = useState<SnapshotMeta | null>(null);
@@ -72,18 +68,12 @@ export default function FigmaComparePage() {
   const [publishing, setPublishing] = useState(false);
   const [lastSnapshotId, setLastSnapshotId] = useState<string | null>(null);
 
-  // Claude session key — paste from Claude to load extracted live styles
-  const [sessionKey,        setSessionKey]        = useState("");
-  const [sessionKeyStatus,  setSessionKeyStatus]  = useState<"idle"|"loading"|"loaded"|"error">("idle");
 
   const runBottomRef = useRef<HTMLDivElement>(null);
   const scanGuardRef  = useRef(false);
   const setFigmaUrl = useCallback((v: string) => {
     setFigmaUrlRaw(v);
     localStorage.setItem("loupe_figma_url", v);
-    setCollaboratorsLoaded(false);
-    setCollaborators([]);
-    setAssignTo("");
     setSnapshot(null); // reset snapshot status when URL changes
   }, []);
   const setPat = useCallback((v: string) => { setPatRaw(v); localStorage.setItem("loupe_pat", v); }, []);
@@ -138,24 +128,6 @@ export default function FigmaComparePage() {
     if (savedUrl) checkSnapshot(savedUrl);
   }, [checkSnapshot]);
 
-  // Lazy collaborator load — only fires when user explicitly requests it
-  const loadCollaborators = useCallback(async () => {
-    if (collaboratorsLoading || collaboratorsLoaded) return;
-    const m = figmaUrl.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
-    if (!m || !pat.trim()) return;
-    setCollaboratorsLoading(true);
-    try {
-      const r = await fetch("/api/figma-collaborators", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey: m[1], pat: pat.trim() }),
-      });
-      const d = await r.json();
-      setCollaborators(d.users ?? []);
-      setCollaboratorsLoaded(true);
-    } catch {}
-    setCollaboratorsLoading(false);
-  }, [figmaUrl, pat, collaboratorsLoading, collaboratorsLoaded]);
 
   // When user sets a live URL, ask the extension to scrape it
   const setLiveUrl = useCallback((v: string) => {
@@ -370,43 +342,21 @@ export default function FigmaComparePage() {
         try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes, styleNameMap })); } catch {}
       }
 
-      // ── Load styles from Claude session key (if provided) ────────────────────
-      let sessionStyles: any[] | null = null;
-      if (sessionKey.trim()) {
-        addRun({ type: "step", text: "Loading live styles from Claude session…" });
-        try {
-          const sr = await fetch(`/api/extract-styles?sessionKey=${encodeURIComponent(sessionKey.trim())}`);
-          if (sr.ok) {
-            const sd = await sr.json();
-            sessionStyles = sd.styles ?? null;
-            if (sessionStyles?.length) {
-              addRun({ type: "step", text: `Loaded ${sessionStyles.length} styles from Claude session.` });
-            }
-          } else {
-            addRun({ type: "step", text: "Session key not found — using extension styles if available." });
-          }
-        } catch { addRun({ type: "step", text: "Could not load session styles — using extension fallback." }); }
-      }
-
-      // Priority: session key styles > extension styles > Playwright scraper
-      const effectiveLiveStyles = sessionStyles
-        ?? (liveDataRef.current ? null : (liveStylesRef.current ?? []).map((s: any) => ({
-          text: s.text, fontFamily: s.fontFamily,
-          fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
-        })));
+      const effectiveLiveStyles = liveDataRef.current ? null : (liveStylesRef.current ?? []).map((s: any) => ({
+        text: s.text, fontFamily: s.fontFamily,
+        fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
+      }));
 
       const res = await fetch("/api/agents/figma-compare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          // Pass snapshot ID if we have one — compare route reads from Supabase
           snapshotId:   hasSnapshot ? activeSnapshot!.id : null,
-          // Browser cache (fallback, only when no snapshot)
           figmaNodes:   hasSnapshot ? null : (forceRefresh ? null : figmaNodes),
           styleNameMap: hasSnapshot ? {} : (forceRefresh ? {} : styleNameMap),
           fileKey, nodeId,
           liveUrl:    liveUrl.trim(),
-          liveData:   sessionStyles ? null : (liveDataRef.current ?? null),
+          liveData:   liveDataRef.current ?? null,
           liveStyles: effectiveLiveStyles,
           pat: pat.trim(),
           checks: Array.from(checks),
@@ -526,23 +476,6 @@ export default function FigmaComparePage() {
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-                <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 flex items-center gap-3">
-                  <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
-                  {!collaboratorsLoaded ? (
-                    <button onClick={loadCollaborators} disabled={collaboratorsLoading || !figmaUrl.trim() || !pat.trim()}
-                      className="text-[11px] text-[#9a9aa5] hover:text-[#0f0f0f] disabled:opacity-40 transition-colors">
-                      {collaboratorsLoading ? "Loading…" : "Load collaborators"}
-                    </button>
-                  ) : (
-                    <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
-                      className="flex-1 rounded-lg border border-[#e8e8ec] bg-white px-2 py-1.5 text-[12px] text-[#17171c] focus:outline-none focus:border-[#0f0f0f]">
-                      <option value="">No assignment</option>
-                      {collaborators.map(u => (
-                        <option key={u.id} value={u.handle}>@{u.handle}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
                 <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
                   <ChecklistPanel checks={checks} onToggle={toggleCheck} />
                 </div>
@@ -569,36 +502,9 @@ export default function FigmaComparePage() {
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
                 <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-                <div className="flex items-center gap-3 px-1">
-                  <span className="text-[12px] font-medium text-[#5b5b66] shrink-0">Assign QA to</span>
-                  {!collaboratorsLoaded ? (
-                    <button onClick={loadCollaborators} disabled={collaboratorsLoading || !figmaUrl.trim() || !pat.trim()}
-                      className="text-[11px] text-[#9a9aa5] hover:text-[#0f0f0f] disabled:opacity-40 transition-colors">
-                      {collaboratorsLoading ? "Loading…" : "Load collaborators"}
-                    </button>
-                  ) : (
-                    <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
-                      className="flex-1 rounded-lg border border-[#e8e8ec] bg-white px-2 py-1.5 text-[12px] text-[#17171c] focus:outline-none focus:border-[#0f0f0f]">
-                      <option value="">No assignment</option>
-                      {collaborators.map(u => <option key={u.id} value={u.handle}>@{u.handle}</option>)}
-                    </select>
-                  )}
-                </div>
                 <ChecklistPanel checks={checks} onToggle={toggleCheck} />
               </div>
             )}
-            {/* Claude session key input */}
-            <div className="mb-2 flex items-center gap-2">
-              <span className="text-[11px] text-[#9a9aa5] shrink-0">Claude session key</span>
-              <input
-                value={sessionKey}
-                onChange={e => { setSessionKey(e.target.value); setSessionKeyStatus("idle"); }}
-                placeholder="Paste key from Claude…"
-                className="flex-1 rounded-lg border border-[#e8e8ec] px-2.5 py-1.5 text-[11px] text-[#17171c] placeholder:text-[#c0c0c8] focus:outline-none focus:border-[#0f0f0f]"
-              />
-              {sessionKeyStatus === "loaded" && <CheckCircle2 size={13} className="text-[#1a9457] shrink-0" />}
-              {sessionKeyStatus === "error"  && <AlertCircle  size={13} className="text-[#e53e3e] shrink-0" />}
-            </div>
             <div className="flex items-center gap-2">
               <button onClick={() => setConfigOpen(o => !o)}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition-colors ${configOpen ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#9a9aa5] hover:border-[#0f0f0f] hover:text-[#0f0f0f]"}`}>
