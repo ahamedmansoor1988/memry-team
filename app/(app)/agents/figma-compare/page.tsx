@@ -53,8 +53,7 @@ export default function FigmaComparePage() {
   // Extension bridge
   const [liveStyles,        setLiveStyles]        = useState<any[] | null>(null);
   const [liveData,          setLiveData]          = useState<any | null>(null);
-  const [scrapeStatus,      setScrapeStatus]      = useState<"idle"|"fetching"|"ready">("idle");
-  const [extensionDetected, setExtensionDetected] = useState<boolean | null>(null);
+  const [scrapeStatus, setScrapeStatus] = useState<"idle"|"fetching"|"ready">("idle");
   const liveStylesRef = useRef<any[] | null>(null);
   const liveDataRef   = useRef<any | null>(null);
   liveStylesRef.current = liveStyles;
@@ -141,31 +140,16 @@ export default function FigmaComparePage() {
     }
   }, []);
 
-  // Detect extension presence + poll for styles written back by the extension bridge
+  // Poll for styles written back by the extension bridge (if extension is installed)
   useEffect(() => {
-    // Check immediately
-    const checkExtension = () => {
-      const ts = localStorage.getItem("loupe_extension_present");
-      if (ts) setExtensionDetected(true);
-    };
-    checkExtension();
-    // After 3s with no signal, mark as not detected
-    const detectTimer = setTimeout(() => {
-      const ts = localStorage.getItem("loupe_extension_present");
-      setExtensionDetected(!!ts);
-    }, 3000);
-
     const id = setInterval(() => {
       try {
-        checkExtension();
-        // Sync styles
         const raw = localStorage.getItem("loupe_bridge_styles");
         if (raw) {
           const d = JSON.parse(raw);
           if (d?.data) { setLiveData(d.data); setLiveStyles(d.data.typography ?? []); }
           else if (d?.styles?.length) setLiveStyles(d.styles);
         }
-        // Sync status
         const statusRaw = localStorage.getItem("loupe_scrape_status");
         if (statusRaw) {
           const s = JSON.parse(statusRaw);
@@ -174,7 +158,7 @@ export default function FigmaComparePage() {
         }
       } catch {}
     }, 800);
-    return () => { clearInterval(id); clearTimeout(detectTimer); };
+    return () => clearInterval(id);
   }, []);
 
   useEffect(() => { runBottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [runMsgs]);
@@ -342,10 +326,34 @@ export default function FigmaComparePage() {
         try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes, styleNameMap })); } catch {}
       }
 
-      const effectiveLiveStyles = liveDataRef.current ? null : (liveStylesRef.current ?? []).map((s: any) => ({
-        text: s.text, fontFamily: s.fontFamily,
-        fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
-      }));
+      // Use extension styles if available, otherwise call the Render scraper
+      let effectiveLiveStyles: any[] | null = liveDataRef.current
+        ? null
+        : (liveStylesRef.current ?? []).map((s: any) => ({
+            text: s.text, fontFamily: s.fontFamily,
+            fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
+          }));
+
+      if (!liveDataRef.current && (!effectiveLiveStyles || effectiveLiveStyles.length === 0)) {
+        addRun({ type: "step", text: "No extension styles — fetching from Render scraper…" });
+        try {
+          const scraperRes = await fetch("/api/scrape-styles", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: liveUrl.trim() }),
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (scraperRes.ok) {
+            const scraperData = await scraperRes.json();
+            effectiveLiveStyles = scraperData.styles ?? [];
+            addRun({ type: "step", text: `Scraper returned ${effectiveLiveStyles.length} live styles.` });
+          } else {
+            addRun({ type: "step", text: "Scraper failed — AI will compare Figma only." });
+          }
+        } catch {
+          addRun({ type: "step", text: "Scraper timed out — AI will compare Figma only." });
+        }
+      }
 
       const res = await fetch("/api/agents/figma-compare", {
         method: "POST",
@@ -442,24 +450,6 @@ export default function FigmaComparePage() {
           </div>
         </div>
 
-        {/* Extension missing banner */}
-        {extensionDetected === false && (
-          <div className="flex items-start gap-3 border-b border-[#fde68a] bg-[#fffbeb] px-5 py-3">
-            <AlertCircle size={14} className="mt-0.5 shrink-0 text-[#b45309]" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[12px] font-medium text-[#92400e]">Loupe extension not detected</p>
-              <p className="mt-0.5 text-[11px] text-[#b45309]">
-                Install it to extract live fonts accurately.{" "}
-                <span className="font-medium">Chrome → Extensions → Load unpacked → select the </span>
-                <code className="rounded bg-[#fde68a] px-1 py-0.5 text-[10px]">loupe-extension</code>
-                <span className="font-medium"> folder from the repo.</span>
-              </p>
-            </div>
-            <button onClick={() => setExtensionDetected(null)} className="shrink-0 text-[#b45309] hover:text-[#92400e]">
-              ✕
-            </button>
-          </div>
-        )}
 
         {/* Execution area */}
         <div className="flex-1 overflow-y-auto">
