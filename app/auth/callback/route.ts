@@ -11,10 +11,8 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser();
-      // New user: created_at and last_sign_in_at are within 10 seconds of each other
-      const isNewUser = user && Math.abs(
-        new Date(user.created_at).getTime() - new Date(user.last_sign_in_at!).getTime()
-      ) < 10_000;
+      // New user: account created within the last 60 seconds
+      const isNewUser = user && (Date.now() - new Date(user.created_at).getTime()) < 60_000;
       const destination = isNewUser ? "/onboarding" : next;
       return NextResponse.redirect(`${origin}${destination}`);
     }
