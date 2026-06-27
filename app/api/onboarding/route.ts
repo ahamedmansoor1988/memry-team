@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Parse body
+    const admin = getAdminClient();
     const body = await req.json();
     const workspaceName: string = body.workspaceName?.trim() || "My Workspace";
     const figmaPat: string = body.figmaPat?.trim() || "";
