@@ -503,17 +503,17 @@ export default function FigmaComparePage() {
           /* ── Split screen: log left | results right ── */
           <div className="flex flex-1 overflow-hidden min-h-0">
             {/* Left: execution log */}
-            <div className="w-[38%] shrink-0 flex flex-col border-r border-[#1a1a1a] bg-[#111111] overflow-y-auto">
-              <div className="px-4 py-3 border-b border-[#1e1e1e]">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#444]">Execution log</p>
+            <div className="w-[38%] shrink-0 flex flex-col border-r border-[#f0f0f0] bg-[#fafafa] overflow-y-auto">
+              <div className="px-4 py-3 border-b border-[#f0f0f0]">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-[#c0c0c8]">Execution log</p>
               </div>
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1.5 font-mono">
                 {runMsgs.filter(m => m.type !== "result").map(msg => (
                   <LogLine key={msg.id} msg={msg} />
                 ))}
                 {running && (
-                  <div className="flex items-center gap-2 text-[11px] text-[#555]">
-                    <Loader2 size={10} className="animate-spin text-[#555]" />
+                  <div className="flex items-center gap-2 text-[11px] text-[#b0b0b8]">
+                    <Loader2 size={10} className="animate-spin text-[#b0b0b8]" />
                     <span>analyzing…</span>
                   </div>
                 )}
@@ -782,22 +782,22 @@ function RunBubble({ msg }: { msg: RunMessage }) {
 
 function LogLine({ msg }: { msg: RunMessage }) {
   if (msg.type === "user") return (
-    <div className="text-[11px] text-[#666] pt-2 pb-0.5 border-t border-[#1e1e1e] mt-1">
-      <span className="text-[#444]">▶</span> {msg.text}
+    <div className="text-[11px] text-[#5b5b66] pt-2 pb-0.5 border-t border-[#ebebef] mt-1">
+      <span className="text-[#9a9aa5]">▶</span> {msg.text}
     </div>
   );
   if (msg.type === "step") return (
-    <div className="text-[11px] text-[#888] leading-relaxed">
-      <span className="text-[#3a3a3a] select-none">› </span>{msg.text}
+    <div className="text-[11px] text-[#9a9aa5] leading-relaxed">
+      <span className="text-[#c8c8d0] select-none">› </span>{msg.text}
     </div>
   );
   if (msg.type === "figma-log") return (
-    <div className="text-[10px] text-[#555] pl-3 leading-relaxed">
+    <div className="text-[10px] text-[#b0b0b8] pl-3 leading-relaxed">
       ↳ {msg.text}
     </div>
   );
   if (msg.type === "error") return (
-    <div className="text-[11px] text-[#e05555] leading-relaxed">
+    <div className="text-[11px] text-red-500 leading-relaxed">
       <span className="select-none">✗ </span>{msg.text}
     </div>
   );
