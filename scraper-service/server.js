@@ -50,7 +50,37 @@ async function extractStyles(page) {
       return "#" + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, "0").toUpperCase()).join("");
     }
 
-    const SYSTEM_FONTS = ["-apple-system", "BlinkMacSystemFont", "system-ui", "Roboto", "Arial", "Helvetica"];
+    // Build a map of CSS selector → first declared font-family (before fallbacks)
+    // This gives us the *intended* font, not the fallback the headless browser rendered
+    const declaredFontMap = new Map();
+    try {
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = [...sheet.cssRules]; } catch { continue; }
+        for (const rule of rules) {
+          if (rule instanceof CSSStyleRule && rule.style.fontFamily) {
+            const firstFont = rule.style.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+            if (firstFont) declaredFontMap.set(rule.selectorText, firstFont);
+          }
+        }
+      }
+    } catch {}
+
+    function getDeclaredFont(el) {
+      // Walk up to find an element that matches a CSS rule with explicit font-family
+      let cur = el;
+      while (cur && cur !== document.body) {
+        for (const [sel, font] of declaredFontMap) {
+          try {
+            if (cur.matches(sel)) return font;
+          } catch {}
+        }
+        cur = cur.parentElement;
+      }
+      return null;
+    }
+
+    const SYSTEM_FONTS = ["-apple-system", "BlinkMacSystemFont", "system-ui", "Roboto", "Arial", "Helvetica", "Georgia", "Times"];
     function isSystemFont(f) { return SYSTEM_FONTS.some(s => f.startsWith(s)); }
 
     const walker  = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -63,8 +93,11 @@ async function extractStyles(page) {
 
       const el = node.parentElement;
       if (!el) continue;
-      const cs         = window.getComputedStyle(el);
-      const fontFamily = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+      const cs              = window.getComputedStyle(el);
+      const computedFont    = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
+      // Prefer the first declared font (intended) over computed (rendered fallback)
+      const declaredFont    = getDeclaredFont(el);
+      const fontFamily      = (declaredFont && !isSystemFont(declaredFont)) ? declaredFont : computedFont;
 
       const entry = {
         text:       text.slice(0, 60),
