@@ -10,7 +10,13 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      const { data: { user } } = await supabase.auth.getUser();
+      // New user: created_at and last_sign_in_at are within 10 seconds of each other
+      const isNewUser = user && Math.abs(
+        new Date(user.created_at).getTime() - new Date(user.last_sign_in_at!).getTime()
+      ) < 10_000;
+      const destination = isNewUser ? "/onboarding" : next;
+      return NextResponse.redirect(`${origin}${destination}`);
     }
   }
 
