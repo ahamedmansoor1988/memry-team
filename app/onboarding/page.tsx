@@ -56,7 +56,7 @@ export default function OnboardingPage() {
         setError(data.error ?? "Something went wrong");
         setLoading(false);
       } else {
-        router.push("/agents/figma-compare");
+        window.location.href = "/agents/figma-compare";
       }
     } catch (err) {
       setError("Unexpected error: " + String(err));
