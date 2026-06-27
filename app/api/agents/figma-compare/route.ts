@@ -503,18 +503,24 @@ export async function POST(req: NextRequest) {
             const figmaText = n.characters.trim().toLowerCase();
 
             const isShortNavText = figmaText.length <= 20;
+            // Check if this Figma node is in the header zone (top 15% of frame height)
+            const nodeY = (n.absoluteBoundingBox?.y ?? 0) - (frame.absoluteBoundingBox?.y ?? 0);
+            const frameH = frame.absoluteBoundingBox?.height ?? 1000;
+            const isFigmaNavNode = isShortNavText && (nodeY / frameH) < 0.15;
 
-            // 1. Exact match — for short nav-like text, require live text is also short (not body text)
+            // 1. Exact match
             let live = rawStyles.find(s => {
               const lt = s.text?.trim().toLowerCase() ?? "";
               if (lt !== figmaText) return false;
-              if (isShortNavText && (s.text?.trim().length ?? 0) > 30) return false;
+              // Nav Figma nodes must match nav live elements only
+              if (isFigmaNavNode && s.inNav === false) return false;
               return true;
             });
-            // 2. Substring match — live text must contain figma text and be similarly short
+            // 2. Substring match
             if (!live) live = rawStyles.find(s => {
               const lt = s.text?.trim().toLowerCase() ?? "";
               if (!lt.includes(figmaText) || figmaText.length < 4) return false;
+              if (isFigmaNavNode && s.inNav === false) return false;
               if (isShortNavText && (s.text?.trim().length ?? 0) > figmaText.length + 5) return false;
               return true;
             });

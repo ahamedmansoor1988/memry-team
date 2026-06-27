@@ -83,7 +83,12 @@ function extractStyles() {
     if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
     if (el.offsetParent === null && cs.position !== "fixed") continue;
     const fontFamily = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
-    const entry = { text: text.slice(0, 60), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color) };
+    // Capture DOM context — is this element inside a nav/header?
+    const inNav = !!(el.closest("header, nav, [role='navigation'], .site-header, .main-nav, .ekit-menu-nav-link, .ekit-nav-menu"));
+    const rect  = el.getBoundingClientRect();
+    const inTopZone = rect.top < window.innerHeight * 0.2;
+
+    const entry = { text: text.slice(0, 60), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color), inNav: inNav || inTopZone };
     if (!textMap.has(text) || isSystem(textMap.get(text).fontFamily)) textMap.set(text, entry);
   }
   return [...textMap.values()];
