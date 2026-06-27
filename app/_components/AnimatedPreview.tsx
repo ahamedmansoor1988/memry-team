@@ -125,13 +125,13 @@ export function AnimatedPreview() {
             transition: "opacity 0.45s ease, transform 0.45s ease",
           }}
         >
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 mb-4 flex items-center gap-3">
-            <div className="h-4 w-4 rounded-full border-2 border-emerald-500 flex items-center justify-center shrink-0">
-              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 mb-4 flex items-center gap-3">
+            <div className="h-4 w-4 rounded-full border-2 border-orange-400 flex items-center justify-center shrink-0">
+              <div className="h-1.5 w-1.5 rounded-full bg-orange-400" />
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-emerald-800">8 issues found</p>
-              <p className="text-[11px] text-emerald-600">6 missing, 2 color</p>
+              <p className="text-[13px] font-semibold text-orange-800">8 issues found</p>
+              <p className="text-[11px] text-orange-600">6 missing, 2 color</p>
             </div>
           </div>
 

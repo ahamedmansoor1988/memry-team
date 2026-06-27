@@ -719,15 +719,24 @@ function RunBubble({ msg }: { msg: RunMessage }) {
     return (
       <div className="space-y-3">
         {/* Summary banner */}
-        <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-          <div>
-            <p className="text-[13px] font-semibold text-emerald-800">
-              {(msg.table?.length ?? 0) > 0 ? `${msg.table!.length} issue${msg.table!.length !== 1 ? "s" : ""} found` : "No issues found"}
-            </p>
-            {catSummary && <p className="text-[11px] text-emerald-600 mt-0.5">{catSummary}</p>}
-          </div>
-        </div>
+        {(() => {
+          const hasIssues = (msg.table?.length ?? 0) > 0;
+          return (
+            <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${
+              hasIssues
+                ? "border-orange-100 bg-orange-50"
+                : "border-emerald-100 bg-emerald-50"
+            }`}>
+              <CheckCircle2 size={14} className={`shrink-0 ${hasIssues ? "text-orange-500" : "text-emerald-600"}`} />
+              <div>
+                <p className={`text-[13px] font-semibold ${hasIssues ? "text-orange-800" : "text-emerald-800"}`}>
+                  {hasIssues ? `${msg.table!.length} issue${msg.table!.length !== 1 ? "s" : ""} found` : "No issues found"}
+                </p>
+                {catSummary && <p className={`text-[11px] mt-0.5 ${hasIssues ? "text-orange-600" : "text-emerald-600"}`}>{catSummary}</p>}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Issues table */}
         {msg.table && msg.table.length > 0 && (
