@@ -17,7 +17,7 @@ interface RunMessage {
   table?: DiscrepancyRow[];
   figmaApiReport?: ApiReport;
 }
-interface DiscrepancyRow { element: string; issue: string; commentId?: string; }
+interface DiscrepancyRow { element: string; issue: string; category?: string; severity?: string; commentId?: string; }
 
 interface SnapshotMeta {
   id: string; frameName: string; textNodeCount: number;
@@ -664,69 +664,82 @@ function RunBubble({ msg }: { msg: RunMessage }) {
       <p className="text-[12px] text-red-600 leading-relaxed">{msg.text}</p>
     </div>
   );
-  if (msg.type === "result") return (
-    <div className="space-y-2">
-      <div className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-        <CheckCircle2 size={13} className="text-emerald-600 mt-0.5 shrink-0" />
-        <p className="text-[12px] text-emerald-700 leading-relaxed">{msg.text}</p>
-      </div>
-      {msg.table && msg.table.length > 0 && (
-        <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
-          <table className="w-full text-[11px]">
-            <thead>
-              <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5] w-5">#</th>
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">Element</th>
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">Issue</th>
-                <th className="px-3 py-2 text-left font-medium text-[#9a9aa5]">Comment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {msg.table.map((row, i) => (
-                <tr key={i} className="border-b border-[#f7f7f8] last:border-0 hover:bg-[#fafafa]">
-                  <td className="px-3 py-2 text-[#c8c8d0]">{i + 1}</td>
-                  <td className="px-3 py-2 font-medium text-[#17171c]">{row.element}</td>
-                  <td className="px-3 py-2 text-[#5b5b66]">{row.issue}</td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-[#9a9aa5]">{row.commentId ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      {msg.figmaApiReport && (
-        <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
-          <div className="bg-[#fafafa] px-3 py-2 border-b border-[#f0f0f0] flex items-center gap-2">
-            <span className="text-[10px] font-semibold text-[#9a9aa5] uppercase tracking-wide">Figma API calls</span>
-            <span className="rounded-full bg-[#e8e8ec] px-1.5 py-0.5 text-[10px] font-medium text-[#5b5b66]">{msg.figmaApiReport.totalCalls} total</span>
+  if (msg.type === "result") {
+    const categoryColors: Record<string, { bg: string; text: string; label: string }> = {
+      missing_elements: { bg: "bg-red-50",     text: "text-red-600",    label: "Missing"     },
+      font_family:      { bg: "bg-purple-50",  text: "text-purple-600", label: "Font Family" },
+      font_size:        { bg: "bg-blue-50",    text: "text-blue-600",   label: "Font Size"   },
+      font_weight:      { bg: "bg-amber-50",   text: "text-amber-600",  label: "Font Weight" },
+      color:            { bg: "bg-pink-50",    text: "text-pink-600",   label: "Color"       },
+    };
+
+    function IssueDiff({ issue }: { issue: string }) {
+      const m = issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
+      if (!m) return <span className="text-[#5b5b66]">{issue}</span>;
+      return (
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <span className="rounded px-1.5 py-0.5 bg-[#f0f0f0] text-[#17171c] font-mono text-[10px]">{m[1]}</span>
+          <span className="text-[#c8c8d0] text-[10px]">→</span>
+          <span className="rounded px-1.5 py-0.5 bg-[#fff0f0] text-red-600 font-mono text-[10px]">{m[2]}</span>
+        </span>
+      );
+    }
+
+    // Build category summary for banner
+    const catCounts: Record<string, number> = {};
+    (msg.table ?? []).forEach(r => { const c = r.category ?? "other"; catCounts[c] = (catCounts[c] ?? 0) + 1; });
+    const catSummary = Object.entries(catCounts)
+      .map(([c, n]) => `${n} ${(categoryColors[c]?.label ?? c).toLowerCase()}`)
+      .join(", ");
+
+    return (
+      <div className="space-y-3">
+        {/* Summary banner */}
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+          <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+          <div>
+            <p className="text-[13px] font-semibold text-emerald-800">
+              {(msg.table?.length ?? 0) > 0 ? `${msg.table!.length} issue${msg.table!.length !== 1 ? "s" : ""} found` : "No issues found"}
+            </p>
+            {catSummary && <p className="text-[11px] text-emerald-600 mt-0.5">{catSummary}</p>}
           </div>
-          <table className="w-full text-[10px] font-mono">
-            <thead>
-              <tr className="border-b border-[#f7f7f8] text-[#9a9aa5]">
-                <th className="px-3 py-1.5 text-left">#</th>
-                <th className="px-3 py-1.5 text-left">Method</th>
-                <th className="px-3 py-1.5 text-left">Path</th>
-                <th className="px-3 py-1.5 text-left">Status</th>
-                <th className="px-3 py-1.5 text-left">ms</th>
-                <th className="px-3 py-1.5 text-left">KB</th>
-              </tr>
-            </thead>
-            <tbody>
-              {msg.figmaApiReport.calls.map((c, i) => (
-                <tr key={i} className={`border-b border-[#f7f7f8] last:border-0 ${c.status === 429 ? "bg-red-50" : ""}`}>
-                  <td className="px-3 py-1 text-[#c8c8d0]">{i + 1}</td>
-                  <td className={`px-3 py-1 font-semibold ${c.method === "POST" ? "text-[#6366f1]" : "text-[#5b5b66]"}`}>{c.method}</td>
-                  <td className="px-3 py-1 text-[#5b5b66] max-w-[200px] truncate">{c.path}</td>
-                  <td className={`px-3 py-1 font-semibold ${c.status === 429 ? "text-red-500" : c.status < 300 ? "text-emerald-600" : "text-amber-600"}`}>{c.status}{c.retried ? " ↺" : ""}</td>
-                  <td className="px-3 py-1 text-[#9a9aa5]">{c.ms}</td>
-                  <td className="px-3 py-1 text-[#9a9aa5]">{c.kb ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
-      )}
-    </div>
-  );
+
+        {/* Issues table */}
+        {msg.table && msg.table.length > 0 && (
+          <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
+                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5] w-6">#</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5]">Element</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5]">Type</th>
+                  <th className="px-3 py-2.5 text-left font-medium text-[#9a9aa5]">Issue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {msg.table.map((row, i) => {
+                  const cat = categoryColors[row.category ?? ""] ?? { bg: "bg-gray-50", text: "text-gray-500", label: row.category ?? "" };
+                  const isHigh = row.severity === "high" || row.category === "missing_elements";
+                  return (
+                    <tr key={i} className={`border-b border-[#f7f7f8] last:border-0 hover:bg-[#fafafa] ${isHigh ? "bg-red-50/30" : ""}`}>
+                      <td className="px-3 py-2.5 text-[#c8c8d0] text-[11px]">{i + 1}</td>
+                      <td className="px-3 py-2.5 font-semibold text-[#17171c]">{row.element}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${cat.bg} ${cat.text}`}>
+                          {cat.label || (row.category ?? "").replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5"><IssueDiff issue={row.issue} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  }
   return null;
 }

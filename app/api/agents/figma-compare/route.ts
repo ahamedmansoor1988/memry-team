@@ -694,7 +694,7 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
         }
 
         // ── Step 6: Save issues to internal database (zero Figma API calls) ────
-        const table: Array<{ element: string; issue: string; commentId?: string }> = [];
+        const table: Array<{ element: string; issue: string; category?: string; severity?: string; commentId?: string }> = [];
 
         if (discrepancies.length === 0) {
           send("result", {
@@ -724,7 +724,7 @@ Return ONLY a valid JSON array. No explanation outside the array.`,
         }
 
         for (const d of discrepancies) {
-          table.push({ element: d.element, issue: `${(d.category ?? "").replace(/_/g, " ")}: ${d.issue}` });
+          table.push({ element: d.element, issue: d.issue, category: d.category, severity: d.severity });
         }
 
         const byCategory = discrepancies.reduce((acc, d) => {
