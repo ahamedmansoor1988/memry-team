@@ -108,7 +108,7 @@ export default function SettingsPage() {
             <li>Paste this URL in the <strong>Request URL</strong> field:</li>
           </ol>
           <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2 mb-3">
-            https://memry-team-opal.vercel.app/api/slack/events
+            https://getloupe.vercel.app/api/slack/events
           </code>
           <p className="text-xs text-text-3">
             4. Under <strong>Subscribe to bot events</strong> → add <code className="bg-border-2 px-1 rounded">message.channels</code> → Save Changes.
@@ -125,7 +125,7 @@ export default function SettingsPage() {
             In your Slack app: <strong>Slash Commands</strong> → create command <code className="bg-border-2 px-1 rounded">/memry</code> → request URL:
           </p>
           <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
-            https://memry-team-opal.vercel.app/api/slack/commands
+            https://getloupe.vercel.app/api/slack/commands
           </code>
         </div>
 
@@ -136,7 +136,7 @@ export default function SettingsPage() {
             In your Slack app: <strong>Interactivity & Shortcuts</strong> → toggle ON → request URL:
           </p>
           <code className="block text-xs bg-border-2 px-3 py-2 rounded-lg break-all text-text-2">
-            https://memry-team-opal.vercel.app/api/slack/interactions
+            https://getloupe.vercel.app/api/slack/interactions
           </code>
         </div>
       </div>

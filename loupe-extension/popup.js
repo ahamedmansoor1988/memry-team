@@ -1,5 +1,5 @@
-const LOUPE_API = "https://memry-team-opal.vercel.app/api/extension-styles";
-const LOUPE_APP = "https://memry-team-opal.vercel.app/agents/figma-compare";
+const LOUPE_API = "https://getloupe.vercel.app/api/extension-styles";
+const LOUPE_APP = "https://getloupe.vercel.app/agents/figma-compare";
 
 const figmaInput  = document.getElementById("figmaUrl");
 const btn         = document.getElementById("btn");

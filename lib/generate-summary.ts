@@ -139,7 +139,7 @@ Return ONLY valid JSON:
   // Build Block Kit message
   const emoji       = SOURCE_EMOJI[thread.source] ?? "📌";
   const sourceLabel = (thread.source as string).charAt(0).toUpperCase() + (thread.source as string).slice(1);
-  const threadUrl   = `${process.env.APP_URL ?? "https://memry-team-opal.vercel.app"}/threads/${threadId}`;
+  const threadUrl   = `${process.env.APP_URL ?? "https://getloupe.vercel.app"}/threads/${threadId}`;
   const sourceUrl   = thread.source_url ?? threadUrl;
 
   const blocks: any[] = [

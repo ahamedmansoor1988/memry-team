@@ -46,7 +46,7 @@ When the user asks to compare a Figma frame against a live site, or when Loupe s
 4. POST the styles to Loupe:
 
 ```
-POST https://memry-team-opal.vercel.app/api/extract-styles
+POST https://getloupe.vercel.app/api/extract-styles
 Content-Type: application/json
 
 {
@@ -66,4 +66,4 @@ Paste this into the "Claude session key" field in Loupe and click Run.
 ## Notes
 - The session key is valid until the next extraction overwrites it.
 - If the site uses Google Fonts or web fonts, run the extraction after the page has fully loaded (wait for fonts).
-- The Loupe endpoint is at `https://memry-team-opal.vercel.app/api/extract-styles`.
+- The Loupe endpoint is at `https://getloupe.vercel.app/api/extract-styles`.

@@ -253,7 +253,7 @@ async function notifyBlocker(
   await postSlack(
     creds.token,
     creds.channelId,
-    `⛔ *Blocker detected* — held by ${who}. <${process.env.APP_URL ?? "https://memry-team-opal.vercel.app"}/threads/${threadId}|View context →>`
+    `⛔ *Blocker detected* — held by ${who}. <${process.env.APP_URL ?? "https://getloupe.vercel.app"}/threads/${threadId}|View context →>`
   );
 }
 
@@ -267,7 +267,7 @@ async function requestClarification(
   const creds = await getSlackChannel(workspaceId, projectId);
   if (!creds) return;
 
-  const appUrl = process.env.APP_URL ?? "https://memry-team-opal.vercel.app";
+  const appUrl = process.env.APP_URL ?? "https://getloupe.vercel.app";
   const at     = authorName  ? `*${authorName}* — ` : "";
   const reason = vagueReason ? `\n_${vagueReason}_` : "";
 
