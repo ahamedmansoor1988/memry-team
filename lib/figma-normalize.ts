@@ -56,6 +56,8 @@ export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
 
   function walk(node: any): void {
     if (!node) return;
+    if (node.visible === false) return;
+    if ((node.opacity ?? 1) === 0) return;
     raw_node_count++;
 
     if (node.type === "FRAME" && !frame_bounds && node.absoluteBoundingBox) {
