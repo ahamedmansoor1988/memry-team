@@ -43,13 +43,19 @@ btn.addEventListener("click", async () => {
   try {
     const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractStyles });
     styles = results?.[0]?.result ?? [];
-  } catch {
-    setStatus("Could not extract styles.", "error");
+  } catch (err) {
+    const msg = err?.message ?? String(err);
+    if (msg.includes("Cannot access") || msg.includes("chrome://") || msg.includes("extension://")) {
+      setStatus("Can't run on this page. Navigate to the live site first.", "error");
+    } else {
+      setStatus("Reload the page and try again.", "error");
+    }
+    console.error("[Loupe] executeScript failed:", msg);
     btn.disabled = false;
     return;
   }
 
-  if (!styles.length) { setStatus("No styles found.", "error"); btn.disabled = false; return; }
+  if (!styles.length) { setStatus("No styles found — try reloading the page.", "error"); btn.disabled = false; return; }
 
   setStatus(`Sending ${styles.length} styles…`);
   try {
