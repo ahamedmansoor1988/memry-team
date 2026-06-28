@@ -175,6 +175,7 @@ function extractVisualNodes(rootNode: any, results: VisualNode[], frameBbox: { x
 
   function walk(node: any, depth: number) {
     if (depth > 10) return;
+    if (node.visible === false) return;
     const isFrame = ["FRAME", "COMPONENT", "INSTANCE", "RECTANGLE", "GROUP"].includes(node.type);
 
     if (isFrame) {
@@ -227,6 +228,8 @@ function extractVisualNodes(rootNode: any, results: VisualNode[], frameBbox: { x
 }
 
 function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[], frameRef: { frame: FrameInfo | null }) {
+  if (node.visible === false) return;
+
   if (node.type === "FRAME" && !frameRef.frame) {
     frameRef.frame = { id: node.id, absoluteBoundingBox: node.absoluteBoundingBox };
   }
@@ -604,9 +607,6 @@ export async function POST(req: NextRequest) {
           if (contentLines.length > 0) {
             contentPairs += `\n\nCONTENT PAIRS TO CHECK (same element, copy may differ):\n${contentLines.join("\n")}`;
           }
-          if (missingLines.length > 0) {
-            contentPairs += `\n\nFIGMA TEXT WITH NO LIVE MATCH (may be missing or reworded on live page):\n${missingLines.join("\n")}`;
-          }
         }
 
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
@@ -655,30 +655,27 @@ export async function POST(req: NextRequest) {
         send("step", { text: `Sending to Groq AI — checking: ${activeChecks.map(c => c.replace("_", " ")).join(", ")}…` });
 
         const groqBody = JSON.stringify({
-          model: "llama-3.1-8b-instant",
+          model: "llama-3.3-70b-versatile",
           temperature: 0,
           max_tokens: 3000,
           messages: [
             {
               role: "system",
-              content: `You are a design QA engineer. You are given pre-matched Figma vs live pairs — each line shows "text" | figma value → live value for each property.
+              content: `You are a strict design QA engineer. You are given pre-matched Figma vs live pairs. Each line shows the element text and its Figma vs live property values.
 
-Rules:
-- ONLY check these properties: ${checkListStr}
-- DO NOT report any other properties even if they differ
+STRICT RULES — follow exactly:
+- ONLY report properties listed here: ${checkListStr}
+- DO NOT invent or assume values not shown in the data
+- NEVER flag a property if the Figma value and live value are identical or visually the same
+- ONLY flag differences that are clearly shown in the data you were given
+- If you are not certain a value actually differs, DO NOT report it
+- Do not flag minor punctuation, capitalisation, or whitespace differences
 ${checkRules.join("\n")}
-- NEVER flag if Figma value equals Live value
-- Only report rows where there is a real difference
-- Skip any row marked "no live match"
-- Return at most 20 of the most significant discrepancies
+- Return at most 15 of the most significant discrepancies
+- If there are no real discrepancies, return []
 
-For each discrepancy return JSON:
-- "element": the quoted text label from the matched pair
-- "category": ${activeChecks.join(" | ")}
-- "issue": "Figma: <value> — Live: <value>"
-- "severity": high | medium | low
-
-Return ONLY a valid JSON array. No explanation outside the array.`,
+Output format — ONLY a valid JSON array, no text before or after:
+[{"element":"<text label>","category":"${activeChecks.join("|")}","issue":"Figma: <value> — Live: <value>","severity":"high|medium|low"}]`,
             },
             {
               role: "user",
