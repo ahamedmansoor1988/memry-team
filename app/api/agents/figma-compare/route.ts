@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { FIGMA_VISIBILITY_SNAPSHOT_CUTOFF, isRenderableFigmaNode } from "@/lib/figma-normalize";
 
 export const maxDuration = 120;
 
@@ -79,6 +80,7 @@ function parseFileKey(url: string): string | null {
 
 function extractStyleIdsFromNode(node: any, ids: Set<string> = new Set()): string[] {
   if (!node) return [];
+  if (!isRenderableFigmaNode(node)) return [];
   if (node.styles?.text) ids.add(node.styles.text);
   if (node.styles?.fill) ids.add(node.styles.fill);
   for (const child of node.children ?? []) extractStyleIdsFromNode(child, ids);
@@ -280,7 +282,7 @@ function extractVisualNodes(rootNode: any, results: VisualNode[], frameBbox: { x
 
   function walk(node: any, depth: number) {
     if (depth > 10) return;
-    if (node.visible === false) return;
+    if (!isRenderableFigmaNode(node)) return;
     const isFrame = ["FRAME", "COMPONENT", "INSTANCE", "RECTANGLE", "GROUP"].includes(node.type);
 
     if (isFrame) {
@@ -333,7 +335,7 @@ function extractVisualNodes(rootNode: any, results: VisualNode[], frameBbox: { x
 }
 
 function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[], frameRef: { frame: FrameInfo | null }) {
-  if (node.visible === false) return;
+  if (!isRenderableFigmaNode(node)) return;
 
   if (node.type === "FRAME" && !frameRef.frame) {
     frameRef.frame = { id: node.id, absoluteBoundingBox: node.absoluteBoundingBox };
@@ -428,12 +430,31 @@ export async function POST(req: NextRequest) {
               .eq("file_key", fileKey)
               .eq("node_id", nodeId)
               .eq("is_stale", false)
+              .gte("synced_at", FIGMA_VISIBILITY_SNAPSHOT_CUTOFF)
               .order("synced_at", { ascending: false })
               .limit(1)
               .maybeSingle();
             snapshotId = latestSnap?.id ?? null;
             frameName  = latestSnap?.frame_name ?? "";
             rootBbox   = (latestSnap?.frame_bounds as any) ?? rootBbox;
+          }
+
+          if (snapshotId) {
+            const { data: snapMeta } = await db0
+              .from("figma_snapshots")
+              .select("id, frame_name, frame_bounds, synced_at")
+              .eq("id", snapshotId)
+              .maybeSingle();
+
+            const snapshotSyncedAt = snapMeta?.synced_at ? new Date(snapMeta.synced_at).getTime() : 0;
+            const visibilityCutoff = new Date(FIGMA_VISIBILITY_SNAPSHOT_CUTOFF).getTime();
+            if (!snapMeta || snapshotSyncedAt < visibilityCutoff) {
+              send("step", { text: "Cached snapshot is older than the hidden-layer filter — syncing Figma again." });
+              snapshotId = null;
+            } else {
+              frameName = snapMeta.frame_name ?? frameName;
+              rootBbox = (snapMeta.frame_bounds as any) ?? rootBbox;
+            }
           }
 
           if (snapshotId) {

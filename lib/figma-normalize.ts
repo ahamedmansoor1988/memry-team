@@ -48,6 +48,27 @@ function rgbToHex(r: number, g: number, b: number): string {
 // Leaf node types that never have children — skip traversal into them.
 const LEAF_TYPES = new Set(["VECTOR", "BOOLEAN_OPERATION", "STAR", "POLYGON", "LINE"]);
 
+export const FIGMA_VISIBILITY_SNAPSHOT_CUTOFF = "2026-06-30T14:56:51Z";
+
+function hasUsableBounds(node: any): boolean {
+  const box = node.absoluteBoundingBox;
+  if (!box) return true;
+  return (box.width ?? 0) > 0 && (box.height ?? 0) > 0;
+}
+
+export function isRenderableFigmaNode(node: any): boolean {
+  if (!node) return false;
+  if (node.visible === false) return false;
+  if ((node.opacity ?? 1) === 0) return false;
+  if (!hasUsableBounds(node)) return false;
+
+  // Figma may still include hidden/clipped layers in node JSON. When this
+  // property is present and null, the node has no rendered pixels.
+  if ("absoluteRenderBounds" in node && node.absoluteRenderBounds === null) return false;
+
+  return true;
+}
+
 export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
   const text_nodes:  NormalizedTextNode[]  = [];
   const color_nodes: NormalizedColorNode[] = [];
@@ -56,8 +77,7 @@ export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
 
   function walk(node: any): void {
     if (!node) return;
-    if (node.visible === false) return;
-    if ((node.opacity ?? 1) === 0) return;
+    if (!isRenderableFigmaNode(node)) return;
     raw_node_count++;
 
     if (node.type === "FRAME" && !frame_bounds && node.absoluteBoundingBox) {

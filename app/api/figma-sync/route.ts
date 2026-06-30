@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { normalizeNodes } from "@/lib/figma-normalize";
+import {
+  FIGMA_VISIBILITY_SNAPSHOT_CUTOFF,
+  isRenderableFigmaNode,
+  normalizeNodes,
+} from "@/lib/figma-normalize";
 
 export const maxDuration = 120;
 
@@ -97,6 +101,7 @@ async function figmaFetch(pat: string, path: string): Promise<Response> {
 
 function countTextNodes(node: any): number {
   if (!node) return 0;
+  if (!isRenderableFigmaNode(node)) return 0;
   let n = node.type === "TEXT" && node.characters?.trim() ? 1 : 0;
   for (const child of node.children ?? []) n += countTextNodes(child);
   return n;
@@ -222,6 +227,7 @@ export async function GET(req: NextRequest) {
     .eq("file_key", fileKey)
     .eq("node_id", nodeId)
     .eq("is_stale", false)
+    .gte("synced_at", FIGMA_VISIBILITY_SNAPSHOT_CUTOFF)
     .order("synced_at", { ascending: false })
     .limit(1)
     .maybeSingle();
