@@ -116,24 +116,25 @@ export async function POST(req: NextRequest) {
 
   const db    = supabaseAdmin();
   const t0    = Date.now();
-  let depthUsed = 5;
+  let depthUsed = 10;
 
-  // Try depth=5 first; retry at depth=8 if fewer than 3 text nodes found
+  // Content QA needs enough depth to include repeated cards and nested sections.
+  // Start deeper so snapshots do not silently miss text nodes inside cards.
   let figmaData: any;
   try {
-    const r5 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=5`);
-    if (!r5.ok) {
-      const txt = await r5.text().catch(() => "");
-      return NextResponse.json({ error: `Figma API error ${r5.status}: ${txt.slice(0, 200)}` }, { status: r5.status >= 500 ? 502 : 422 });
+    const r10 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`);
+    if (!r10.ok) {
+      const txt = await r10.text().catch(() => "");
+      return NextResponse.json({ error: `Figma API error ${r10.status}: ${txt.slice(0, 200)}` }, { status: r10.status >= 500 ? 502 : 422 });
     }
-    figmaData = await r5.json();
-    const rootDoc5 = figmaData?.nodes?.[nodeId]?.document;
-    if (!rootDoc5) return NextResponse.json({ error: "Node not found in Figma response" }, { status: 404 });
+    figmaData = await r10.json();
+    const rootDoc10 = figmaData?.nodes?.[nodeId]?.document;
+    if (!rootDoc10) return NextResponse.json({ error: "Node not found in Figma response" }, { status: 404 });
 
-    if (countTextNodes(rootDoc5) < 3) {
-      // Retry with more depth
-      const r8 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=8`);
-      if (r8.ok) { figmaData = await r8.json(); depthUsed = 8; }
+    if (countTextNodes(rootDoc10) < 3) {
+      // Retry with a little more depth for unusually nested files.
+      const r12 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=12`);
+      if (r12.ok) { figmaData = await r12.json(); depthUsed = 12; }
     }
   } catch (e: any) {
     return NextResponse.json({ error: e.message ?? String(e) }, { status: 503 });

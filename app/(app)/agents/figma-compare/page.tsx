@@ -288,6 +288,11 @@ export default function FigmaComparePage() {
         activeSnapshot = await syncDesign();
         if (!activeSnapshot) return;
       }
+      if (activeSnapshot && checks.has("content") && activeSnapshot.depthUsed < 10 && !forceRefresh) {
+        addRun({ type: "step", text: `Content check needs a deeper Figma snapshot — refreshing depth ${activeSnapshot.depthUsed} snapshot…` });
+        activeSnapshot = await syncDesign();
+        if (!activeSnapshot) return;
+      }
 
       // ── Browser cache (speed only) ───────────────────────────────────────────
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
@@ -395,27 +400,35 @@ export default function FigmaComparePage() {
       if (!res.body) throw new Error("No response body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let pendingChunk = "";
+      const handleStreamLine = (line: string) => {
+        if (!line.startsWith("data: ")) return;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === "step")      addRun({ type: "step",      text: data.text });
+          if (data.type === "error")     addRun({ type: "error",     text: data.text });
+          if (data.type === "figma-log") addRun({ type: "figma-log", text: `${data.method} ${data.path} → ${data.status} (${data.durationMs}ms${data.kb != null ? ` · ${data.kb}KB` : ""})${data.retried ? " [retried]" : ""}` });
+          if (data.type === "result") {
+            const msg: RunMessage = { id: crypto.randomUUID(), type: "result", text: data.text, table: data.table, figmaApiReport: data.figmaApiReport };
+            setRunMsgs(prev => [...prev, msg]);
+            setCurrentResult(msg);
+            if (data.snapshotId) setLastSnapshotId(data.snapshotId);
+          }
+          if (data.type === "cache") {
+            try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes: data.figmaNodes, styleNameMap: data.styleNameMap })); } catch {}
+          }
+        } catch {}
+      };
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        for (const line of decoder.decode(value).split("\n").filter(l => l.startsWith("data: "))) {
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.type === "step")      addRun({ type: "step",      text: data.text });
-            if (data.type === "error")     addRun({ type: "error",     text: data.text });
-            if (data.type === "figma-log") addRun({ type: "figma-log", text: `${data.method} ${data.path} → ${data.status} (${data.durationMs}ms${data.kb != null ? ` · ${data.kb}KB` : ""})${data.retried ? " [retried]" : ""}` });
-            if (data.type === "result") {
-              const msg: RunMessage = { id: crypto.randomUUID(), type: "result", text: data.text, table: data.table, figmaApiReport: data.figmaApiReport };
-              setRunMsgs(prev => [...prev, msg]);
-              setCurrentResult(msg);
-              if (data.snapshotId) setLastSnapshotId(data.snapshotId);
-            }
-            if (data.type === "cache") {
-              try { localStorage.setItem(cacheKey, JSON.stringify({ figmaNodes: data.figmaNodes, styleNameMap: data.styleNameMap })); } catch {}
-            }
-          } catch {}
-        }
+        pendingChunk += decoder.decode(value, { stream: true });
+        const lines = pendingChunk.split("\n");
+        pendingChunk = lines.pop() ?? "";
+        for (const line of lines) handleStreamLine(line);
       }
+      pendingChunk += decoder.decode();
+      if (pendingChunk) handleStreamLine(pendingChunk);
     } catch (err) {
       addRun({ type: "error", text: `Connection error: ${String(err)}` });
     } finally {

@@ -96,6 +96,47 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+function normalizeCopyForCompare(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function contentIssue(element: string, liveText: string | null) {
+  const figmaLabel = element.slice(0, 100);
+  const liveLabel = liveText?.slice(0, 100) ?? null;
+  return {
+    element: figmaLabel,
+    category: "content",
+    issue: liveLabel
+      ? `Figma: "${figmaLabel}" — Live: "${liveLabel}"`
+      : "Missing content on live page",
+    severity: "high",
+  };
+}
+
+function wordSet(text: string): Set<string> {
+  return new Set(normalizeCopyForCompare(text).split(/\s+/).filter(w => w.length > 2));
+}
+
+function overlapScore(a: string, b: string): number {
+  const aWords = wordSet(a);
+  const bWords = wordSet(b);
+  if (aWords.size === 0 || bWords.size === 0) return 0;
+  let overlap = 0;
+  Array.from(aWords).forEach(word => { if (bWords.has(word)) overlap++; });
+  return overlap / Math.max(aWords.size, bWords.size);
+}
+
+function isLikelyUiCopy(text: string): boolean {
+  const normalized = normalizeCopyForCompare(text);
+  if (normalized.length < 8) return false;
+  if (/^\d+$/.test(normalized)) return false;
+  return true;
+}
+
 interface TextNode {
   id: string;
   name: string;
@@ -505,12 +546,20 @@ export async function POST(req: NextRequest) {
         const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
           ? liveStyles
           : (liveData?.styles ?? []);
+        const figmaCopyTexts = textNodes
+          .map(n => n.characters.trim())
+          .filter(isLikelyUiCopy);
 
         const unmatchedFigma: string[] = [];
         if (rawStyles.length > 0) {
           const matchedLines: string[] = [];
 
-          for (const n of [...textNodes].sort((a, b) => b.fontSize - a.fontSize).slice(0, 80)) {
+          for (const n of [...textNodes].sort((a, b) => {
+            const ay = a.absoluteBoundingBox?.y ?? 0;
+            const by = b.absoluteBoundingBox?.y ?? 0;
+            if (Math.abs(ay - by) > 2) return ay - by;
+            return (a.absoluteBoundingBox?.x ?? 0) - (b.absoluteBoundingBox?.x ?? 0);
+          })) {
             const figmaText = n.characters.trim().toLowerCase();
 
             const isShortNavText = figmaText.length <= 20;
@@ -559,9 +608,12 @@ export async function POST(req: NextRequest) {
 
         // ── Content pairs: find Figma text nodes whose copy differs from live ───
         let contentPairs = "";
+        const missingContentLabels: string[] = [];
+        let deterministicContentIssues: Array<{ element: string; category: string; issue: string; severity: string }> = [];
         if (inclContent && rawStyles.length > 0) {
           const contentLines: string[] = [];
           const missingLines: string[] = [];
+          const usedLiveTexts = new Set<string>();
           for (const n of textNodes) {
             const figmaText = n.characters.trim();
             if (figmaText.length < 4) continue;
@@ -569,7 +621,7 @@ export async function POST(req: NextRequest) {
             if (figmaWords.length < 1) continue;
 
             // Score = overlap / figmaWords.length (recall-based: what fraction of Figma's words appear in live text)
-            // Require at least 2 matching words OR score >= 0.5 to avoid false positives on 1-word matches
+            // Require high overlap so unrelated cards are not paired together.
             let bestMatch: any = null;
             let bestScore = 0;
             for (const s of rawStyles) {
@@ -578,7 +630,7 @@ export async function POST(req: NextRequest) {
               const liveWords = liveText.toLowerCase().split(/\s+/);
               const overlap = figmaWords.filter((w: string) => liveWords.includes(w)).length;
               const score = overlap / figmaWords.length;
-              const qualifies = overlap >= 2 || (overlap >= 1 && score >= 0.5);
+              const qualifies = overlap >= 2 && score >= 0.6;
               if (qualifies && score > bestScore) {
                 bestScore = score;
                 bestMatch = s;
@@ -587,18 +639,129 @@ export async function POST(req: NextRequest) {
 
             if (bestMatch) {
               const liveText = bestMatch.text?.trim() ?? "";
-              if (figmaText.toLowerCase() !== liveText.toLowerCase()) {
+              if (normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText)) {
                 contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
+                deterministicContentIssues.push(contentIssue(figmaText, liveText));
               }
-            } else if (figmaWords.length >= 3) {
+              usedLiveTexts.add(liveText.toLowerCase());
+            } else if (figmaWords.length >= 2 || figmaText.length >= 12) {
               // No live match found — could be missing or heavily reworded content
-              missingLines.push(`"${figmaText.slice(0, 100)}"`);
+              const label = figmaText.slice(0, 100);
+              missingLines.push(`"${label}"`);
+              missingContentLabels.push(label);
             }
+          }
+
+          const seenLiveExtra = new Set<string>();
+          for (const s of rawStyles) {
+            const liveText = (s.text ?? "").trim();
+            if (!isLikelyUiCopy(liveText)) continue;
+            const liveKey = normalizeCopyForCompare(liveText);
+            if (!liveKey || seenLiveExtra.has(liveKey)) continue;
+            seenLiveExtra.add(liveKey);
+
+            const existsInFigma = figmaCopyTexts.some(figmaText => {
+              const figmaKey = normalizeCopyForCompare(figmaText);
+              if (figmaKey === liveKey) return true;
+              if (figmaKey.includes(liveKey) || liveKey.includes(figmaKey)) return true;
+              return overlapScore(figmaText, liveText) >= 0.6;
+            });
+
+            if (!existsInFigma) {
+              deterministicContentIssues.push({
+                element: liveText.slice(0, 100),
+                category: "content",
+                issue: `Live has extra copy not found in Figma: "${liveText.slice(0, 100)}"`,
+                severity: "high",
+              });
+            }
+          }
+          const liveExtraCount = deterministicContentIssues.filter(d => d.issue.startsWith("Live has extra copy")).length;
+          if (liveExtraCount > 0) {
+            send("step", { text: `Content scan found ${liveExtraCount} live text item${liveExtraCount === 1 ? "" : "s"} not present in the Figma snapshot.` });
           }
 
           if (contentLines.length > 0) {
             contentPairs += `\n\nCONTENT PAIRS TO CHECK (same element, copy may differ):\n${contentLines.join("\n")}`;
           }
+          if (missingLines.length > 0) {
+            contentPairs += `\n\nFIGMA TEXT WITH NO LIVE MATCH:\n${missingLines.join("\n")}`;
+          }
+        }
+        deterministicContentIssues = deterministicContentIssues.filter((issue, index, arr) =>
+          arr.findIndex(other => other.element === issue.element && other.issue === issue.issue) === index
+        );
+
+        const onlyContentCheck = activeChecks.length === 1 && inclContent;
+        if (onlyContentCheck) {
+          let contentDiscrepancies = [...deterministicContentIssues];
+          if (missingContentLabels.length > 0) {
+            const seenContent = new Set(contentDiscrepancies.map(d => d.element.toLowerCase()));
+            const missingContentItems = missingContentLabels
+              .filter(label => {
+                const key = label.toLowerCase();
+                if (seenContent.has(key)) return false;
+                seenContent.add(key);
+                return true;
+              })
+              .map(label => ({
+                element: label,
+                category: "content",
+                issue: "Missing content on live page",
+                severity: "high",
+              }));
+            contentDiscrepancies = [...contentDiscrepancies, ...missingContentItems];
+          }
+
+          if (contentDiscrepancies.length === 0) {
+            send("result", {
+              text: "No content discrepancies found in the captured Figma and live text.",
+              table: [],
+              snapshotId: snapshotId ?? null,
+            });
+            controller.close();
+            return;
+          }
+
+          if (snapshotId) {
+            const issueRows = contentDiscrepancies.map(d => ({
+              snapshot_id: snapshotId,
+              file_key:    fileKey,
+              node_id:     nodeId,
+              element:     d.element,
+              category:    d.category,
+              issue:       d.issue,
+              severity:    d.severity,
+              live_url:    liveUrl,
+              scanned_at:  new Date().toISOString(),
+            }));
+            const { error: issueInsertErr } = await supabaseAdmin().from("qa_issues").insert(issueRows);
+            if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
+          }
+
+          send("result", {
+            text: `Found ${contentDiscrepancies.length} content issue${contentDiscrepancies.length === 1 ? "" : "s"}.`,
+            table: contentDiscrepancies.map(d => ({
+              element: d.element,
+              issue: d.issue,
+              category: d.category,
+              severity: d.severity,
+            })),
+            snapshotId: snapshotId ?? null,
+            figmaApiReport: {
+              totalCalls: figmaLogs.length,
+              calls: figmaLogs.map(l => ({
+                method: l.method,
+                path:   l.path,
+                status: l.status,
+                ms:     l.durationMs,
+                kb:     l.payloadBytes !== null ? Math.round(l.payloadBytes / 1024) : null,
+                retried: l.retried,
+              })),
+            },
+          });
+          controller.close();
+          return;
         }
 
         send("step", { text: "Comparing Figma nodes with live styles via AI…" });
@@ -640,7 +803,7 @@ export async function POST(req: NextRequest) {
         if (inclSize)   checkRules.push("- font_size: only flag if difference > 2px");
         if (inclWeight) checkRules.push("- font_weight: flag mismatches");
         if (inclColor)   checkRules.push("- color: flag visually distinct differences only (skip near-identical shades)");
-        if (inclContent) checkRules.push("- content: (1) In CONTENT PAIRS section: flag when Figma copy differs from live copy for the same element. Only flag real copy differences, not minor punctuation. (2) In FIGMA TEXT WITH NO LIVE MATCH section: flag each entry as missing content if it looks like real UI copy (headings, labels, CTAs, body text) — skip purely decorative or placeholder text.");
+        if (inclContent) checkRules.push("- content: Do not report content issues. Content is validated separately by deterministic matching.");
 
         const checkListStr = activeChecks.join(", ");
 
@@ -741,11 +904,14 @@ Output format — ONLY a valid JSON array, no text before or after:
           send("step", { text: `Recovered ${discrepancies.length} discrepancies from partial AI response.` });
         }
 
-        // Remove false positives, off-category results, and duplicates
+        // Remove false positives, off-category results, and duplicates.
+        // Content checks are handled deterministically above because the model
+        // tends to invent generic labels like "Call to Action" for copy pairs.
         const seenIssues = new Set<string>();
         discrepancies = discrepancies.filter(d => {
           // Strip anything not in the user's enabled checks (safety net for model drift)
           if (d.category && !activeChecks.includes(d.category)) return false;
+          if (d.category === "content") return false;
           const parts = d.issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
           if (parts) {
             // Normalize: strip trailing notes like "(visually distinct)", take first token
@@ -759,6 +925,19 @@ Output format — ONLY a valid JSON array, no text before or after:
 
         send("step", { text: `AI identified ${discrepancies.length} discrepancies.` });
 
+        if (deterministicContentIssues.length > 0) {
+          const existingContentIssues = new Set(
+            discrepancies.map(d => `${d.category ?? ""}||${d.element.toLowerCase()}||${d.issue.toLowerCase()}`)
+          );
+          const contentItems = deterministicContentIssues.filter(d => {
+            const key = `${d.category}||${d.element.toLowerCase()}||${d.issue.toLowerCase()}`;
+            if (existingContentIssues.has(key)) return false;
+            existingContentIssues.add(key);
+            return true;
+          });
+          discrepancies = [...contentItems, ...discrepancies];
+        }
+
         // Prepend missing elements (no AI needed — direct from unmatched nodes)
         if (activeChecks.includes("missing_elements") && unmatchedFigma.length > 0) {
           const missingItems = unmatchedFigma.map(label => ({
@@ -768,6 +947,26 @@ Output format — ONLY a valid JSON array, no text before or after:
             severity: "high",
           }));
           discrepancies = [...missingItems, ...discrepancies];
+        }
+
+        // When Missing Elements is enabled, Figma-only copy is reported there.
+        // Only use content missing rows for content-only scans.
+        if (inclContent && !activeChecks.includes("missing_elements") && missingContentLabels.length > 0) {
+          const seenContent = new Set(discrepancies.map(d => d.element.toLowerCase()));
+          const missingContentItems = missingContentLabels
+            .filter(label => {
+              const key = label.toLowerCase();
+              if (seenContent.has(key)) return false;
+              seenContent.add(key);
+              return true;
+            })
+            .map(label => ({
+              element: label,
+              category: "content",
+              issue: "Missing content on live page",
+              severity: "high",
+            }));
+          discrepancies = [...missingContentItems, ...discrepancies];
         }
 
         // ── Step 6: Save issues to internal database (zero Figma API calls) ────
@@ -781,23 +980,6 @@ Output format — ONLY a valid JSON array, no text before or after:
           });
           controller.close();
           return;
-        }
-
-        // Persist issues to qa_issues — scanning never touches Figma comments
-        if (snapshotId) {
-          const issueRows = discrepancies.map(d => ({
-            snapshot_id: snapshotId,
-            file_key:    fileKey,
-            node_id:     nodeId,
-            element:     d.element,
-            category:    d.category ?? null,
-            issue:       d.issue,
-            severity:    d.severity ?? "medium",
-            live_url:    liveUrl,
-            scanned_at:  new Date().toISOString(),
-          }));
-          const { error: issueInsertErr } = await supabaseAdmin().from("qa_issues").insert(issueRows);
-          if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
         }
 
         for (const d of discrepancies) {
@@ -829,6 +1011,28 @@ Output format — ONLY a valid JSON array, no text before or after:
             })),
           },
         });
+
+        // Persist issues after sending the UI result. Persistence must never
+        // prevent the user from seeing the comparison table.
+        if (snapshotId) {
+          try {
+            const issueRows = discrepancies.map(d => ({
+              snapshot_id: snapshotId,
+              file_key:    fileKey,
+              node_id:     nodeId,
+              element:     d.element,
+              category:    d.category ?? null,
+              issue:       d.issue,
+              severity:    d.severity ?? "medium",
+              live_url:    liveUrl,
+              scanned_at:  new Date().toISOString(),
+            }));
+            const { error: issueInsertErr } = await supabaseAdmin().from("qa_issues").insert(issueRows);
+            if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
+          } catch (persistErr) {
+            console.error("[figma-compare] qa_issues insert exception:", persistErr);
+          }
+        }
 
       } catch (err) {
         controller.enqueue(encoder.encode(sse("error", { text: `Unexpected error: ${String(err)}` })));
