@@ -104,6 +104,10 @@ function extractStyles() {
   const isSystem = f => SYSTEM.some(s => f.startsWith(s));
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const textMap = new Map();
+  const doc = document.documentElement;
+  const body = document.body;
+  const pageWidth = Math.max(doc.scrollWidth, body?.scrollWidth ?? 0, window.innerWidth);
+  const pageHeight = Math.max(doc.scrollHeight, body?.scrollHeight ?? 0, window.innerHeight);
   let node;
   while ((node = walker.nextNode())) {
     const text = node.textContent.trim();
@@ -118,8 +122,26 @@ function extractStyles() {
     const inNav = !!(el.closest("header, nav, [role='navigation'], .site-header, .main-nav, .ekit-menu-nav-link, .ekit-nav-menu"));
     const rect  = el.getBoundingClientRect();
     const inTopZone = rect.top < window.innerHeight * 0.2;
+    const pageX = rect.left + window.scrollX;
+    const pageY = rect.top + window.scrollY;
+    const bounds = {
+      x: pageX,
+      y: pageY,
+      width: rect.width,
+      height: rect.height,
+      pageWidth,
+      pageHeight,
+      normalized: {
+        x: pageWidth ? pageX / pageWidth : 0,
+        y: pageHeight ? pageY / pageHeight : 0,
+        width: pageWidth ? rect.width / pageWidth : 0,
+        height: pageHeight ? rect.height / pageHeight : 0,
+        centerX: pageWidth ? (pageX + rect.width / 2) / pageWidth : 0,
+        centerY: pageHeight ? (pageY + rect.height / 2) / pageHeight : 0,
+      },
+    };
 
-    const entry = { text: text.slice(0, 200), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color), inNav: inNav || inTopZone };
+    const entry = { text: text.slice(0, 200), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color), inNav: inNav || inTopZone, bounds };
     if (!textMap.has(text) || isSystem(textMap.get(text).fontFamily)) textMap.set(text, entry);
   }
   return [...textMap.values()];

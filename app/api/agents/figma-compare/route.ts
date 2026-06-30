@@ -104,6 +104,18 @@ function normalizeCopyForCompare(text: string): string {
     .trim();
 }
 
+const COPY_STOP_WORDS = new Set([
+  "the", "and", "for", "with", "from", "that", "this", "your", "you", "our",
+  "are", "was", "were", "has", "have", "had", "not", "but", "how", "all",
+  "its", "into", "through", "using", "hiver",
+]);
+
+function meaningfulWords(text: string): string[] {
+  return normalizeCopyForCompare(text)
+    .split(/\s+/)
+    .filter(word => word.length > 2 && !COPY_STOP_WORDS.has(word));
+}
+
 function contentIssue(element: string, liveText: string | null) {
   const figmaLabel = element.slice(0, 100);
   const liveLabel = liveText?.slice(0, 100) ?? null;
@@ -118,7 +130,7 @@ function contentIssue(element: string, liveText: string | null) {
 }
 
 function wordSet(text: string): Set<string> {
-  return new Set(normalizeCopyForCompare(text).split(/\s+/).filter(w => w.length > 2));
+  return new Set(meaningfulWords(text));
 }
 
 function overlapScore(a: string, b: string): number {
@@ -135,6 +147,66 @@ function isLikelyUiCopy(text: string): boolean {
   if (normalized.length < 8) return false;
   if (/^\d+$/.test(normalized)) return false;
   return true;
+}
+
+interface NormalizedBounds {
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
+}
+
+function normalizedFigmaBounds(node: TextNode, frame: FrameInfo): NormalizedBounds | null {
+  const box = node.absoluteBoundingBox;
+  const frameBox = frame.absoluteBoundingBox;
+  if (!box || !frameBox?.width || !frameBox?.height) return null;
+  return {
+    centerX: ((box.x - frameBox.x) + box.width / 2) / frameBox.width,
+    centerY: ((box.y - frameBox.y) + box.height / 2) / frameBox.height,
+    width: box.width / frameBox.width,
+    height: box.height / frameBox.height,
+  };
+}
+
+function normalizedLiveBounds(style: any): NormalizedBounds | null {
+  const n = style?.bounds?.normalized;
+  if (typeof n?.centerX === "number" && typeof n?.centerY === "number") {
+    return {
+      centerX: n.centerX,
+      centerY: n.centerY,
+      width: typeof n.width === "number" ? n.width : 0,
+      height: typeof n.height === "number" ? n.height : 0,
+    };
+  }
+  return null;
+}
+
+function geometryDistance(a: NormalizedBounds, b: NormalizedBounds): number {
+  const dx = Math.abs(a.centerX - b.centerX);
+  const dy = Math.abs(a.centerY - b.centerY);
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function textOverlapStats(figmaText: string, liveText: string) {
+  const figmaWords = meaningfulWords(figmaText);
+  const liveWords = new Set(meaningfulWords(liveText));
+  const overlap = figmaWords.filter(word => liveWords.has(word)).length;
+  return {
+    figmaWords,
+    overlap,
+    score: figmaWords.length === 0 ? 0 : overlap / figmaWords.length,
+  };
+}
+
+function isStrictTextFallbackMatch(figmaText: string, liveText: string): boolean {
+  const figmaKey = normalizeCopyForCompare(figmaText);
+  const liveKey = normalizeCopyForCompare(liveText);
+  if (!figmaKey || !liveKey || figmaKey === liveKey) return false;
+  if (figmaKey.length >= 12 && (figmaKey.includes(liveKey) || liveKey.includes(figmaKey))) return true;
+  const { figmaWords, overlap, score } = textOverlapStats(figmaText, liveText);
+  if (figmaWords.length <= 2) return overlap === figmaWords.length && score === 1;
+  if (figmaWords.length <= 4) return overlap === figmaWords.length;
+  return overlap >= 4 && score >= 0.85;
 }
 
 interface TextNode {
@@ -614,26 +686,53 @@ export async function POST(req: NextRequest) {
           const contentLines: string[] = [];
           const missingLines: string[] = [];
           const usedLiveTexts = new Set<string>();
+          const liveHasGeometry = rawStyles.some(s => normalizedLiveBounds(s));
+          if (!liveHasGeometry) {
+            send("step", { text: "Content position data is missing from live capture — update/reload the extension for accurate changed-copy mapping." });
+          }
           for (const n of textNodes) {
             const figmaText = n.characters.trim();
             if (figmaText.length < 4) continue;
-            const figmaWords = figmaText.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
-            if (figmaWords.length < 1) continue;
+            const figmaWords = meaningfulWords(figmaText);
+            const figmaKey = normalizeCopyForCompare(figmaText);
+            if (!figmaKey || figmaWords.length < 1) continue;
 
-            // Score = overlap / figmaWords.length (recall-based: what fraction of Figma's words appear in live text)
-            // Require high overlap so unrelated cards are not paired together.
             let bestMatch: any = null;
-            let bestScore = 0;
-            for (const s of rawStyles) {
-              const liveText = s.text?.trim() ?? "";
-              if (!liveText || liveText.length < 3) continue;
-              const liveWords = liveText.toLowerCase().split(/\s+/);
-              const overlap = figmaWords.filter((w: string) => liveWords.includes(w)).length;
-              const score = overlap / figmaWords.length;
-              const qualifies = overlap >= 2 && score >= 0.6;
-              if (qualifies && score > bestScore) {
-                bestScore = score;
+            const exactMatch = rawStyles.find(s => normalizeCopyForCompare(s.text ?? "") === figmaKey);
+            if (exactMatch) {
+              usedLiveTexts.add((exactMatch.text ?? "").trim().toLowerCase());
+              continue;
+            }
+
+            const figmaBounds = normalizedFigmaBounds(n, frame);
+            if (liveHasGeometry && figmaBounds) {
+              let bestDistance = Number.POSITIVE_INFINITY;
+              for (const s of rawStyles) {
+                const liveText = s.text?.trim() ?? "";
+                if (!isLikelyUiCopy(liveText)) continue;
+                const liveBounds = normalizedLiveBounds(s);
+                if (!liveBounds) continue;
+                const dx = Math.abs(figmaBounds.centerX - liveBounds.centerX);
+                const dy = Math.abs(figmaBounds.centerY - liveBounds.centerY);
+                const distance = geometryDistance(figmaBounds, liveBounds);
+                const sameRegion = (dy <= 0.045 && dx <= 0.24) || distance <= 0.075;
+                if (!sameRegion || distance >= bestDistance) continue;
+                bestDistance = distance;
                 bestMatch = s;
+              }
+            }
+
+            if (!bestMatch) {
+              let bestScore = 0;
+              for (const s of rawStyles) {
+                const liveText = s.text?.trim() ?? "";
+                if (!isLikelyUiCopy(liveText)) continue;
+                if (!isStrictTextFallbackMatch(figmaText, liveText)) continue;
+                const { score } = textOverlapStats(figmaText, liveText);
+                if (score > bestScore) {
+                  bestScore = score;
+                  bestMatch = s;
+                }
               }
             }
 
