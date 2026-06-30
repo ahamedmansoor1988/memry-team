@@ -342,7 +342,7 @@ export default function FigmaComparePage() {
       }
 
       // 1. Try extension styles captured from real Chrome (most accurate)
-      let effectiveLiveStyles: any[] | null = null;
+      let effectiveLiveStyles: any[] = [];
 
       const extRes = await fetch(`/api/extension-styles?url=${encodeURIComponent(liveUrl.trim())}`).catch(() => null);
       if (extRes?.ok) {
@@ -354,7 +354,7 @@ export default function FigmaComparePage() {
       }
 
       // 2. Fall back to Render scraper if no extension styles
-      if (!effectiveLiveStyles || effectiveLiveStyles.length === 0) {
+      if (effectiveLiveStyles.length === 0) {
         addRun({ type: "step", text: "No extension styles — fetching from Render scraper…" });
         try {
           const scraperRes = await fetch("/api/scrape-styles", {
@@ -663,6 +663,18 @@ function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, bad
   );
 }
 
+function IssueDiff({ issue }: { issue: string }) {
+  const m = issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
+  if (!m) return <span className="text-[#3f3f46]">{issue}</span>;
+  return (
+    <span className="flex items-center gap-1.5 flex-wrap">
+      <span className="rounded px-1.5 py-0.5 bg-[#f0f0f0] text-[#17171c] font-mono text-[10px]">{m[1]}</span>
+      <span className="text-[#a1a1aa] text-[10px]">→</span>
+      <span className="rounded px-1.5 py-0.5 bg-[#fff0f0] text-red-600 font-mono text-[10px]">{m[2]}</span>
+    </span>
+  );
+}
+
 function RunBubble({ msg }: { msg: RunMessage }) {
   if (msg.type === "user") return (
     <div className="flex justify-end">
@@ -696,18 +708,6 @@ function RunBubble({ msg }: { msg: RunMessage }) {
       color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
       content:          { bg: "#f0fdf4", text: "#16a34a", label: "Content"     },
     };
-
-    function IssueDiff({ issue }: { issue: string }) {
-      const m = issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
-      if (!m) return <span className="text-[#3f3f46]">{issue}</span>;
-      return (
-        <span className="flex items-center gap-1.5 flex-wrap">
-          <span className="rounded px-1.5 py-0.5 bg-[#f0f0f0] text-[#17171c] font-mono text-[10px]">{m[1]}</span>
-          <span className="text-[#a1a1aa] text-[10px]">→</span>
-          <span className="rounded px-1.5 py-0.5 bg-[#fff0f0] text-red-600 font-mono text-[10px]">{m[2]}</span>
-        </span>
-      );
-    }
 
     // Build category summary for banner
     const catCounts: Record<string, number> = {};

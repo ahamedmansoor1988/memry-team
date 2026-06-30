@@ -96,14 +96,6 @@ function rgbToHex(r: number, g: number, b: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-function jiraTextBody(body: unknown): string {
-  if (typeof body === "string") return body;
-  const b = body as any;
-  return b?.content?.map((block: any) =>
-    block.content?.map((c: any) => c.text ?? "").join("") ?? ""
-  ).join("\n") ?? "";
-}
-
 interface TextNode {
   id: string;
   name: string;

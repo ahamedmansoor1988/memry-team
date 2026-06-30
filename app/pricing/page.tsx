@@ -17,7 +17,7 @@ const PLANS = [
     highlight: false,
     features: [
       "10 runs / month",
-      "1 project",
+      "1 saved target",
       "Font, color & missing element checks",
       "Run history (7 days)",
       "Shareable result links",
@@ -25,7 +25,7 @@ const PLANS = [
     ],
     missing: [
       "Scheduled runs",
-      "Slack notifications",
+      "Email digests",
       "Team seats",
       "Priority support",
     ],
@@ -40,7 +40,7 @@ const PLANS = [
     highlight: true,
     features: [
       "Unlimited runs",
-      "5 projects",
+      "5 saved targets",
       "All checks (fonts, color, spacing, buttons, footer)",
       "Full run history",
       "Shareable result links",
@@ -50,7 +50,7 @@ const PLANS = [
     ],
     missing: [
       "Team seats",
-      "Slack notifications",
+      "Email digests",
       "Scheduled runs",
     ],
   },
@@ -65,9 +65,8 @@ const PLANS = [
     features: [
       "Everything in Pro",
       "5 team seats",
-      "Unlimited projects",
+      "Unlimited saved targets",
       "Scheduled runs (daily / weekly)",
-      "Slack notifications",
       "Email digest on new issues",
       "Priority support",
     ],
@@ -124,7 +123,7 @@ export default function PricingPage() {
           Pay for what you ship,<br />not what you try
         </h1>
         <p className="text-[17px] text-[#4b5563] max-w-lg mx-auto">
-          Start free with no limits on time. Upgrade when your team grows or your projects do.
+          Start free with no limits on time. Upgrade when your team grows or your scan volume does.
         </p>
       </section>
 
@@ -223,7 +222,7 @@ export default function PricingPage() {
                   ["Figma comments",      "—",         "✓",          "✓"],
                   ["Team seats",          "1",         "1",          "5"],
                   ["Scheduled runs",      "—",         "—",          "✓"],
-                  ["Slack notifications", "—",         "—",          "✓"],
+                  ["Email digests",       "—",         "—",          "✓"],
                 ].map(([feature, free, pro, team], i) => (
                   <tr key={feature} className={`border-b border-[#f7f7f8] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]/50"}`}>
                     <td className="px-5 py-3 text-[#17171c] font-medium">{feature}</td>

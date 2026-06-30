@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = "force-dynamic";
+
+function supabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Extension POSTs styles here after extracting from active tab
 export async function POST(req: NextRequest) {
@@ -13,7 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "url and styles required" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin()
     .from("extension_styles")
     .upsert({ url, styles, captured_at: new Date().toISOString() }, { onConflict: "url" });
 
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) return NextResponse.json({ error: "url required" }, { status: 400 });
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin()
     .from("extension_styles")
     .select("styles, captured_at")
     .eq("url", url)

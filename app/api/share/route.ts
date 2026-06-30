@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+export const dynamic = "force-dynamic";
+
+function supabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
@@ -22,7 +26,7 @@ export async function GET(req: NextRequest) {
   const live_url = decoded.slice(0, sep);
   const minute   = decoded.slice(sep + 2); // "2025-06-27T12:34"
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin()
     .from("qa_issues")
     .select("id, element, category, issue, severity, live_url, scanned_at")
     .eq("live_url", live_url)

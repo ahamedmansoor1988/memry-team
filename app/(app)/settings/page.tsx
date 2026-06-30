@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Check, KeyRound, Chrome, ExternalLink, User } from "lucide-react";
+import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SettingsPage() {
@@ -33,7 +33,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-[20px] font-semibold text-[#0f0f0f] mb-1">Settings</h1>
-        <p className="text-[13px] text-[#71717a]">Manage your account and connected tools.</p>
+        <p className="text-[13px] text-[#71717a]">Manage your account and Loupe extension setup.</p>
       </div>
 
       <div className="space-y-4">
