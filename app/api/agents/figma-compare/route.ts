@@ -174,10 +174,12 @@ interface ContentCandidate<T = any> {
 interface LayoutPair {
   figma: TextNode;
   live: any;
+  liveIndex: number;
   figmaText: string;
   liveText: string;
   figmaBounds: PhysicalBounds;
   liveBounds: PhysicalBounds;
+  matchDistance: number;
   reliableForSpacing: boolean;
 }
 
@@ -334,6 +336,9 @@ function contentMatchScore(figma: ContentCandidate<TextNode>, live: ContentCandi
   if (ratio < 0.35 && overlap === 0) return null;
   if (orderDistance > 0.18 && overlap === 0) return null;
   if (geoDistance > 0.22 && orderDistance > 0.08 && overlap === 0) return null;
+  if (overlap === 0 && (geoDistance > 0.035 || orderDistance > 0.05 || !sameShape)) return null;
+  if (overlapScore < 0.5 && (geoDistance > 0.06 || orderDistance > 0.08)) return null;
+  if (geoDistance > 0.1 && overlapScore < 0.75) return null;
 
   const shapeScore = sameShape ? 1 : 0.55;
   const geometryScore = Math.max(0, 1 - geoDistance / 0.22);
@@ -359,6 +364,47 @@ function isStrictTextFallbackMatch(figmaText: string, liveText: string): boolean
   if (figmaWords.length <= 2) return overlap === figmaWords.length && score === 1;
   if (figmaWords.length <= 4) return overlap === figmaWords.length;
   return overlap >= 4 && score >= 0.85;
+}
+
+function bestLiveMatchByGeometry(figmaNode: TextNode, frame: FrameInfo, candidates: any[]): any | null {
+  if (candidates.length === 0) return null;
+  const figmaBounds = normalizedFigmaBounds(figmaNode, frame);
+  if (!figmaBounds) return candidates[0];
+  return [...candidates].sort((a, b) => {
+    const aBounds = normalizedLiveBounds(a);
+    const bBounds = normalizedLiveBounds(b);
+    if (!aBounds && !bBounds) return 0;
+    if (!aBounds) return 1;
+    if (!bBounds) return -1;
+    return geometryDistance(figmaBounds, aBounds) - geometryDistance(figmaBounds, bBounds);
+  })[0];
+}
+
+function findLiveMatchForFigmaNode(figmaNode: TextNode, frame: FrameInfo, rawStyles: any[], allowSubstring: boolean) {
+  const figmaText = figmaNode.characters.trim().toLowerCase();
+  const isShortNavText = figmaText.length <= 20;
+  const nodeY = (figmaNode.absoluteBoundingBox?.y ?? 0) - (frame.absoluteBoundingBox?.y ?? 0);
+  const frameH = frame.absoluteBoundingBox?.height ?? 1000;
+  const isFigmaNavNode = isShortNavText && (nodeY / frameH) < 0.15;
+
+  const exactCandidates = rawStyles.filter(s => {
+    const liveText = s.text?.trim().toLowerCase() ?? "";
+    if (liveText !== figmaText) return false;
+    if (isFigmaNavNode && s.inNav === false) return false;
+    return true;
+  });
+  if (exactCandidates.length > 0) return bestLiveMatchByGeometry(figmaNode, frame, exactCandidates);
+
+  if (!allowSubstring) return null;
+
+  const substringCandidates = rawStyles.filter(s => {
+    const liveText = s.text?.trim().toLowerCase() ?? "";
+    if (!liveText.includes(figmaText) || figmaText.length < 4) return false;
+    if (isFigmaNavNode && s.inNav === false) return false;
+    if (isShortNavText && (s.text?.trim().length ?? 0) > figmaText.length + 5) return false;
+    return true;
+  });
+  return bestLiveMatchByGeometry(figmaNode, frame, substringCandidates);
 }
 
 function overlapRatio(startA: number, endA: number, startB: number, endB: number): number {
@@ -503,6 +549,127 @@ function buildSpacingIssues(layoutPairs: LayoutPair[], frame: FrameInfo) {
       issue: issue.issue,
       severity: issue.severity,
     }));
+}
+
+function parsePx(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const match = String(value ?? "").match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+function normalizeFontName(value: unknown): string {
+  return String(value ?? "")
+    .split(",")[0]
+    .replace(/['"]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function normalizeWeight(value: unknown): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  const named: Record<string, string> = {
+    normal: "400",
+    regular: "400",
+    medium: "500",
+    semibold: "600",
+    "semi bold": "600",
+    bold: "700",
+  };
+  return named[raw] ?? raw;
+}
+
+function normalizeHex(value: unknown): string {
+  return String(value ?? "").trim().toUpperCase();
+}
+
+function buildTypographyIssues(
+  layoutPairs: LayoutPair[],
+  allFigmaTextNodes: TextNode[],
+  checks: {
+    family: boolean;
+    size: boolean;
+    weight: boolean;
+    color: boolean;
+  },
+) {
+  const issues: Array<{ element: string; category: string; issue: string; severity: string }> = [];
+  const seen = new Set<string>();
+  const pairs = layoutPairs.filter(pair => normalizeCopyForCompare(pair.figmaText) === normalizeCopyForCompare(pair.liveText));
+  const figmaVariants = new Map<string, {
+    families: Set<string>;
+    sizes: Set<string>;
+    weights: Set<string>;
+    colors: Set<string>;
+  }>();
+  for (const node of allFigmaTextNodes) {
+    const key = normalizeCopyForCompare(node.characters);
+    if (!key) continue;
+    const variants = figmaVariants.get(key) ?? {
+      families: new Set<string>(),
+      sizes: new Set<string>(),
+      weights: new Set<string>(),
+      colors: new Set<string>(),
+    };
+    variants.families.add(normalizeFontName(node.fontFamily));
+    variants.sizes.add(String(parsePx(node.fontSize) ?? ""));
+    variants.weights.add(normalizeWeight(node.fontWeight));
+    variants.colors.add(normalizeHex(node.color));
+    figmaVariants.set(key, variants);
+  }
+
+  const hasConflictingFigmaValue = (pair: LayoutPair, category: "families" | "sizes" | "weights" | "colors") => {
+    const key = normalizeCopyForCompare(pair.figmaText);
+    const values = figmaVariants.get(key)?.[category];
+    return values ? Array.from(values).filter(Boolean).length > 1 : false;
+  };
+
+  function push(pair: LayoutPair, category: string, figmaValue: string, liveValue: string, severity = "medium") {
+    const key = `${category}|${pair.figma.id}|${pair.liveIndex}|${figmaValue}|${liveValue}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    issues.push({
+      element: shortLabel(pair.figmaText, 80),
+      category,
+      issue: `Figma: ${figmaValue} — Live: ${liveValue}`,
+      severity,
+    });
+  }
+
+  for (const pair of pairs) {
+    if (checks.family && !hasConflictingFigmaValue(pair, "families")) {
+      const figmaFont = String(pair.figma.fontFamily ?? "").trim();
+      const liveFont = String(pair.live.fontFamily ?? "").trim();
+      if (normalizeFontName(figmaFont) && normalizeFontName(liveFont) && normalizeFontName(figmaFont) !== normalizeFontName(liveFont)) {
+        push(pair, "font_family", figmaFont, liveFont);
+      }
+    }
+
+    if (checks.size && !hasConflictingFigmaValue(pair, "sizes")) {
+      const figmaSize = parsePx(pair.figma.fontSize);
+      const liveSize = parsePx(pair.live.fontSize);
+      if (figmaSize !== null && liveSize !== null && Math.abs(figmaSize - liveSize) > 2) {
+        push(pair, "font_size", `${Math.round(figmaSize * 10) / 10}px`, `${Math.round(liveSize * 10) / 10}px`);
+      }
+    }
+
+    if (checks.weight && !hasConflictingFigmaValue(pair, "weights")) {
+      const figmaWeight = String(pair.figma.fontWeight ?? "").trim();
+      const liveWeight = String(pair.live.fontWeight ?? "").trim();
+      if (normalizeWeight(figmaWeight) && normalizeWeight(liveWeight) && normalizeWeight(figmaWeight) !== normalizeWeight(liveWeight)) {
+        push(pair, "font_weight", figmaWeight, liveWeight);
+      }
+    }
+
+    if (checks.color && !hasConflictingFigmaValue(pair, "colors")) {
+      const figmaColor = normalizeHex(pair.figma.color);
+      const liveColor = normalizeHex(pair.live.color);
+      if (figmaColor && liveColor && figmaColor !== liveColor) {
+        push(pair, "color", figmaColor, liveColor, "low");
+      }
+    }
+  }
+
+  return issues.slice(0, 30);
 }
 
 interface TextNode {
@@ -968,12 +1135,18 @@ export async function POST(req: NextRequest) {
           ? liveStyles
           : (liveData?.styles ?? []);
         const layoutPairsByFigmaId = new Map<string, LayoutPair>();
+        const figmaIdByLiveIndex = new Map<number, string>();
         const addLayoutPair = (figmaNode: TextNode, liveStyle: any) => {
           const figmaText = figmaNode.characters.trim();
           const liveText = liveStyle?.text?.trim() ?? "";
           const figmaBounds = physicalFigmaBounds(figmaNode, frame);
           const liveBounds = physicalLiveBounds(liveStyle);
           if (!figmaText || !liveText || !figmaBounds || !liveBounds) return;
+          const liveIndex = rawStyles.indexOf(liveStyle);
+          if (liveIndex < 0) return;
+          const figmaNormBounds = normalizedFigmaBounds(figmaNode, frame);
+          const liveNormBounds = normalizedLiveBounds(liveStyle);
+          const matchDistance = figmaNormBounds && liveNormBounds ? geometryDistance(figmaNormBounds, liveNormBounds) : 1;
           const figmaKey = normalizeCopyForCompare(figmaText);
           const liveKey = normalizeCopyForCompare(liveText);
           const overlap = textOverlapStats(figmaText, liveText).score;
@@ -983,17 +1156,28 @@ export async function POST(req: NextRequest) {
             (liveKey.length >= 8 && figmaKey.includes(liveKey)) ||
             overlap >= 0.75;
           const existing = layoutPairsByFigmaId.get(figmaNode.id);
-          if (!existing || (!existing.reliableForSpacing && reliableForSpacing)) {
-            layoutPairsByFigmaId.set(figmaNode.id, {
-              figma: figmaNode,
-              live: liveStyle,
-              figmaText,
-              liveText,
-              figmaBounds,
-              liveBounds,
-              reliableForSpacing,
-            });
+          if (existing && existing.matchDistance <= matchDistance) return;
+
+          const existingFigmaForLive = figmaIdByLiveIndex.get(liveIndex);
+          if (existingFigmaForLive && existingFigmaForLive !== figmaNode.id) {
+            const existingLivePair = layoutPairsByFigmaId.get(existingFigmaForLive);
+            if (existingLivePair && existingLivePair.matchDistance <= matchDistance) return;
+            layoutPairsByFigmaId.delete(existingFigmaForLive);
           }
+
+          if (existing) figmaIdByLiveIndex.delete(existing.liveIndex);
+          figmaIdByLiveIndex.set(liveIndex, figmaNode.id);
+          layoutPairsByFigmaId.set(figmaNode.id, {
+            figma: figmaNode,
+            live: liveStyle,
+            liveIndex,
+            figmaText,
+            liveText,
+            figmaBounds,
+            liveBounds,
+            matchDistance,
+            reliableForSpacing,
+          });
         };
 
         const unmatchedFigma: string[] = [];
@@ -1006,30 +1190,7 @@ export async function POST(req: NextRequest) {
             if (Math.abs(ay - by) > 2) return ay - by;
             return (a.absoluteBoundingBox?.x ?? 0) - (b.absoluteBoundingBox?.x ?? 0);
           })) {
-            const figmaText = n.characters.trim().toLowerCase();
-
-            const isShortNavText = figmaText.length <= 20;
-            // Check if this Figma node is in the header zone (top 15% of frame height)
-            const nodeY = (n.absoluteBoundingBox?.y ?? 0) - (frame.absoluteBoundingBox?.y ?? 0);
-            const frameH = frame.absoluteBoundingBox?.height ?? 1000;
-            const isFigmaNavNode = isShortNavText && (nodeY / frameH) < 0.15;
-
-            // 1. Exact match
-            let live = rawStyles.find(s => {
-              const lt = s.text?.trim().toLowerCase() ?? "";
-              if (lt !== figmaText) return false;
-              // Nav Figma nodes must match nav live elements only
-              if (isFigmaNavNode && s.inNav === false) return false;
-              return true;
-            });
-            // 2. Substring match
-            if (!live) live = rawStyles.find(s => {
-              const lt = s.text?.trim().toLowerCase() ?? "";
-              if (!lt.includes(figmaText) || figmaText.length < 4) return false;
-              if (isFigmaNavNode && s.inNav === false) return false;
-              if (isShortNavText && (s.text?.trim().length ?? 0) > figmaText.length + 5) return false;
-              return true;
-            });
+            const live = findLiveMatchForFigmaNode(n, frame, rawStyles, true);
 
             if (live) {
               addLayoutPair(n, live);
@@ -1097,7 +1258,7 @@ export async function POST(req: NextRequest) {
             if (!figmaKey || figmaWords.length < 1) continue;
 
             let bestMatch: any = null;
-            const exactMatch = rawStyles.find(s => normalizeCopyForCompare(s.text ?? "") === figmaKey);
+            const exactMatch = findLiveMatchForFigmaNode(n, frame, rawStyles, false);
             if (exactMatch) {
               addLayoutPair(n, exactMatch);
               contentMatchedFigmaKeys.add(figmaKey);
@@ -1167,11 +1328,23 @@ export async function POST(req: NextRequest) {
             text: `Spacing scan checked ${layoutPairsByFigmaId.size} matched text item${layoutPairsByFigmaId.size === 1 ? "" : "s"} and found ${deterministicSpacingIssues.length} spacing issue${deterministicSpacingIssues.length === 1 ? "" : "s"}.`,
           });
         }
+        const deterministicTypographyIssues = buildTypographyIssues([...layoutPairsByFigmaId.values()], textNodes, {
+          family: inclFamily,
+          size: inclSize,
+          weight: inclWeight,
+          color: inclColor,
+        });
+        if (inclFamily || inclSize || inclWeight || inclColor) {
+          send("step", {
+            text: `Typography scan checked ${layoutPairsByFigmaId.size} matched text item${layoutPairsByFigmaId.size === 1 ? "" : "s"} and found ${deterministicTypographyIssues.length} typography issue${deterministicTypographyIssues.length === 1 ? "" : "s"}.`,
+          });
+        }
 
-        const deterministicCheckNames = new Set(["content", "spacing", "missing_elements"]);
+        const deterministicCheckNames = new Set(["content", "spacing", "missing_elements", "font_family", "font_size", "font_weight", "color"]);
         const onlyDeterministicChecks = activeChecks.every(c => deterministicCheckNames.has(c));
         if (onlyDeterministicChecks) {
           let deterministicDiscrepancies = [
+            ...deterministicTypographyIssues,
             ...deterministicSpacingIssues,
             ...(inclContent ? deterministicContentIssues : []),
           ];
