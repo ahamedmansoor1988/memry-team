@@ -125,7 +125,7 @@ function contentIssue(element: string, liveText: string | null) {
     element: figmaLabel,
     category: "content",
     issue: liveLabel
-      ? `Figma: "${figmaLabel}" — Live: "${liveLabel}"`
+      ? `Content mismatch: Figma says "${figmaLabel}", live says "${liveLabel}"`
       : "Missing content on live page",
     severity: "high",
   };
@@ -187,6 +187,25 @@ function textOverlapStats(figmaText: string, liveText: string) {
     overlap,
     score: figmaWords.length === 0 ? 0 : overlap / figmaWords.length,
   };
+}
+
+function copyShape(text: string): "numeric" | "label" | "phrase" | "sentence" {
+  const normalized = normalizeCopyForCompare(text);
+  if (/^[\d\s]+$/.test(normalized)) return "numeric";
+  const words = meaningfulWords(text);
+  if (words.length <= 2) return "label";
+  if (words.length <= 5) return "phrase";
+  return "sentence";
+}
+
+function isCompatibleContentPair(figmaText: string, liveText: string): boolean {
+  const { overlap, score } = textOverlapStats(figmaText, liveText);
+  if (overlap > 0 || score > 0) return true;
+  const figmaShape = copyShape(figmaText);
+  const liveShape = copyShape(liveText);
+  if (figmaShape === liveShape) return true;
+  if ((figmaShape === "label" && liveShape === "phrase") || (figmaShape === "phrase" && liveShape === "label")) return true;
+  return false;
 }
 
 function isStrictTextFallbackMatch(figmaText: string, liveText: string): boolean {
@@ -750,6 +769,7 @@ export async function POST(req: NextRequest) {
               for (const s of rawStyles) {
                 const liveText = s.text?.trim() ?? "";
                 if (!isLikelyUiCopy(liveText)) continue;
+                if (!isCompatibleContentPair(figmaText, liveText)) continue;
                 const liveBounds = normalizedLiveBounds(s);
                 if (!liveBounds) continue;
                 const dx = Math.abs(figmaBounds.centerX - liveBounds.centerX);

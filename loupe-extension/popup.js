@@ -39,6 +39,12 @@ btn.addEventListener("click", async () => {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) { setStatus("No active tab.", "error"); btn.disabled = false; return; }
+  const tabUrl = tab.url ?? "";
+  if (/^https:\/\/(?:getloupe\.vercel\.app|loupe-[^.]+\.vercel\.app)\//.test(tabUrl)) {
+    setStatus("Open the live site tab, not Loupe.", "error");
+    btn.disabled = false;
+    return;
+  }
 
   let styles;
   let visibilityStats = null;

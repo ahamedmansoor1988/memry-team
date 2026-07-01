@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Loupe",
-  "version": "2.4",
+  "version": "2.5",
   "description": "Extract live styles and send to Loupe for Figma comparison",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["<all_urls>"],

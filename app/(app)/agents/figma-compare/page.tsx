@@ -33,6 +33,24 @@ const CHECK_OPTIONS = [
   { id: "content",          label: "Content"          },
 ];
 
+const EXTENSION_STYLE_MAX_AGE_MS = 10 * 60 * 1000;
+const LOUPE_UI_TEXT = /^(font family|font size|font weight|color|content|missing elements|ai identified|results will appear here|figma vs live|design qa)$/i;
+
+function normalizeUrlForCompare(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return value.trim().replace(/\/$/, "");
+  }
+}
+
+function hasLoupeUiText(styles: any[]) {
+  return styles.some(style => LOUPE_UI_TEXT.test(String(style?.text ?? "").trim()));
+}
+
 /* ── Page ────────────────────────────────────────────────────────── */
 export default function FigmaComparePage() {
   // Config
@@ -353,8 +371,20 @@ export default function FigmaComparePage() {
       if (extRes?.ok) {
         const extData = await extRes.json();
         if (Array.isArray(extData.styles) && extData.styles.length > 0) {
-          effectiveLiveStyles = extData.styles;
-          addRun({ type: "step", text: `Extension captured ${effectiveLiveStyles.length} live styles from real Chrome.` });
+          const capturedAt = extData.captured_at ? Date.parse(extData.captured_at) : 0;
+          const isFresh = capturedAt > 0 && Date.now() - capturedAt <= EXTENSION_STYLE_MAX_AGE_MS;
+          const sameUrl = normalizeUrlForCompare(extData.url ?? liveUrl.trim()) === normalizeUrlForCompare(liveUrl.trim());
+          const polluted = hasLoupeUiText(extData.styles);
+          if (!isFresh) {
+            addRun({ type: "step", text: "Extension styles are stale — using fallback scraper. Recapture the live page for best accuracy." });
+          } else if (!sameUrl) {
+            addRun({ type: "step", text: "Extension styles were captured from a different URL — using fallback scraper." });
+          } else if (polluted) {
+            addRun({ type: "step", text: "Extension styles contain Loupe UI text — recapture from the live site tab." });
+          } else {
+            effectiveLiveStyles = extData.styles;
+            addRun({ type: "step", text: `Extension captured ${effectiveLiveStyles.length} fresh live styles from real Chrome.` });
+          }
         }
       }
 

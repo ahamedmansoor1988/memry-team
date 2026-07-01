@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin()
     .from("extension_styles")
-    .select("styles, captured_at")
+    .select("url, styles, captured_at")
     .eq("url", url)
     .single();
 
