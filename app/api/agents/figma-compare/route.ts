@@ -147,6 +147,20 @@ interface NormalizedBounds {
   height: number;
 }
 
+type CopyShape = "numeric" | "label" | "phrase" | "sentence";
+
+interface ContentCandidate<T = any> {
+  item: T;
+  text: string;
+  key: string;
+  shape: CopyShape;
+  bounds: NormalizedBounds;
+  shapeOrder: number;
+  globalOrder: number;
+  shapeCount: number;
+  globalCount: number;
+}
+
 function normalizedFigmaBounds(node: TextNode, frame: FrameInfo): NormalizedBounds | null {
   const box = node.absoluteBoundingBox;
   const frameBox = frame.absoluteBoundingBox;
@@ -189,7 +203,7 @@ function textOverlapStats(figmaText: string, liveText: string) {
   };
 }
 
-function copyShape(text: string): "numeric" | "label" | "phrase" | "sentence" {
+function copyShape(text: string): CopyShape {
   const normalized = normalizeCopyForCompare(text);
   if (/^[\d\s]+$/.test(normalized)) return "numeric";
   const words = meaningfulWords(text);
@@ -206,6 +220,74 @@ function isCompatibleContentPair(figmaText: string, liveText: string): boolean {
   if (figmaShape === liveShape) return true;
   if ((figmaShape === "label" && liveShape === "phrase") || (figmaShape === "phrase" && liveShape === "label")) return true;
   return false;
+}
+
+function readingOrderDistance(a: ContentCandidate, b: ContentCandidate): number {
+  const aShapeOrder = a.shapeCount > 1 ? a.shapeOrder / (a.shapeCount - 1) : 0;
+  const bShapeOrder = b.shapeCount > 1 ? b.shapeOrder / (b.shapeCount - 1) : 0;
+  const aGlobalOrder = a.globalCount > 1 ? a.globalOrder / (a.globalCount - 1) : 0;
+  const bGlobalOrder = b.globalCount > 1 ? b.globalOrder / (b.globalCount - 1) : 0;
+  return Math.min(Math.abs(aShapeOrder - bShapeOrder), Math.abs(aGlobalOrder - bGlobalOrder));
+}
+
+function lengthRatio(a: string, b: string): number {
+  const aLen = normalizeCopyForCompare(a).length;
+  const bLen = normalizeCopyForCompare(b).length;
+  if (aLen === 0 || bLen === 0) return 0;
+  return Math.min(aLen, bLen) / Math.max(aLen, bLen);
+}
+
+function assignContentOrders<T>(items: Array<Omit<ContentCandidate<T>, "shapeOrder" | "globalOrder" | "shapeCount" | "globalCount">>): Array<ContentCandidate<T>> {
+  const sorted = [...items].sort((a, b) => {
+    if (Math.abs(a.bounds.centerY - b.bounds.centerY) > 0.01) return a.bounds.centerY - b.bounds.centerY;
+    return a.bounds.centerX - b.bounds.centerX;
+  });
+  const shapeCounts = new Map<CopyShape, number>();
+  sorted.forEach(item => shapeCounts.set(item.shape, (shapeCounts.get(item.shape) ?? 0) + 1));
+
+  const shapeSeen = new Map<CopyShape, number>();
+  return sorted.map((item, globalOrder) => {
+    const shapeOrder = shapeSeen.get(item.shape) ?? 0;
+    shapeSeen.set(item.shape, shapeOrder + 1);
+    return {
+      ...item,
+      globalOrder,
+      globalCount: sorted.length,
+      shapeOrder,
+      shapeCount: shapeCounts.get(item.shape) ?? 1,
+    };
+  });
+}
+
+function contentMatchScore(figma: ContentCandidate<TextNode>, live: ContentCandidate): number | null {
+  if (!isCompatibleContentPair(figma.text, live.text)) return null;
+  const { overlap, score: overlapScore } = textOverlapStats(figma.text, live.text);
+  const sameShape = figma.shape === live.shape;
+  const orderDistance = readingOrderDistance(figma, live);
+  const geoDistance = geometryDistance(figma.bounds, live.bounds);
+  const ratio = lengthRatio(figma.text, live.text);
+
+  // Prevent sentence/paragraph copy from matching logos, terse labels, or far-away text.
+  if (!sameShape && overlap === 0) return null;
+  if (figma.shape === "sentence" && live.shape !== "sentence") return null;
+  if (figma.shape !== "sentence" && live.shape === "sentence" && overlap === 0) return null;
+  if (ratio < 0.35 && overlap === 0) return null;
+  if (orderDistance > 0.18 && overlap === 0) return null;
+  if (geoDistance > 0.22 && orderDistance > 0.08 && overlap === 0) return null;
+
+  const shapeScore = sameShape ? 1 : 0.55;
+  const geometryScore = Math.max(0, 1 - geoDistance / 0.22);
+  const orderScore = Math.max(0, 1 - orderDistance / 0.18);
+  const lengthScore = ratio;
+  const textScore = Math.min(1, overlapScore + (overlap > 0 ? 0.25 : 0));
+
+  return (
+    shapeScore * 0.25 +
+    geometryScore * 0.2 +
+    orderScore * 0.35 +
+    lengthScore * 0.1 +
+    textScore * 0.1
+  );
 }
 
 function isStrictTextFallbackMatch(figmaText: string, liveText: string): boolean {
@@ -749,7 +831,28 @@ export async function POST(req: NextRequest) {
           if (!liveHasGeometry) {
             send("step", { text: "Content position data is missing from live capture — update/reload the extension for accurate changed-copy mapping." });
           }
-          for (const n of textNodes) {
+          const figmaContentCandidates = assignContentOrders(
+            textNodes.flatMap(n => {
+              const text = n.characters.trim();
+              const key = normalizeCopyForCompare(text);
+              const bounds = normalizedFigmaBounds(n, frame);
+              if (text.length < 4 || !key || meaningfulWords(text).length < 1 || !bounds) return [];
+              return [{ item: n, text, key, shape: copyShape(text), bounds }];
+            })
+          );
+          const liveContentCandidates = assignContentOrders(
+            rawStyles.flatMap(s => {
+              const text = s.text?.trim() ?? "";
+              const key = normalizeCopyForCompare(text);
+              const bounds = normalizedLiveBounds(s);
+              if (!key || !bounds || !isLikelyUiCopy(text)) return [];
+              return [{ item: s, text, key, shape: copyShape(text), bounds }];
+            })
+          );
+          const usedLiveContentKeys = new Set<string>();
+
+          for (const candidate of figmaContentCandidates) {
+            const n = candidate.item;
             const figmaText = n.characters.trim();
             if (figmaText.length < 4) continue;
             const figmaWords = meaningfulWords(figmaText);
@@ -763,22 +866,14 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
-            const figmaBounds = normalizedFigmaBounds(n, frame);
-            if (liveHasGeometry && figmaBounds) {
-              let bestDistance = Number.POSITIVE_INFINITY;
-              for (const s of rawStyles) {
-                const liveText = s.text?.trim() ?? "";
-                if (!isLikelyUiCopy(liveText)) continue;
-                if (!isCompatibleContentPair(figmaText, liveText)) continue;
-                const liveBounds = normalizedLiveBounds(s);
-                if (!liveBounds) continue;
-                const dx = Math.abs(figmaBounds.centerX - liveBounds.centerX);
-                const dy = Math.abs(figmaBounds.centerY - liveBounds.centerY);
-                const distance = geometryDistance(figmaBounds, liveBounds);
-                const sameRegion = (dy <= 0.045 && dx <= 0.24) || distance <= 0.075;
-                if (!sameRegion || distance >= bestDistance) continue;
-                bestDistance = distance;
-                bestMatch = s;
+            if (liveHasGeometry) {
+              let bestScore = 0;
+              for (const liveCandidate of liveContentCandidates) {
+                if (usedLiveContentKeys.has(liveCandidate.key)) continue;
+                const score = contentMatchScore(candidate, liveCandidate);
+                if (score === null || score < 0.62 || score <= bestScore) continue;
+                bestScore = score;
+                bestMatch = liveCandidate.item;
               }
             }
 
@@ -799,6 +894,7 @@ export async function POST(req: NextRequest) {
             if (bestMatch) {
               const liveText = bestMatch.text?.trim() ?? "";
               contentMatchedFigmaKeys.add(figmaKey);
+              usedLiveContentKeys.add(normalizeCopyForCompare(liveText));
               if (normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText)) {
                 contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
                 deterministicContentIssues.push(contentIssue(figmaText, liveText));
