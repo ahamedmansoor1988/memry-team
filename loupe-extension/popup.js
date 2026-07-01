@@ -102,6 +102,13 @@ function extractStyles() {
   }
   const SYSTEM = ["-apple-system", "BlinkMacSystemFont", "system-ui", "Arial", "Helvetica", "Georgia", "Times"];
   const isSystem = f => SYSTEM.some(s => f.startsWith(s));
+  function isValidCapturedText(text) {
+    if (!text || text.length < 2) return false;
+    if (text.length > 500) return false;
+    if (/^@(?:keyframes|media|supports|font-face)\b/i.test(text)) return false;
+    if (/[{};]/.test(text) && /\b(?:opacity|transform|animation|display|position|width|height)\s*:/.test(text)) return false;
+    return true;
+  }
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const textMap = new Map();
   const doc = document.documentElement;
@@ -111,9 +118,11 @@ function extractStyles() {
   let node;
   while ((node = walker.nextNode())) {
     const text = node.textContent.trim();
-    if (!text || text.length < 2) continue;
+    if (!isValidCapturedText(text)) continue;
     const el = node.parentElement;
     if (!el) continue;
+    if (el.closest("script, style, noscript, template, svg")) continue;
+    if (el.closest("[hidden], [aria-hidden='true']")) continue;
     const cs = window.getComputedStyle(el);
     if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
     if (el.offsetParent === null && cs.position !== "fixed") continue;
@@ -121,6 +130,7 @@ function extractStyles() {
     // Capture DOM context — is this element inside a nav/header?
     const inNav = !!(el.closest("header, nav, [role='navigation'], .site-header, .main-nav, .ekit-menu-nav-link, .ekit-nav-menu"));
     const rect  = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
     const inTopZone = rect.top < window.innerHeight * 0.2;
     const pageX = rect.left + window.scrollX;
     const pageY = rect.top + window.scrollY;

@@ -131,23 +131,12 @@ function contentIssue(element: string, liveText: string | null) {
   };
 }
 
-function wordSet(text: string): Set<string> {
-  return new Set(meaningfulWords(text));
-}
-
-function overlapScore(a: string, b: string): number {
-  const aWords = wordSet(a);
-  const bWords = wordSet(b);
-  if (aWords.size === 0 || bWords.size === 0) return 0;
-  let overlap = 0;
-  Array.from(aWords).forEach(word => { if (bWords.has(word)) overlap++; });
-  return overlap / Math.max(aWords.size, bWords.size);
-}
-
 function isLikelyUiCopy(text: string): boolean {
   const normalized = normalizeCopyForCompare(text);
   if (normalized.length < 8) return false;
   if (/^\d+$/.test(normalized)) return false;
+  if (/^@(?:keyframes|media|supports|fontface)\b/.test(normalized)) return false;
+  if (/[{};]/.test(text) && /\b(?:opacity|transform|animation|display|position|width|height)\s*:/.test(text)) return false;
   return true;
 }
 
@@ -639,9 +628,6 @@ export async function POST(req: NextRequest) {
         const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
           ? liveStyles
           : (liveData?.styles ?? []);
-        const figmaCopyTexts = textNodes
-          .map(n => n.characters.trim())
-          .filter(isLikelyUiCopy);
 
         const unmatchedFigma: string[] = [];
         if (rawStyles.length > 0) {
@@ -702,11 +688,11 @@ export async function POST(req: NextRequest) {
         // ── Content pairs: find Figma text nodes whose copy differs from live ───
         let contentPairs = "";
         const missingContentLabels: string[] = [];
+        const contentMatchedFigmaKeys = new Set<string>();
         let deterministicContentIssues: Array<{ element: string; category: string; issue: string; severity: string }> = [];
         if (inclContent && rawStyles.length > 0) {
           const contentLines: string[] = [];
           const missingLines: string[] = [];
-          const usedLiveTexts = new Set<string>();
           const liveHasGeometry = rawStyles.some(s => normalizedLiveBounds(s));
           if (!liveHasGeometry) {
             send("step", { text: "Content position data is missing from live capture — update/reload the extension for accurate changed-copy mapping." });
@@ -721,7 +707,7 @@ export async function POST(req: NextRequest) {
             let bestMatch: any = null;
             const exactMatch = rawStyles.find(s => normalizeCopyForCompare(s.text ?? "") === figmaKey);
             if (exactMatch) {
-              usedLiveTexts.add((exactMatch.text ?? "").trim().toLowerCase());
+              contentMatchedFigmaKeys.add(figmaKey);
               continue;
             }
 
@@ -759,11 +745,11 @@ export async function POST(req: NextRequest) {
 
             if (bestMatch) {
               const liveText = bestMatch.text?.trim() ?? "";
+              contentMatchedFigmaKeys.add(figmaKey);
               if (normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText)) {
                 contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
                 deterministicContentIssues.push(contentIssue(figmaText, liveText));
               }
-              usedLiveTexts.add(liveText.toLowerCase());
             } else if (figmaWords.length >= 2 || figmaText.length >= 12) {
               // No live match found — could be missing or heavily reworded content
               const label = figmaText.slice(0, 100);
@@ -772,34 +758,7 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          const seenLiveExtra = new Set<string>();
-          for (const s of rawStyles) {
-            const liveText = (s.text ?? "").trim();
-            if (!isLikelyUiCopy(liveText)) continue;
-            const liveKey = normalizeCopyForCompare(liveText);
-            if (!liveKey || seenLiveExtra.has(liveKey)) continue;
-            seenLiveExtra.add(liveKey);
-
-            const existsInFigma = figmaCopyTexts.some(figmaText => {
-              const figmaKey = normalizeCopyForCompare(figmaText);
-              if (figmaKey === liveKey) return true;
-              if (figmaKey.includes(liveKey) || liveKey.includes(figmaKey)) return true;
-              return overlapScore(figmaText, liveText) >= 0.6;
-            });
-
-            if (!existsInFigma) {
-              deterministicContentIssues.push({
-                element: liveText.slice(0, 100),
-                category: "content",
-                issue: `Live has extra copy not found in Figma: "${liveText.slice(0, 100)}"`,
-                severity: "high",
-              });
-            }
-          }
-          const liveExtraCount = deterministicContentIssues.filter(d => d.issue.startsWith("Live has extra copy")).length;
-          if (liveExtraCount > 0) {
-            send("step", { text: `Content scan found ${liveExtraCount} live text item${liveExtraCount === 1 ? "" : "s"} not present in the Figma snapshot.` });
-          }
+          send("step", { text: `Content scan matched ${contentMatchedFigmaKeys.size} Figma text item${contentMatchedFigmaKeys.size === 1 ? "" : "s"} to live text by exact text or position.` });
 
           if (contentLines.length > 0) {
             contentPairs += `\n\nCONTENT PAIRS TO CHECK (same element, copy may differ):\n${contentLines.join("\n")}`;
@@ -1060,12 +1019,19 @@ Output format — ONLY a valid JSON array, no text before or after:
 
         // Prepend missing elements (no AI needed — direct from unmatched nodes)
         if (activeChecks.includes("missing_elements") && unmatchedFigma.length > 0) {
-          const missingItems = unmatchedFigma.map(label => ({
-            element: label.replace(/" \(no live match.*$/, "").replace(/^"/, ""),
-            category: "missing_elements",
-            issue: "Missing on live page",
-            severity: "high",
-          }));
+          const missingItems = unmatchedFigma
+            .map(label => label.replace(/" \(no live match.*$/, "").replace(/^"/, ""))
+            .filter(label => {
+              const key = normalizeCopyForCompare(label);
+              if (!key || !isLikelyUiCopy(label)) return false;
+              return !contentMatchedFigmaKeys.has(key);
+            })
+            .map(label => ({
+              element: label,
+              category: "missing_elements",
+              issue: "Missing on live page",
+              severity: "high",
+            }));
           discrepancies = [...missingItems, ...discrepancies];
         }
 
