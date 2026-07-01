@@ -329,14 +329,13 @@ function contentMatchScore(figma: ContentCandidate<TextNode>, live: ContentCandi
   const geoDistance = geometryDistance(figma.bounds, live.bounds);
   const ratio = lengthRatio(figma.text, live.text);
 
+  // No shared meaningful words means we cannot prove these are the same content
+  // slot from text/position alone. Treat it as unmatched instead of inventing a
+  // rewrite such as footer copy -> nearby nav link.
+  if (overlap === 0) return null;
+
   // Prevent sentence/paragraph copy from matching logos, terse labels, or far-away text.
-  if (!sameShape && overlap === 0) return null;
   if (figma.shape === "sentence" && live.shape !== "sentence") return null;
-  if (figma.shape !== "sentence" && live.shape === "sentence" && overlap === 0) return null;
-  if (ratio < 0.35 && overlap === 0) return null;
-  if (orderDistance > 0.18 && overlap === 0) return null;
-  if (geoDistance > 0.22 && orderDistance > 0.08 && overlap === 0) return null;
-  if (overlap === 0 && (geoDistance > 0.035 || orderDistance > 0.05 || !sameShape)) return null;
   if (overlapScore < 0.5 && (geoDistance > 0.06 || orderDistance > 0.08)) return null;
   if (geoDistance > 0.1 && overlapScore < 0.75) return null;
 
@@ -381,15 +380,19 @@ function bestLiveMatchByGeometry(figmaNode: TextNode, frame: FrameInfo, candidat
 }
 
 function findLiveMatchForFigmaNode(figmaNode: TextNode, frame: FrameInfo, rawStyles: any[], allowSubstring: boolean) {
-  const figmaText = figmaNode.characters.trim().toLowerCase();
+  const figmaTextRaw = figmaNode.characters.trim();
+  const figmaText = figmaTextRaw.toLowerCase();
+  const figmaKey = normalizeCopyForCompare(figmaTextRaw);
   const isShortNavText = figmaText.length <= 20;
   const nodeY = (figmaNode.absoluteBoundingBox?.y ?? 0) - (frame.absoluteBoundingBox?.y ?? 0);
   const frameH = frame.absoluteBoundingBox?.height ?? 1000;
   const isFigmaNavNode = isShortNavText && (nodeY / frameH) < 0.15;
 
   const exactCandidates = rawStyles.filter(s => {
-    const liveText = s.text?.trim().toLowerCase() ?? "";
-    if (liveText !== figmaText) return false;
+    const liveTextRaw = s.text?.trim() ?? "";
+    const liveText = liveTextRaw.toLowerCase();
+    const liveKey = normalizeCopyForCompare(liveTextRaw);
+    if (liveText !== figmaText && liveKey !== figmaKey) return false;
     if (isFigmaNavNode && s.inNav === false) return false;
     return true;
   });
