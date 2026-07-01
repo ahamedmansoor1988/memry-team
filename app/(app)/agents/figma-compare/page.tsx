@@ -31,10 +31,11 @@ const CHECK_OPTIONS = [
   { id: "font_weight",      label: "Font Weight"      },
   { id: "color",            label: "Color"            },
   { id: "content",          label: "Content"          },
+  { id: "spacing",          label: "Spacing"          },
 ];
 
 const EXTENSION_STYLE_MAX_AGE_MS = 10 * 60 * 1000;
-const LOUPE_UI_TEXT = /^(font family|font size|font weight|color|content|missing elements|ai identified|results will appear here|figma vs live|design qa)$/i;
+const LOUPE_UI_TEXT = /^(font family|font size|font weight|color|content|spacing|missing elements|ai identified|results will appear here|figma vs live|design qa)$/i;
 
 function normalizeUrlForCompare(value: string) {
   try {
@@ -58,7 +59,7 @@ export default function FigmaComparePage() {
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
   const [checks, setChecks] = useState<Set<string>>(
-    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color", "content"])
+    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color", "content", "spacing"])
   );
   const [configOpen, setConfigOpen] = useState(false);
 
@@ -750,6 +751,7 @@ function RunBubble({ msg }: { msg: RunMessage }) {
       font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },
       color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
       content:          { bg: "#f0fdf4", text: "#16a34a", label: "Content"     },
+      spacing:          { bg: "#ecfeff", text: "#0891b2", label: "Spacing"     },
     };
 
     // Build category summary for banner

@@ -5,7 +5,7 @@ const figmaInput  = document.getElementById("figmaUrl");
 const btn         = document.getElementById("btn");
 const status      = document.getElementById("status");
 
-const CHECK_IDS = ["missing", "family", "size", "weight", "color", "content"];
+const CHECK_IDS = ["missing", "family", "size", "weight", "color", "content", "spacing"];
 const CHECK_MAP = {
   missing: "missing_elements",
   family:  "font_family",
@@ -13,6 +13,7 @@ const CHECK_MAP = {
   weight:  "font_weight",
   color:   "color",
   content: "content",
+  spacing: "spacing",
 };
 
 // Load saved settings

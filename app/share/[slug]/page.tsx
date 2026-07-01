@@ -19,6 +19,7 @@ const categoryColors: Record<string, { bg: string; text: string; label: string }
   font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },
   color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
   content:          { bg: "#f0fdf4", text: "#16a34a", label: "Content"     },
+  spacing:          { bg: "#ecfeff", text: "#0891b2", label: "Spacing"     },
 };
 
 function IssueDiff({ issue }: { issue: string }) {

@@ -147,6 +147,15 @@ interface NormalizedBounds {
   height: number;
 }
 
+interface PhysicalBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+}
+
 type CopyShape = "numeric" | "label" | "phrase" | "sentence";
 
 interface ContentCandidate<T = any> {
@@ -161,6 +170,16 @@ interface ContentCandidate<T = any> {
   globalCount: number;
 }
 
+interface LayoutPair {
+  figma: TextNode;
+  live: any;
+  figmaText: string;
+  liveText: string;
+  figmaBounds: PhysicalBounds;
+  liveBounds: PhysicalBounds;
+  reliableForSpacing: boolean;
+}
+
 function normalizedFigmaBounds(node: TextNode, frame: FrameInfo): NormalizedBounds | null {
   const box = node.absoluteBoundingBox;
   const frameBox = frame.absoluteBoundingBox;
@@ -170,6 +189,40 @@ function normalizedFigmaBounds(node: TextNode, frame: FrameInfo): NormalizedBoun
     centerY: ((box.y - frameBox.y) + box.height / 2) / frameBox.height,
     width: box.width / frameBox.width,
     height: box.height / frameBox.height,
+  };
+}
+
+function physicalFigmaBounds(node: TextNode, frame: FrameInfo): PhysicalBounds | null {
+  const box = node.absoluteBoundingBox;
+  const frameBox = frame.absoluteBoundingBox;
+  if (!box || !frameBox) return null;
+  const left = box.x - frameBox.x;
+  const top = box.y - frameBox.y;
+  return {
+    left,
+    top,
+    right: left + box.width,
+    bottom: top + box.height,
+    width: box.width,
+    height: box.height,
+  };
+}
+
+function physicalLiveBounds(style: any): PhysicalBounds | null {
+  const b = style?.bounds;
+  if (
+    typeof b?.x !== "number" ||
+    typeof b?.y !== "number" ||
+    typeof b?.width !== "number" ||
+    typeof b?.height !== "number"
+  ) return null;
+  return {
+    left: b.x,
+    top: b.y,
+    right: b.x + b.width,
+    bottom: b.y + b.height,
+    width: b.width,
+    height: b.height,
   };
 }
 
@@ -237,6 +290,11 @@ function lengthRatio(a: string, b: string): number {
   return Math.min(aLen, bLen) / Math.max(aLen, bLen);
 }
 
+function shortLabel(text: string, max = 56): string {
+  const cleaned = text.replace(/\s+/g, " ").trim();
+  return cleaned.length > max ? `${cleaned.slice(0, max - 1)}…` : cleaned;
+}
+
 function assignContentOrders<T>(items: Array<Omit<ContentCandidate<T>, "shapeOrder" | "globalOrder" | "shapeCount" | "globalCount">>): Array<ContentCandidate<T>> {
   const sorted = [...items].sort((a, b) => {
     if (Math.abs(a.bounds.centerY - b.bounds.centerY) > 0.01) return a.bounds.centerY - b.bounds.centerY;
@@ -299,6 +357,105 @@ function isStrictTextFallbackMatch(figmaText: string, liveText: string): boolean
   if (figmaWords.length <= 2) return overlap === figmaWords.length && score === 1;
   if (figmaWords.length <= 4) return overlap === figmaWords.length;
   return overlap >= 4 && score >= 0.85;
+}
+
+function overlapRatio(startA: number, endA: number, startB: number, endB: number): number {
+  const overlap = Math.max(0, Math.min(endA, endB) - Math.max(startA, startB));
+  const smallest = Math.min(endA - startA, endB - startB);
+  return smallest > 0 ? overlap / smallest : 0;
+}
+
+function sameColumn(a: PhysicalBounds, b: PhysicalBounds): boolean {
+  const overlap = overlapRatio(a.left, a.right, b.left, b.right);
+  const centerDistance = Math.abs((a.left + a.right) / 2 - (b.left + b.right) / 2);
+  return overlap >= 0.25 || centerDistance <= Math.max(a.width, b.width) * 0.35;
+}
+
+function sameRow(a: PhysicalBounds, b: PhysicalBounds): boolean {
+  const overlap = overlapRatio(a.top, a.bottom, b.top, b.bottom);
+  const centerDistance = Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2);
+  return overlap >= 0.35 || centerDistance <= Math.max(a.height, b.height) * 0.5;
+}
+
+function isSignificantSpacingDiff(figmaGap: number, liveGap: number): boolean {
+  const diff = Math.abs(figmaGap - liveGap);
+  if (diff < 8) return false;
+  return diff / Math.max(12, figmaGap) >= 0.25;
+}
+
+function buildSpacingIssues(layoutPairs: LayoutPair[]) {
+  const pairs = layoutPairs
+    .filter(pair => pair.reliableForSpacing)
+    .sort((a, b) => {
+      if (Math.abs(a.figmaBounds.top - b.figmaBounds.top) > 2) return a.figmaBounds.top - b.figmaBounds.top;
+      return a.figmaBounds.left - b.figmaBounds.left;
+    });
+  const issues: Array<{ element: string; category: string; issue: string; severity: string; diff: number }> = [];
+  const seen = new Set<string>();
+
+  function pushIssue(axis: "vertical" | "horizontal", current: LayoutPair, next: LayoutPair, figmaGap: number, liveGap: number) {
+    if (!isSignificantSpacingDiff(figmaGap, liveGap)) return;
+    const key = `${axis}|${current.figma.id}|${next.figma.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    issues.push({
+      element: `${shortLabel(current.figmaText, 36)} → ${shortLabel(next.figmaText, 36)}`,
+      category: "spacing",
+      issue: `Figma: ${axis} gap ${Math.round(figmaGap)}px — Live: ${axis} gap ${Math.round(liveGap)}px`,
+      severity: "medium",
+      diff: Math.abs(figmaGap - liveGap),
+    });
+  }
+
+  for (const current of pairs) {
+    const below = pairs
+      .filter(next =>
+        next !== current &&
+        next.figmaBounds.top >= current.figmaBounds.bottom &&
+        sameColumn(current.figmaBounds, next.figmaBounds)
+      )
+      .sort((a, b) =>
+        (a.figmaBounds.top - current.figmaBounds.bottom) -
+        (b.figmaBounds.top - current.figmaBounds.bottom)
+      )[0];
+
+    if (below && sameColumn(current.liveBounds, below.liveBounds)) {
+      const figmaGap = below.figmaBounds.top - current.figmaBounds.bottom;
+      const liveGap = below.liveBounds.top - current.liveBounds.bottom;
+      if (figmaGap >= 0 && liveGap >= 0 && Math.max(figmaGap, liveGap) <= 260) {
+        pushIssue("vertical", current, below, figmaGap, liveGap);
+      }
+    }
+
+    const right = pairs
+      .filter(next =>
+        next !== current &&
+        next.figmaBounds.left >= current.figmaBounds.right &&
+        sameRow(current.figmaBounds, next.figmaBounds)
+      )
+      .sort((a, b) =>
+        (a.figmaBounds.left - current.figmaBounds.right) -
+        (b.figmaBounds.left - current.figmaBounds.right)
+      )[0];
+
+    if (right && sameRow(current.liveBounds, right.liveBounds)) {
+      const figmaGap = right.figmaBounds.left - current.figmaBounds.right;
+      const liveGap = right.liveBounds.left - current.liveBounds.right;
+      if (figmaGap >= 0 && liveGap >= 0 && Math.max(figmaGap, liveGap) <= 260) {
+        pushIssue("horizontal", current, right, figmaGap, liveGap);
+      }
+    }
+  }
+
+  return issues
+    .sort((a, b) => b.diff - a.diff)
+    .slice(0, 20)
+    .map(issue => ({
+      element: issue.element,
+      category: issue.category,
+      issue: issue.issue,
+      severity: issue.severity,
+    }));
 }
 
 interface TextNode {
@@ -748,7 +905,7 @@ export async function POST(req: NextRequest) {
         // ── Step 4: Build live context — match Figma nodes to live styles by text ─
         // Declare check flags here so Step 4 matching can use them
         const TYPOGRAPHY_CHECKS = ["font_family", "font_size", "font_weight", "color"] as const;
-        const ALL_CHECKS = [...TYPOGRAPHY_CHECKS, "missing_elements", "content"] as const;
+        const ALL_CHECKS = [...TYPOGRAPHY_CHECKS, "missing_elements", "content", "spacing"] as const;
         const enabledChecks = (checks ?? TYPOGRAPHY_CHECKS as unknown as string[])
           .filter(c => (ALL_CHECKS as readonly string[]).includes(c));
         const activeChecks = enabledChecks.length > 0 ? enabledChecks : [...TYPOGRAPHY_CHECKS];
@@ -757,11 +914,40 @@ export async function POST(req: NextRequest) {
         const inclWeight  = activeChecks.includes("font_weight");
         const inclColor   = activeChecks.includes("color");
         const inclContent = activeChecks.includes("content");
+        const inclSpacing = activeChecks.includes("spacing");
 
         let liveContext = "";
         const rawStyles: any[] = Array.isArray(liveStyles) && liveStyles.length > 0
           ? liveStyles
           : (liveData?.styles ?? []);
+        const layoutPairsByFigmaId = new Map<string, LayoutPair>();
+        const addLayoutPair = (figmaNode: TextNode, liveStyle: any) => {
+          const figmaText = figmaNode.characters.trim();
+          const liveText = liveStyle?.text?.trim() ?? "";
+          const figmaBounds = physicalFigmaBounds(figmaNode, frame);
+          const liveBounds = physicalLiveBounds(liveStyle);
+          if (!figmaText || !liveText || !figmaBounds || !liveBounds) return;
+          const figmaKey = normalizeCopyForCompare(figmaText);
+          const liveKey = normalizeCopyForCompare(liveText);
+          const overlap = textOverlapStats(figmaText, liveText).score;
+          const reliableForSpacing =
+            figmaKey === liveKey ||
+            (figmaKey.length >= 8 && liveKey.includes(figmaKey)) ||
+            (liveKey.length >= 8 && figmaKey.includes(liveKey)) ||
+            overlap >= 0.75;
+          const existing = layoutPairsByFigmaId.get(figmaNode.id);
+          if (!existing || (!existing.reliableForSpacing && reliableForSpacing)) {
+            layoutPairsByFigmaId.set(figmaNode.id, {
+              figma: figmaNode,
+              live: liveStyle,
+              figmaText,
+              liveText,
+              figmaBounds,
+              liveBounds,
+              reliableForSpacing,
+            });
+          }
+        };
 
         const unmatchedFigma: string[] = [];
         if (rawStyles.length > 0) {
@@ -799,6 +985,7 @@ export async function POST(req: NextRequest) {
             });
 
             if (live) {
+              addLayoutPair(n, live);
               const parts: string[] = [`"${n.characters.slice(0, 40)}"`];
               if (inclFamily) parts.push(`font: ${n.fontFamily} → ${live.fontFamily}`);
               if (inclSize)   parts.push(`size: ${n.fontSize}px → ${live.fontSize}`);
@@ -824,12 +1011,15 @@ export async function POST(req: NextRequest) {
         const missingContentLabels: string[] = [];
         const contentMatchedFigmaKeys = new Set<string>();
         let deterministicContentIssues: Array<{ element: string; category: string; issue: string; severity: string }> = [];
-        if (inclContent && rawStyles.length > 0) {
+        if ((inclContent || inclSpacing) && rawStyles.length > 0) {
           const contentLines: string[] = [];
           const missingLines: string[] = [];
           const liveHasGeometry = rawStyles.some(s => normalizedLiveBounds(s));
-          if (!liveHasGeometry) {
+          if (!liveHasGeometry && inclContent) {
             send("step", { text: "Content position data is missing from live capture — update/reload the extension for accurate changed-copy mapping." });
+          }
+          if (!rawStyles.some(s => physicalLiveBounds(s)) && inclSpacing) {
+            send("step", { text: "Spacing position data is missing from live capture — update/reload the extension before running spacing checks." });
           }
           const figmaContentCandidates = assignContentOrders(
             textNodes.flatMap(n => {
@@ -862,6 +1052,7 @@ export async function POST(req: NextRequest) {
             let bestMatch: any = null;
             const exactMatch = rawStyles.find(s => normalizeCopyForCompare(s.text ?? "") === figmaKey);
             if (exactMatch) {
+              addLayoutPair(n, exactMatch);
               contentMatchedFigmaKeys.add(figmaKey);
               continue;
             }
@@ -893,13 +1084,14 @@ export async function POST(req: NextRequest) {
 
             if (bestMatch) {
               const liveText = bestMatch.text?.trim() ?? "";
+              addLayoutPair(n, bestMatch);
               contentMatchedFigmaKeys.add(figmaKey);
               usedLiveContentKeys.add(normalizeCopyForCompare(liveText));
-              if (normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText)) {
+              if (inclContent && normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText)) {
                 contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
                 deterministicContentIssues.push(contentIssue(figmaText, liveText));
               }
-            } else if (figmaWords.length >= 2 || figmaText.length >= 12) {
+            } else if (inclContent && (figmaWords.length >= 2 || figmaText.length >= 12)) {
               // No live match found — could be missing or heavily reworded content
               const label = figmaText.slice(0, 100);
               missingLines.push(`"${label}"`);
@@ -907,24 +1099,55 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          send("step", { text: `Content scan matched ${contentMatchedFigmaKeys.size} Figma text item${contentMatchedFigmaKeys.size === 1 ? "" : "s"} to live text by exact text or position.` });
+          if (inclContent) {
+            send("step", { text: `Content scan matched ${contentMatchedFigmaKeys.size} Figma text item${contentMatchedFigmaKeys.size === 1 ? "" : "s"} to live text by exact text or position.` });
+          }
 
-          if (contentLines.length > 0) {
+          if (inclContent && contentLines.length > 0) {
             contentPairs += `\n\nCONTENT PAIRS TO CHECK (same element, copy may differ):\n${contentLines.join("\n")}`;
           }
-          if (missingLines.length > 0) {
+          if (inclContent && missingLines.length > 0) {
             contentPairs += `\n\nFIGMA TEXT WITH NO LIVE MATCH:\n${missingLines.join("\n")}`;
           }
         }
         deterministicContentIssues = deterministicContentIssues.filter((issue, index, arr) =>
           arr.findIndex(other => other.element === issue.element && other.issue === issue.issue) === index
         );
+        let deterministicSpacingIssues: Array<{ element: string; category: string; issue: string; severity: string }> = [];
+        if (inclSpacing) {
+          deterministicSpacingIssues = buildSpacingIssues([...layoutPairsByFigmaId.values()]);
+          send("step", {
+            text: `Spacing scan checked ${layoutPairsByFigmaId.size} matched text item${layoutPairsByFigmaId.size === 1 ? "" : "s"} and found ${deterministicSpacingIssues.length} spacing issue${deterministicSpacingIssues.length === 1 ? "" : "s"}.`,
+          });
+        }
 
-        const onlyContentCheck = activeChecks.length === 1 && inclContent;
-        if (onlyContentCheck) {
-          let contentDiscrepancies = [...deterministicContentIssues];
-          if (missingContentLabels.length > 0) {
-            const seenContent = new Set(contentDiscrepancies.map(d => d.element.toLowerCase()));
+        const deterministicCheckNames = new Set(["content", "spacing", "missing_elements"]);
+        const onlyDeterministicChecks = activeChecks.every(c => deterministicCheckNames.has(c));
+        if (onlyDeterministicChecks) {
+          let deterministicDiscrepancies = [
+            ...deterministicSpacingIssues,
+            ...(inclContent ? deterministicContentIssues : []),
+          ];
+
+          if (activeChecks.includes("missing_elements") && unmatchedFigma.length > 0) {
+            const missingItems = unmatchedFigma
+              .map(label => label.replace(/" \(no live match.*$/, "").replace(/^"/, ""))
+              .filter(label => {
+                const key = normalizeCopyForCompare(label);
+                if (!key || !isLikelyUiCopy(label)) return false;
+                return !contentMatchedFigmaKeys.has(key);
+              })
+              .map(label => ({
+                element: label,
+                category: "missing_elements",
+                issue: "Missing on live page",
+                severity: "high",
+              }));
+            deterministicDiscrepancies = [...missingItems, ...deterministicDiscrepancies];
+          }
+
+          if (inclContent && !activeChecks.includes("missing_elements") && missingContentLabels.length > 0) {
+            const seenContent = new Set(deterministicDiscrepancies.map(d => d.element.toLowerCase()));
             const missingContentItems = missingContentLabels
               .filter(label => {
                 const key = label.toLowerCase();
@@ -938,12 +1161,12 @@ export async function POST(req: NextRequest) {
                 issue: "Missing content on live page",
                 severity: "high",
               }));
-            contentDiscrepancies = [...contentDiscrepancies, ...missingContentItems];
+            deterministicDiscrepancies = [...deterministicDiscrepancies, ...missingContentItems];
           }
 
-          if (contentDiscrepancies.length === 0) {
+          if (deterministicDiscrepancies.length === 0) {
             send("result", {
-              text: "No content discrepancies found in the captured Figma and live text.",
+              text: "No discrepancies found for the selected deterministic checks.",
               table: [],
               snapshotId: snapshotId ?? null,
             });
@@ -952,7 +1175,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (snapshotId) {
-            const issueRows = contentDiscrepancies.map(d => ({
+            const issueRows = deterministicDiscrepancies.map(d => ({
               snapshot_id: snapshotId,
               file_key:    fileKey,
               node_id:     nodeId,
@@ -967,9 +1190,17 @@ export async function POST(req: NextRequest) {
             if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
           }
 
+          const byCategory = deterministicDiscrepancies.reduce((acc, d) => {
+            acc[d.category] = (acc[d.category] ?? 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          const summary = Object.entries(byCategory)
+            .map(([cat, count]) => `${count} ${cat.replace("_", " ")}`)
+            .join(", ");
+
           send("result", {
-            text: `Found ${contentDiscrepancies.length} content issue${contentDiscrepancies.length === 1 ? "" : "s"}.`,
-            table: contentDiscrepancies.map(d => ({
+            text: `Found ${deterministicDiscrepancies.length} issue${deterministicDiscrepancies.length === 1 ? "" : "s"}: ${summary}.`,
+            table: deterministicDiscrepancies.map(d => ({
               element: d.element,
               issue: d.issue,
               category: d.category,
@@ -1032,6 +1263,7 @@ export async function POST(req: NextRequest) {
         if (inclWeight) checkRules.push("- font_weight: flag mismatches");
         if (inclColor)   checkRules.push("- color: flag visually distinct differences only (skip near-identical shades)");
         if (inclContent) checkRules.push("- content: Do not report content issues. Content is validated separately by deterministic matching.");
+        if (inclSpacing) checkRules.push("- spacing: Do not report spacing issues. Spacing is validated separately by deterministic layout matching.");
 
         const checkListStr = activeChecks.join(", ");
 
@@ -1140,6 +1372,7 @@ Output format — ONLY a valid JSON array, no text before or after:
           // Strip anything not in the user's enabled checks (safety net for model drift)
           if (d.category && !activeChecks.includes(d.category)) return false;
           if (d.category === "content") return false;
+          if (d.category === "spacing") return false;
           const parts = d.issue.match(/Figma:\s*(.+?)\s*—\s*Live:\s*(.+)/);
           if (parts) {
             // Normalize: strip trailing notes like "(visually distinct)", take first token
@@ -1164,6 +1397,19 @@ Output format — ONLY a valid JSON array, no text before or after:
             return true;
           });
           discrepancies = [...contentItems, ...discrepancies];
+        }
+
+        if (deterministicSpacingIssues.length > 0) {
+          const existingSpacingIssues = new Set(
+            discrepancies.map(d => `${d.category ?? ""}||${d.element.toLowerCase()}||${d.issue.toLowerCase()}`)
+          );
+          const spacingItems = deterministicSpacingIssues.filter(d => {
+            const key = `${d.category}||${d.element.toLowerCase()}||${d.issue.toLowerCase()}`;
+            if (existingSpacingIssues.has(key)) return false;
+            existingSpacingIssues.add(key);
+            return true;
+          });
+          discrepancies = [...spacingItems, ...discrepancies];
         }
 
         // Prepend missing elements (no AI needed — direct from unmatched nodes)
