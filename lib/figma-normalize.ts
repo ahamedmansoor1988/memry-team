@@ -38,6 +38,28 @@ export interface NormalizedSnapshot {
   text_nodes:      NormalizedTextNode[];
   color_nodes:     NormalizedColorNode[];
   raw_node_count:  number;
+  visibility_stats: FigmaVisibilityStats;
+}
+
+export interface FigmaVisibilityStats {
+  textNodesTotal: number;
+  skippedHiddenInherited: number;
+  skippedHiddenSelf: number;
+  skippedZeroSize: number;
+  skippedTransparent: number;
+  skippedByName: number;
+  skippedComponentDef: number;
+  skippedVariant: number;
+  skippedAriaHidden: number;
+  skippedSrOnly: number;
+  diffCandidates: number;
+  skippedClipped: number;
+  skippedMasked: number;
+}
+
+export interface FigmaVisibilityOptions {
+  skipNamePrefixes?: string[];
+  skipAncestorNames?: string[];
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
@@ -50,34 +72,145 @@ const LEAF_TYPES = new Set(["VECTOR", "BOOLEAN_OPERATION", "STAR", "POLYGON", "L
 
 export const FIGMA_VISIBILITY_SNAPSHOT_CUTOFF = "2026-06-30T14:56:51Z";
 
-function hasUsableBounds(node: any): boolean {
-  const box = node.absoluteBoundingBox;
-  if (!box) return true;
-  return (box.width ?? 0) > 0 && (box.height ?? 0) > 0;
+const DEFAULT_SKIP_NAME_PREFIXES = ["_", "//"];
+const DEFAULT_SKIP_ANCESTOR_NAMES = ["annotations", "annotation", "notes", "note", "scratch", "guide", "guides", "old", "wip", "draft", "backup", "hidden"];
+
+function parseCsv(value: string | undefined, fallback: string[]): string[] {
+  const parsed = value?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
+  return parsed.length > 0 ? parsed : fallback;
 }
 
-export function isRenderableFigmaNode(node: any): boolean {
+export function getFigmaVisibilityOptions(options: FigmaVisibilityOptions = {}): Required<FigmaVisibilityOptions> {
+  return {
+    skipNamePrefixes: options.skipNamePrefixes?.length
+      ? options.skipNamePrefixes
+      : parseCsv(process.env.FIGMA_SKIP_NAME_PREFIXES, DEFAULT_SKIP_NAME_PREFIXES),
+    skipAncestorNames: options.skipAncestorNames?.length
+      ? options.skipAncestorNames.map(s => s.toLowerCase())
+      : parseCsv(process.env.FIGMA_SKIP_ANCESTOR_NAMES, DEFAULT_SKIP_ANCESTOR_NAMES).map(s => s.toLowerCase()),
+  };
+}
+
+function emptyStats(): FigmaVisibilityStats {
+  return {
+    textNodesTotal: 0,
+    skippedHiddenInherited: 0,
+    skippedHiddenSelf: 0,
+    skippedZeroSize: 0,
+    skippedTransparent: 0,
+    skippedByName: 0,
+    skippedComponentDef: 0,
+    skippedVariant: 0,
+    skippedAriaHidden: 0,
+    skippedSrOnly: 0,
+    diffCandidates: 0,
+    skippedClipped: 0,
+    skippedMasked: 0,
+  };
+}
+
+function hasUsableBounds(node: any, stats?: FigmaVisibilityStats): boolean {
+  const box = node.absoluteBoundingBox;
+  if (!box) {
+    stats && stats.skippedZeroSize++;
+    return false;
+  }
+  const ok = (box.width ?? 0) > 0 && (box.height ?? 0) > 0;
+  if (!ok) stats && stats.skippedZeroSize++;
+  return ok;
+}
+
+export function isEffectivelyVisible(node: any, parentVisible = true, stats?: FigmaVisibilityStats): boolean {
   if (!node) return false;
-  if (node.visible === false) return false;
-  if ((node.opacity ?? 1) === 0) return false;
-  if (!hasUsableBounds(node)) return false;
+  if (!parentVisible) {
+    stats && stats.skippedHiddenInherited++;
+    return false;
+  }
+  if (node.visible === false) {
+    stats && stats.skippedHiddenSelf++;
+    return false;
+  }
+  if ((node.opacity ?? 1) === 0) {
+    stats && stats.skippedTransparent++;
+    return false;
+  }
+  if (!hasUsableBounds(node, stats)) return false;
 
   // Figma may still include hidden/clipped layers in node JSON. When this
   // property is present and null, the node has no rendered pixels.
-  if ("absoluteRenderBounds" in node && node.absoluteRenderBounds === null) return false;
+  if ("absoluteRenderBounds" in node && node.absoluteRenderBounds === null) {
+    stats && stats.skippedZeroSize++;
+    return false;
+  }
 
   return true;
 }
 
-export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
+export function isRenderableFigmaNode(node: any): boolean {
+  return isEffectivelyVisible(node, true);
+}
+
+function isHiddenTextNode(node: any, stats: FigmaVisibilityStats): boolean {
+  if (node.type !== "TEXT") return false;
+  if (!node.characters?.trim()) return true;
+  const fills = node.fills ?? [];
+  if (fills.length > 0 && fills.every((f: any) => f.visible === false)) {
+    stats.skippedTransparent++;
+    return true;
+  }
+  return false;
+}
+
+function isOutside(inner: any, outer: any): boolean {
+  if (!inner || !outer) return false;
+  const innerRight = inner.x + inner.width;
+  const innerBottom = inner.y + inner.height;
+  const outerRight = outer.x + outer.width;
+  const outerBottom = outer.y + outer.height;
+  return innerRight <= outer.x || inner.x >= outerRight || innerBottom <= outer.y || inner.y >= outerBottom;
+}
+
+function shouldSkipByName(node: any, ancestorNames: string[], options: Required<FigmaVisibilityOptions>): boolean {
+  const name = String(node.name ?? "").trim();
+  if (name && options.skipNamePrefixes.some(prefix => name.toLowerCase().startsWith(prefix.toLowerCase()))) return true;
+  return ancestorNames.some(n => options.skipAncestorNames.includes(n.trim().toLowerCase()));
+}
+
+export function normalizeNodes(rootDoc: any, options: FigmaVisibilityOptions = {}): NormalizedSnapshot {
   const text_nodes:  NormalizedTextNode[]  = [];
   const color_nodes: NormalizedColorNode[] = [];
+  const visibility_stats = emptyStats();
+  const visibilityOptions = getFigmaVisibilityOptions(options);
   let raw_node_count = 0;
   let frame_bounds: NormalizedSnapshot["frame_bounds"] = null;
 
-  function walk(node: any): void {
+  function walk(
+    node: any,
+    ctx: { parentVisible: boolean; ancestorNames: string[]; clipBounds: any[]; maskBounds: any | null; insideComponentSet: boolean },
+  ): void {
     if (!node) return;
-    if (!isRenderableFigmaNode(node)) return;
+    if (!isEffectivelyVisible(node, ctx.parentVisible, visibility_stats)) return;
+    if (node.type === "COMPONENT_SET") {
+      visibility_stats.skippedComponentDef++;
+      return;
+    }
+    if (node.type === "COMPONENT") {
+      visibility_stats.skippedComponentDef++;
+      if (ctx.insideComponentSet) visibility_stats.skippedVariant++;
+      return;
+    }
+    if (shouldSkipByName(node, ctx.ancestorNames, visibilityOptions)) {
+      visibility_stats.skippedByName++;
+      return;
+    }
+    if (ctx.clipBounds.some(bounds => isOutside(node.absoluteBoundingBox, bounds))) {
+      visibility_stats.skippedClipped++;
+      return;
+    }
+    if (ctx.maskBounds && isOutside(node.absoluteBoundingBox, ctx.maskBounds)) {
+      visibility_stats.skippedMasked++;
+      return;
+    }
     raw_node_count++;
 
     if (node.type === "FRAME" && !frame_bounds && node.absoluteBoundingBox) {
@@ -85,8 +218,11 @@ export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
     }
 
     if (node.type === "TEXT" && typeof node.characters === "string" && node.characters.trim()) {
+      visibility_stats.textNodesTotal++;
+      if (isHiddenTextNode(node, visibility_stats)) return;
       const style = node.style ?? {};
       const fill  = node.fills?.[0]?.color;
+      visibility_stats.diffCandidates++;
       text_nodes.push({
         node_id:        node.id        ?? "",
         node_name:      node.name      ?? "",
@@ -134,11 +270,24 @@ export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
     }
 
     if (!LEAF_TYPES.has(node.type)) {
-      for (const child of node.children ?? []) walk(child);
+      const childClipBounds = node.clipsContent === true && node.absoluteBoundingBox
+        ? [...ctx.clipBounds, node.absoluteBoundingBox]
+        : ctx.clipBounds;
+      let siblingMaskBounds: any | null = null;
+      for (const child of node.children ?? []) {
+        walk(child, {
+          parentVisible: true,
+          ancestorNames: [...ctx.ancestorNames, node.name ?? ""],
+          clipBounds: childClipBounds,
+          maskBounds: siblingMaskBounds,
+          insideComponentSet: node.type === "COMPONENT_SET",
+        });
+        if (child?.isMask === true && child.absoluteBoundingBox) siblingMaskBounds = child.absoluteBoundingBox;
+      }
     }
   }
 
-  walk(rootDoc);
+  walk(rootDoc, { parentVisible: true, ancestorNames: [], clipBounds: [], maskBounds: null, insideComponentSet: false });
 
   return {
     frame_name:     rootDoc?.name ?? "Unknown",
@@ -146,5 +295,6 @@ export function normalizeNodes(rootDoc: any): NormalizedSnapshot {
     text_nodes,
     color_nodes,
     raw_node_count,
+    visibility_stats,
   };
 }

@@ -41,9 +41,12 @@ btn.addEventListener("click", async () => {
   if (!tab?.id) { setStatus("No active tab.", "error"); btn.disabled = false; return; }
 
   let styles;
+  let visibilityStats = null;
   try {
     const results = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractStyles });
-    styles = results?.[0]?.result ?? [];
+    const capture = results?.[0]?.result ?? [];
+    styles = Array.isArray(capture) ? capture : (capture.styles ?? []);
+    visibilityStats = Array.isArray(capture) ? null : (capture.visibilityStats ?? null);
   } catch (err) {
     const msg = err?.message ?? String(err);
     if (msg.includes("Cannot access") || msg.includes("chrome://") || msg.includes("extension://")) {
@@ -63,7 +66,7 @@ btn.addEventListener("click", async () => {
     await fetch(LOUPE_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: tab.url, styles }),
+      body: JSON.stringify({ url: tab.url, styles, visibilityStats }),
     });
   } catch {
     setStatus("Failed to send styles.", "error");
@@ -109,8 +112,35 @@ function extractStyles() {
     if (/[{};]/.test(text) && /\b(?:opacity|transform|animation|display|position|width|height)\s*:/.test(text)) return false;
     return true;
   }
+  function hiddenReason(el, cs, rect) {
+    if (el.closest("[aria-hidden='true']")) return "skippedAriaHidden";
+    if (el.matches(".screen-reader-text, .sr-only, .visually-hidden, .skip-link")) return "skippedSrOnly";
+    if (el.closest(".screen-reader-text, .sr-only, .visually-hidden, .skip-link")) return "skippedSrOnly";
+    if (cs.display === "none" || cs.visibility === "hidden") return "skippedHiddenSelf";
+    if (cs.opacity === "0") return "skippedTransparent";
+    if (el.offsetParent === null && cs.position !== "fixed" && cs.position !== "sticky") return "skippedHiddenSelf";
+    if (el.closest("[hidden]")) return "skippedHiddenSelf";
+    if (el.closest("script, style, noscript, template, svg, dialog:not([open])")) return "skippedHiddenSelf";
+    if (cs.clipPath === "inset(100%)") return "skippedSrOnly";
+    if (cs.clip === "rect(0px, 0px, 0px, 0px)") return "skippedSrOnly";
+    if (rect.width === 0 || rect.height === 0) return "skippedZeroSize";
+    return null;
+  }
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const textMap = new Map();
+  const visibilityStats = {
+    textNodesTotal: 0,
+    skippedHiddenInherited: 0,
+    skippedHiddenSelf: 0,
+    skippedZeroSize: 0,
+    skippedTransparent: 0,
+    skippedByName: 0,
+    skippedComponentDef: 0,
+    skippedVariant: 0,
+    skippedAriaHidden: 0,
+    skippedSrOnly: 0,
+    diffCandidates: 0,
+  };
   const doc = document.documentElement;
   const body = document.body;
   const pageWidth = Math.max(doc.scrollWidth, body?.scrollWidth ?? 0, window.innerWidth);
@@ -119,18 +149,17 @@ function extractStyles() {
   while ((node = walker.nextNode())) {
     const text = node.textContent.trim();
     if (!isValidCapturedText(text)) continue;
+    visibilityStats.textNodesTotal++;
     const el = node.parentElement;
     if (!el) continue;
-    if (el.closest("script, style, noscript, template, svg")) continue;
-    if (el.closest("[hidden], [aria-hidden='true']")) continue;
     const cs = window.getComputedStyle(el);
-    if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") continue;
-    if (el.offsetParent === null && cs.position !== "fixed") continue;
     const fontFamily = cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim();
     // Capture DOM context — is this element inside a nav/header?
     const inNav = !!(el.closest("header, nav, [role='navigation'], .site-header, .main-nav, .ekit-menu-nav-link, .ekit-nav-menu"));
     const rect  = el.getBoundingClientRect();
-    if (rect.width < 2 || rect.height < 2) continue;
+    const reason = hiddenReason(el, cs, rect);
+    if (reason) { visibilityStats[reason]++; continue; }
+    visibilityStats.diffCandidates++;
     const inTopZone = rect.top < window.innerHeight * 0.2;
     const pageX = rect.left + window.scrollX;
     const pageY = rect.top + window.scrollY;
@@ -154,5 +183,5 @@ function extractStyles() {
     const entry = { text: text.slice(0, 200), fontFamily, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: rgbToHex(cs.color), inNav: inNav || inTopZone, bounds };
     if (!textMap.has(text) || isSystem(textMap.get(text).fontFamily)) textMap.set(text, entry);
   }
-  return [...textMap.values()];
+  return { styles: [...textMap.values()], visibilityStats };
 }

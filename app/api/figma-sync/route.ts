@@ -109,8 +109,13 @@ function countTextNodes(node: any): number {
 
 export async function POST(req: NextRequest) {
   let fileKey: string, nodeId: string, pat: string;
+  let skipNamePrefixes: string[] | undefined;
+  let skipAncestorNames: string[] | undefined;
   try {
-    ({ fileKey, nodeId, pat } = await req.json() as { fileKey: string; nodeId: string; pat: string });
+    ({ fileKey, nodeId, pat, skipNamePrefixes, skipAncestorNames } = await req.json() as {
+      fileKey: string; nodeId: string; pat: string;
+      skipNamePrefixes?: string[]; skipAncestorNames?: string[];
+    });
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -148,8 +153,9 @@ export async function POST(req: NextRequest) {
   const rootDoc = figmaData?.nodes?.[nodeId]?.document;
   if (!rootDoc) return NextResponse.json({ error: "Frame not found" }, { status: 404 });
 
-  const normalized     = normalizeNodes(rootDoc);
+  const normalized     = normalizeNodes(rootDoc, { skipNamePrefixes, skipAncestorNames });
   const syncDurationMs = Date.now() - t0;
+  console.log("[figma-sync] visibility-filter", JSON.stringify(normalized.visibility_stats));
 
   // Insert a new snapshot row (append-only for versioning)
   const { data: snapRow, error: snapErr } = await db
@@ -206,6 +212,7 @@ export async function POST(req: NextRequest) {
     textNodeCount:   normalized.text_nodes.length,
     colorNodeCount:  normalized.color_nodes.length,
     rawNodeCount:    normalized.raw_node_count,
+    visibilityStats: normalized.visibility_stats,
     depthUsed,
     syncDurationMs,
   });

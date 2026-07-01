@@ -82,18 +82,57 @@ async function extractStyles(page) {
 
     const SYSTEM_FONTS = ["-apple-system", "BlinkMacSystemFont", "system-ui", "Roboto", "Arial", "Helvetica", "Georgia", "Times"];
     function isSystemFont(f) { return SYSTEM_FONTS.some(s => f.startsWith(s)); }
+    function isValidCapturedText(text) {
+      if (!text || text.length < 2) return false;
+      if (text.length > 500) return false;
+      if (/^@(?:keyframes|media|supports|font-face)\b/i.test(text)) return false;
+      if (/[{};]/.test(text) && /\b(?:opacity|transform|animation|display|position|width|height)\s*:/.test(text)) return false;
+      return true;
+    }
+    function hiddenReason(el, cs, rect) {
+      if (el.closest("[aria-hidden='true']")) return "skippedAriaHidden";
+      if (el.matches(".screen-reader-text, .sr-only, .visually-hidden, .skip-link")) return "skippedSrOnly";
+      if (el.closest(".screen-reader-text, .sr-only, .visually-hidden, .skip-link")) return "skippedSrOnly";
+      if (cs.display === "none" || cs.visibility === "hidden") return "skippedHiddenSelf";
+      if (cs.opacity === "0") return "skippedTransparent";
+      if (el.offsetParent === null && cs.position !== "fixed" && cs.position !== "sticky") return "skippedHiddenSelf";
+      if (el.closest("[hidden]")) return "skippedHiddenSelf";
+      if (el.closest("template, dialog:not([open])")) return "skippedHiddenSelf";
+      if (cs.clipPath === "inset(100%)") return "skippedSrOnly";
+      if (cs.clip === "rect(0px, 0px, 0px, 0px)") return "skippedSrOnly";
+      if (rect.width === 0 || rect.height === 0) return "skippedZeroSize";
+      return null;
+    }
 
     const walker  = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const textMap = new Map();
+    const visibilityStats = {
+      textNodesTotal: 0,
+      skippedHiddenInherited: 0,
+      skippedHiddenSelf: 0,
+      skippedZeroSize: 0,
+      skippedTransparent: 0,
+      skippedByName: 0,
+      skippedComponentDef: 0,
+      skippedVariant: 0,
+      skippedAriaHidden: 0,
+      skippedSrOnly: 0,
+      diffCandidates: 0,
+    };
     let node;
 
     while ((node = walker.nextNode())) {
       const text = node.textContent.trim();
-      if (!text || text.length < 2) continue;
+      if (!isValidCapturedText(text)) continue;
+      visibilityStats.textNodesTotal++;
 
       const el = node.parentElement;
       if (!el) continue;
       const cs              = window.getComputedStyle(el);
+      const rect            = el.getBoundingClientRect();
+      const reason          = hiddenReason(el, cs, rect);
+      if (reason) { visibilityStats[reason]++; continue; }
+      visibilityStats.diffCandidates++;
       if (text.toLowerCase().includes("sign")) {
         console.log("[raw-font]", text, "|", cs.fontFamily);
       }
@@ -136,6 +175,7 @@ async function extractStyles(page) {
       fontWeights: [...weightSet],
       colors:      [...colorSet],
       styles:      styles.slice(0, 200),
+      visibilityStats,
     };
   });
 }

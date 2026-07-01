@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { FIGMA_VISIBILITY_SNAPSHOT_CUTOFF, isRenderableFigmaNode } from "@/lib/figma-normalize";
+import { FIGMA_VISIBILITY_SNAPSHOT_CUTOFF, isRenderableFigmaNode, normalizeNodes } from "@/lib/figma-normalize";
 
 export const maxDuration = 120;
 
@@ -361,11 +361,13 @@ export async function POST(req: NextRequest) {
     figmaNodes: prefetched, styleNameMap: prefetchedStyleMap,
     fileKey, nodeId, liveUrl, liveStyles, liveData,
     pat, checks, assignTo, forceRefresh, snapshotId: incomingSnapshotId,
+    skipNamePrefixes, skipAncestorNames,
   } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
     liveUrl: string; liveStyles: any[] | null; liveData?: any | null; pat: string;
     checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
     snapshotId?: string | null;
+    skipNamePrefixes?: string[]; skipAncestorNames?: string[];
   };
 
   const encoder = new TextEncoder();
@@ -409,6 +411,7 @@ export async function POST(req: NextRequest) {
         const frameRef = { frame: null as FrameInfo | null };
         let rootBbox = { x: 0, y: 0, width: 800, height: 600 };
         let frameName = "";
+        let visibilityStatsForLog: any = null;
 
         {
           const db0 = supabaseAdmin();
@@ -595,13 +598,43 @@ export async function POST(req: NextRequest) {
             return;
           }
 
-          extractTextNodes(rootDoc, null, textNodes, frameRef);
-          const bbox = rootDoc.absoluteBoundingBox ?? frameRef.frame?.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
-          rootBbox  = bbox;
-          frameName = rootDoc.name ?? "Unknown frame";
+          const normalized = normalizeNodes(rootDoc, { skipNamePrefixes, skipAncestorNames });
+          for (const r of normalized.text_nodes) {
+            textNodes.push({
+              id:                  r.node_id,
+              name:                r.node_name,
+              characters:          r.content,
+              fontFamily:          r.font_family,
+              fontSize:            r.font_size,
+              fontWeight:          r.font_weight,
+              lineHeightPx:        r.line_height_px,
+              color:               r.fill_color,
+              absoluteBoundingBox: r.bounds ?? { x: 0, y: 0, width: 0, height: 0 },
+              styleId:             r.style_id ?? undefined,
+              fillStyleId:         r.fill_style_id ?? undefined,
+            });
+          }
+          visibilityStatsForLog = normalized.visibility_stats;
+          rootBbox  = normalized.frame_bounds ?? rootDoc.absoluteBoundingBox ?? { x: 0, y: 0, width: 100, height: 100 };
+          frameName = normalized.frame_name;
         }
 
         const frame: FrameInfo = { id: nodeId, absoluteBoundingBox: rootBbox };
+        console.log("[figma-compare] visibility-filter", JSON.stringify(visibilityStatsForLog ?? {
+          textNodesTotal: textNodes.length,
+          skippedHiddenInherited: 0,
+          skippedHiddenSelf: 0,
+          skippedZeroSize: 0,
+          skippedTransparent: 0,
+          skippedByName: 0,
+          skippedComponentDef: 0,
+          skippedVariant: 0,
+          skippedAriaHidden: 0,
+          skippedSrOnly: 0,
+          diffCandidates: textNodes.length,
+          skippedClipped: 0,
+          skippedMasked: 0,
+        }));
 
         send("step", { text: `Found frame: "${frameName}" — ${textNodes.length} text nodes.` });
 

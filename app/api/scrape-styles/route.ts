@@ -29,6 +29,7 @@ async function callScraperService(url: string) {
     fontWeights: string[];
     colors: string[];
     styles: Array<{ text: string; fontFamily: string; fontSize: string; fontWeight: string; color: string | null }>;
+    visibilityStats?: Record<string, number>;
   }>;
 }
 
@@ -99,6 +100,9 @@ export async function POST(req: NextRequest) {
     const result = process.env.SCRAPER_SERVICE_URL
       ? await callScraperService(url)
       : await regexFallback(url);
+    if ("visibilityStats" in result && result.visibilityStats) {
+      console.log("[scrape-styles] visibility-filter", JSON.stringify(result.visibilityStats));
+    }
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

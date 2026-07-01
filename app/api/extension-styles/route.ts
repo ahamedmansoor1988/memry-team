@@ -12,9 +12,12 @@ function supabaseAdmin() {
 
 // Extension POSTs styles here after extracting from active tab
 export async function POST(req: NextRequest) {
-  const { url, styles } = await req.json();
+  const { url, styles, visibilityStats } = await req.json();
   if (!url || !Array.isArray(styles)) {
     return NextResponse.json({ error: "url and styles required" }, { status: 400 });
+  }
+  if (visibilityStats) {
+    console.log("[extension-styles] visibility-filter", JSON.stringify(visibilityStats));
   }
 
   const { error } = await supabaseAdmin()
