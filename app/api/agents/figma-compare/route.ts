@@ -154,6 +154,7 @@ interface PhysicalBounds {
   bottom: number;
   width: number;
   height: number;
+  pageWidth?: number;
 }
 
 type CopyShape = "numeric" | "label" | "phrase" | "sentence";
@@ -223,6 +224,7 @@ function physicalLiveBounds(style: any): PhysicalBounds | null {
     bottom: b.y + b.height,
     width: b.width,
     height: b.height,
+    pageWidth: typeof b.pageWidth === "number" ? b.pageWidth : undefined,
   };
 }
 
@@ -383,7 +385,28 @@ function isSignificantSpacingDiff(figmaGap: number, liveGap: number): boolean {
   return diff / Math.max(12, figmaGap) >= 0.25;
 }
 
-function buildSpacingIssues(layoutPairs: LayoutPair[]) {
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+function estimateSpacingScale(layoutPairs: LayoutPair[], frame: FrameInfo): number {
+  const textWidthRatios = layoutPairs
+    .filter(pair => pair.reliableForSpacing && pair.figmaBounds.width >= 20 && pair.liveBounds.width >= 20)
+    .map(pair => pair.liveBounds.width / pair.figmaBounds.width)
+    .filter(ratio => ratio >= 0.45 && ratio <= 1.8);
+  const textScale = median(textWidthRatios);
+  if (textScale !== null) return textScale;
+
+  const pageWidth = layoutPairs.find(pair => typeof pair.liveBounds.pageWidth === "number")?.liveBounds.pageWidth;
+  const frameWidth = frame.absoluteBoundingBox?.width;
+  if (pageWidth && frameWidth) return Math.min(1.8, Math.max(0.45, pageWidth / frameWidth));
+  return 1;
+}
+
+function buildSpacingIssues(layoutPairs: LayoutPair[], frame: FrameInfo) {
   const pairs = layoutPairs
     .filter(pair => pair.reliableForSpacing)
     .sort((a, b) => {
@@ -392,18 +415,20 @@ function buildSpacingIssues(layoutPairs: LayoutPair[]) {
     });
   const issues: Array<{ element: string; category: string; issue: string; severity: string; diff: number }> = [];
   const seen = new Set<string>();
+  const scale = estimateSpacingScale(pairs, frame);
 
   function pushIssue(axis: "vertical" | "horizontal", current: LayoutPair, next: LayoutPair, figmaGap: number, liveGap: number) {
-    if (!isSignificantSpacingDiff(figmaGap, liveGap)) return;
+    const scaledFigmaGap = figmaGap * scale;
+    if (!isSignificantSpacingDiff(scaledFigmaGap, liveGap)) return;
     const key = `${axis}|${current.figma.id}|${next.figma.id}`;
     if (seen.has(key)) return;
     seen.add(key);
     issues.push({
       element: `${shortLabel(current.figmaText, 36)} → ${shortLabel(next.figmaText, 36)}`,
       category: "spacing",
-      issue: `Figma: ${axis} gap ${Math.round(figmaGap)}px — Live: ${axis} gap ${Math.round(liveGap)}px`,
+      issue: `Spacing mismatch between adjacent items. Figma: ${axis} gap ${Math.round(figmaGap)}px${Math.abs(scale - 1) > 0.05 ? ` (scaled ${Math.round(scaledFigmaGap)}px)` : ""} — Live: ${axis} gap ${Math.round(liveGap)}px`,
       severity: "medium",
-      diff: Math.abs(figmaGap - liveGap),
+      diff: Math.abs(scaledFigmaGap - liveGap),
     });
   }
 
@@ -419,10 +444,21 @@ function buildSpacingIssues(layoutPairs: LayoutPair[]) {
         (b.figmaBounds.top - current.figmaBounds.bottom)
       )[0];
 
-    if (below && sameColumn(current.liveBounds, below.liveBounds)) {
+    const liveBelow = pairs
+      .filter(next =>
+        next !== current &&
+        next.liveBounds.top >= current.liveBounds.bottom &&
+        sameColumn(current.liveBounds, next.liveBounds)
+      )
+      .sort((a, b) =>
+        (a.liveBounds.top - current.liveBounds.bottom) -
+        (b.liveBounds.top - current.liveBounds.bottom)
+      )[0];
+
+    if (below && liveBelow?.figma.id === below.figma.id) {
       const figmaGap = below.figmaBounds.top - current.figmaBounds.bottom;
       const liveGap = below.liveBounds.top - current.liveBounds.bottom;
-      if (figmaGap >= 0 && liveGap >= 0 && Math.max(figmaGap, liveGap) <= 260) {
+      if (figmaGap >= 0 && liveGap >= 0 && Math.max(figmaGap * scale, liveGap) <= 220) {
         pushIssue("vertical", current, below, figmaGap, liveGap);
       }
     }
@@ -438,10 +474,21 @@ function buildSpacingIssues(layoutPairs: LayoutPair[]) {
         (b.figmaBounds.left - current.figmaBounds.right)
       )[0];
 
-    if (right && sameRow(current.liveBounds, right.liveBounds)) {
+    const liveRight = pairs
+      .filter(next =>
+        next !== current &&
+        next.liveBounds.left >= current.liveBounds.right &&
+        sameRow(current.liveBounds, next.liveBounds)
+      )
+      .sort((a, b) =>
+        (a.liveBounds.left - current.liveBounds.right) -
+        (b.liveBounds.left - current.liveBounds.right)
+      )[0];
+
+    if (right && liveRight?.figma.id === right.figma.id) {
       const figmaGap = right.figmaBounds.left - current.figmaBounds.right;
       const liveGap = right.liveBounds.left - current.liveBounds.right;
-      if (figmaGap >= 0 && liveGap >= 0 && Math.max(figmaGap, liveGap) <= 260) {
+      if (figmaGap >= 0 && liveGap >= 0 && Math.max(figmaGap * scale, liveGap) <= 180) {
         pushIssue("horizontal", current, right, figmaGap, liveGap);
       }
     }
@@ -1115,7 +1162,7 @@ export async function POST(req: NextRequest) {
         );
         let deterministicSpacingIssues: Array<{ element: string; category: string; issue: string; severity: string }> = [];
         if (inclSpacing) {
-          deterministicSpacingIssues = buildSpacingIssues([...layoutPairsByFigmaId.values()]);
+          deterministicSpacingIssues = buildSpacingIssues([...layoutPairsByFigmaId.values()], frame);
           send("step", {
             text: `Spacing scan checked ${layoutPairsByFigmaId.size} matched text item${layoutPairsByFigmaId.size === 1 ? "" : "s"} and found ${deterministicSpacingIssues.length} spacing issue${deterministicSpacingIssues.length === 1 ? "" : "s"}.`,
           });
