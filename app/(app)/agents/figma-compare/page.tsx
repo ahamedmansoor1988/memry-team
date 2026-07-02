@@ -58,6 +58,10 @@ export default function FigmaComparePage() {
   const [figmaUrl, setFigmaUrlRaw] = useState("");
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
+  const [aiEnabled, setAiEnabledRaw] = useState(false);
+  const [aiProvider, setAiProviderRaw] = useState("groq");
+  const [aiModel, setAiModelRaw] = useState("");
+  const [aiKey, setAiKeyRaw] = useState("");
   const [checks, setChecks] = useState<Set<string>>(
     new Set(["missing_elements", "font_family", "font_size", "font_weight", "color", "content", "spacing"])
   );
@@ -92,7 +96,6 @@ export default function FigmaComparePage() {
     setSnapshot(null); // reset snapshot status when URL changes
   }, []);
   const setPat = useCallback((v: string) => { setPatRaw(v); localStorage.setItem("loupe_pat", v); }, []);
-
   // Parse fileKey / nodeId from the current Figma URL
   function parseFigmaUrl(url: string) {
     const fileKeyMatch = url.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
@@ -145,6 +148,10 @@ export default function FigmaComparePage() {
     const savedFigma = urlFigma ?? localStorage.getItem("loupe_figma_url") ?? "";
     const savedLive  = urlLive  ?? localStorage.getItem("loupe_live_url")  ?? "";
     const savedPat   = localStorage.getItem("loupe_pat") ?? "";
+    const savedAiEnabled = localStorage.getItem("loupe_ai_enabled") === "1";
+    const savedAiProvider = localStorage.getItem("loupe_ai_provider") ?? "groq";
+    const savedAiModel = localStorage.getItem("loupe_ai_model") ?? "";
+    const savedAiKey = localStorage.getItem("loupe_ai_key") ?? "";
 
     if (urlFigma)  { localStorage.setItem("loupe_figma_url", urlFigma); }
     if (urlLive)   { localStorage.setItem("loupe_live_url",  urlLive);  }
@@ -154,6 +161,10 @@ export default function FigmaComparePage() {
     setFigmaUrlRaw(savedFigma);
     setLiveUrlRaw(savedLive);
     setPatRaw(savedPat);
+    setAiEnabledRaw(savedAiEnabled);
+    setAiProviderRaw(savedAiProvider);
+    setAiModelRaw(savedAiModel);
+    setAiKeyRaw(savedAiKey);
     if (savedFigma) checkSnapshot(savedFigma);
 
     if (autorun && savedFigma && savedLive && savedPat) {
@@ -404,10 +415,10 @@ export default function FigmaComparePage() {
             effectiveLiveStyles = scraperData.styles ?? [];
             addRun({ type: "step", text: `Scraper returned ${effectiveLiveStyles.length} live styles.` });
           } else {
-            addRun({ type: "step", text: "Scraper failed — AI will compare Figma only." });
+            addRun({ type: "step", text: "Scraper failed — live comparison accuracy is limited until the extension captures the page." });
           }
         } catch {
-          addRun({ type: "step", text: "Scraper timed out — AI will compare Figma only." });
+          addRun({ type: "step", text: "Scraper timed out — live comparison accuracy is limited until the extension captures the page." });
         }
       }
 
@@ -425,6 +436,12 @@ export default function FigmaComparePage() {
           pat: pat.trim(),
           checks: Array.from(checks),
           forceRefresh,
+          ai: {
+            enabled: aiEnabled,
+            provider: aiProvider,
+            model: aiModel.trim(),
+            apiKey: aiKey.trim(),
+          },
         }),
       });
 

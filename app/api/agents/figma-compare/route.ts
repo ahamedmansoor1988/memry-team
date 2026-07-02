@@ -16,12 +16,34 @@ function sse(type: string, payload: object) {
 }
 
 const RUN_MARKER_CATEGORY = "__run";
+const AI_PROVIDERS = new Set(["groq", "openai"]);
 
 interface PersistableIssue {
   element: string;
   category?: string | null;
   issue: string;
   severity?: string | null;
+}
+
+interface AiSettings {
+  enabled?: boolean;
+  provider?: string;
+  model?: string;
+  apiKey?: string;
+}
+
+function resolveAiConfig(ai: AiSettings | undefined) {
+  const enabled = ai?.enabled === true;
+  const provider = AI_PROVIDERS.has(ai?.provider ?? "") ? ai!.provider! : "groq";
+  const keyFromSettings = ai?.apiKey?.trim() ?? "";
+  const keyFromEnv = provider === "openai" ? process.env.OPENAI_API_KEY : process.env.GROQ_API_KEY;
+  const apiKey = keyFromSettings || keyFromEnv || "";
+  const defaultModel = provider === "openai" ? "gpt-4o-mini" : "llama-3.3-70b-versatile";
+  const model = ai?.model?.trim() || defaultModel;
+  const endpoint = provider === "openai"
+    ? "https://api.openai.com/v1/chat/completions"
+    : "https://api.groq.com/openai/v1/chat/completions";
+  return { enabled, provider, apiKey, model, endpoint };
 }
 
 async function persistScanRun(params: {
@@ -892,14 +914,16 @@ export async function POST(req: NextRequest) {
     figmaNodes: prefetched, styleNameMap: prefetchedStyleMap,
     fileKey, nodeId, liveUrl, liveStyles, liveData,
     pat, checks, assignTo, forceRefresh, snapshotId: incomingSnapshotId,
-    skipNamePrefixes, skipAncestorNames,
+    skipNamePrefixes, skipAncestorNames, ai,
   } = await req.json() as {
     figmaNodes: any; styleNameMap: Record<string, string>; fileKey: string; nodeId: string;
     liveUrl: string; liveStyles: any[] | null; liveData?: any | null; pat: string;
     checks?: string[]; assignTo?: string | null; forceRefresh?: boolean;
     snapshotId?: string | null;
     skipNamePrefixes?: string[]; skipAncestorNames?: string[];
+    ai?: AiSettings;
   };
+  const aiConfig = resolveAiConfig(ai);
 
   const encoder = new TextEncoder();
   const stream  = new ReadableStream({
@@ -1508,7 +1532,22 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        send("step", { text: "Comparing Figma nodes with live styles via AI…" });
+        if (!aiConfig.enabled) {
+          send("error", {
+            text: "AI fallback is disabled. Loupe's deterministic checks ran, but this scan requested an unsupported AI-only check. Enable AI fallback in Settings to use future AI-assisted checks.",
+          });
+          controller.close();
+          return;
+        }
+        if (!aiConfig.apiKey) {
+          send("error", {
+            text: `AI fallback needs a ${aiConfig.provider === "openai" ? "OpenAI" : "Groq"} API key. Add one in Settings → AI Keys & Guardrails.`,
+          });
+          controller.close();
+          return;
+        }
+
+        send("step", { text: `Comparing Figma nodes with live styles via ${aiConfig.provider === "openai" ? "OpenAI" : "Groq"} AI…` });
 
         // ── Step 5: AI comparison ─────────────────────────────────────────────
         // Build Figma summary — only include data relevant to enabled checks
@@ -1552,10 +1591,10 @@ export async function POST(req: NextRequest) {
 
         const checkListStr = activeChecks.join(", ");
 
-        send("step", { text: `Sending to Groq AI — checking: ${activeChecks.map(c => c.replace("_", " ")).join(", ")}…` });
+        send("step", { text: `Sending to ${aiConfig.provider === "openai" ? "OpenAI" : "Groq"} AI — checking: ${activeChecks.map(c => c.replace("_", " ")).join(", ")}…` });
 
         const groqBody = JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: aiConfig.model,
           temperature: 0,
           max_tokens: 3000,
           messages: [
@@ -1591,11 +1630,11 @@ Output format — ONLY a valid JSON array, no text before or after:
             send("step", { text: `AI rate limited — retrying in ${attempt * 3}s…` });
             await new Promise(r => setTimeout(r, attempt * 3000));
           }
-          aiRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          aiRes = await fetch(aiConfig.endpoint, {
             method: "POST",
             signal: AbortSignal.timeout(55_000),
             headers: {
-              Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+              Authorization: `Bearer ${aiConfig.apiKey}`,
               "Content-Type": "application/json",
             },
             body: groqBody,
