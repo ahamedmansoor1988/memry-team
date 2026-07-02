@@ -487,11 +487,15 @@ export default function FigmaComparePage() {
       {/* ── CENTER: Execution ──────────────────────────────────────── */}
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {/* Top bar */}
-        <div className="flex h-[45px] items-center justify-between border-b border-[#f0f0f0] px-5 shrink-0">
+        <div className="flex h-[58px] items-center justify-between border-b border-[#f0f0f0] bg-white px-6 shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles size={13} className="text-[#71717a]" />
-            <span className="text-[13px] font-medium text-[#17171c]">Figma vs Live</span>
-            <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#71717a]">Design QA</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0f0f0f] text-white">
+              <Sparkles size={15} />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold text-[#17171c]">Figma vs Live</p>
+              <p className="text-[11px] text-[#71717a]">Missing comps, fonts, weights, sizes, and color</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Snapshot status */}
@@ -528,25 +532,48 @@ export default function FigmaComparePage() {
 
         {/* Execution area */}
         {runMsgs.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-12">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#0f0f0f]">
-              <Sparkles size={18} className="text-white" />
-            </div>
-            <div className="text-center">
-              <p className="text-[15px] font-semibold text-[#17171c]">Figma vs Live</p>
-              <p className="mt-1 text-[12px] text-[#71717a]">Configure below and run to find design discrepancies.</p>
-            </div>
-            <div className="w-full max-w-md space-y-2">
-              <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
-              <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
-              <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-              <div className="rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
-                <ChecklistPanel checks={checks} onToggle={toggleCheck} />
-              </div>
-              <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-2.5 text-[13px] font-medium text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
-                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
-              </button>
+          <div className="flex-1 overflow-y-auto bg-[#fafafa] px-6 py-6">
+            <div className="mx-auto grid min-h-full max-w-6xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_430px]">
+              <section className="flex min-h-[420px] flex-col justify-between rounded-2xl border border-[#ececf0] bg-white p-6 shadow-sm">
+                <div>
+                  <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-[#0f0f0f] text-white">
+                    <Sparkles size={18} />
+                  </div>
+                  <p className="max-w-xl text-[28px] font-semibold leading-tight text-[#111113]">
+                    Compare a Figma frame against the page Chrome is actually rendering.
+                  </p>
+                  <p className="mt-3 max-w-lg text-[13px] leading-relaxed text-[#71717a]">
+                    Loupe captures live computed styles from the current tab, matches them against your selected Figma frame, and returns a focused QA table.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {["Missing Comps", "Font Family", "Font Size", "Font Weight", "Color"].map(label => (
+                    <div key={label} className="flex items-center gap-2 rounded-xl border border-[#f0f0f0] px-3 py-2 text-[12px] font-medium text-[#3f3f46]">
+                      <CheckCircle2 size={13} className="text-[#1a9457]" />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-2xl border border-[#ececf0] bg-white p-4 shadow-sm">
+                <div className="mb-4">
+                  <p className="text-[14px] font-semibold text-[#17171c]">Run a comparison</p>
+                  <p className="mt-1 text-[12px] text-[#71717a]">Paste the frame URL, capture the live page with the extension, then run.</p>
+                </div>
+                <div className="space-y-2">
+                  <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
+                  <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
+                  <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+                  <div className="rounded-xl border border-[#f0f0f0] bg-[#fcfcfd] px-4 py-3">
+                    <ChecklistPanel checks={checks} onToggle={toggleCheck} />
+                  </div>
+                  <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
+                    {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
         ) : (
@@ -681,14 +708,20 @@ function renderInline(text: string): React.ReactNode {
 function ChecklistPanel({ checks, onToggle }: { checks: Set<string>; onToggle: (id: string) => void }) {
   return (
     <div>
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What to check</p>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What to check</p>
+        <span className="text-[10px] text-[#a1a1aa]">{checks.size}/{CHECK_OPTIONS.length} enabled</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
         {CHECK_OPTIONS.map(opt => {
           const active = checks.has(opt.id);
           return (
             <button key={opt.id} onClick={() => onToggle(opt.id)}
-              className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-all ${active ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] text-[#71717a] hover:border-[#71717a]"}`}>
-              {active && <Check size={9} />}{opt.label}
+              className={`flex min-h-8 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-medium transition-all ${active ? "border-[#0f0f0f] bg-[#0f0f0f] text-white" : "border-[#e8e8ec] bg-white text-[#71717a] hover:border-[#71717a]"}`}>
+              <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${active ? "border-white bg-white text-[#0f0f0f]" : "border-[#d8d8de]"}`}>
+                {active && <Check size={9} strokeWidth={3} />}
+              </span>
+              {opt.label}
             </button>
           );
         })}
@@ -702,8 +735,10 @@ function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, bad
   onChange: (v: string) => void; hint?: string; badge?: string; secret?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-[#f0f0f0] bg-white px-4 py-3">
-      <Icon size={13} className="mt-0.5 shrink-0 text-[#71717a]" />
+    <div className="flex items-start gap-3 rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 transition-colors focus-within:border-[#cfcfd6]">
+      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#f7f7f8] text-[#71717a]">
+        <Icon size={13} />
+      </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-wide">{label}</span>
