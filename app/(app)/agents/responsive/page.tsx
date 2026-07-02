@@ -47,6 +47,12 @@ const VIEWPORTS: Array<{ id: ViewportName; label: string; icon: typeof Smartphon
   { id: "desktop", label: "Desktop", icon: Monitor },
 ];
 
+const VIEWPORT_META: Record<ViewportName, { label: string; size: string }> = {
+  mobile: { label: "Mobile", size: "390 x 844" },
+  tablet: { label: "Tablet", size: "768 x 1024" },
+  desktop: { label: "Desktop", size: "1440 x 900" },
+};
+
 const CHECK_GROUPS = [
   {
     icon: Ruler,
@@ -135,6 +141,94 @@ function metricSummary(metrics?: ResponsiveIssue["metrics"]) {
     .slice(0, 4)
     .map(([key, value]) => `${key}: ${value}`)
     .join(" · ");
+}
+
+function value(metrics: ResponsiveIssue["metrics"] | undefined, key: string) {
+  return metrics?.[key];
+}
+
+function viewportText(issue: ResponsiveIssue) {
+  if (issue.viewport === "static") return "HTML preview";
+  const meta = VIEWPORT_META[issue.viewport];
+  return `${meta.label} (${meta.size})`;
+}
+
+function issueHeadline(issue: ResponsiveIssue) {
+  switch (issue.type) {
+    case "horizontal_overflow":
+      return "Page creates horizontal scrolling";
+    case "element_wider_than_viewport":
+      return "Element is wider than the viewport";
+    case "element_outside_viewport":
+      return "Element is partly outside the screen";
+    case "clipped_text":
+      return "Text is clipped inside its container";
+    case "sticky_covering_content":
+      return "Sticky/fixed area may cover page content";
+    case "oversized_modal":
+      return "Modal or drawer is larger than the screen";
+    case "small_tap_target":
+      return "Tap target is smaller than recommended";
+    case "long_unbroken_text":
+      return "Long text may not wrap on narrow screens";
+    default:
+      return formatType(issue.type);
+  }
+}
+
+function expectedText(issue: ResponsiveIssue) {
+  const metrics = issue.metrics;
+  switch (issue.type) {
+    case "horizontal_overflow":
+      return `Page width should be <= ${value(metrics, "viewportWidth")}px`;
+    case "element_wider_than_viewport":
+      return `Element width should be <= ${value(metrics, "expectedMaxWidth")}px`;
+    case "element_outside_viewport":
+      return `Element bounds should stay between 0 and ${value(metrics, "expectedRightMax")}px`;
+    case "clipped_text":
+      return `Container should fit at least ${value(metrics, "expectedWidthAtLeast")}px wide and ${value(metrics, "expectedHeightAtLeast")}px tall`;
+    case "sticky_covering_content":
+      return `Top fixed area should stay below about ${value(metrics, "expectedMaxHeight")}px`;
+    case "oversized_modal":
+      return `Overlay should fit inside ${value(metrics, "viewportWidth")} x ${value(metrics, "viewportHeight")}px`;
+    case "small_tap_target":
+      return `Interactive target should be at least ${value(metrics, "expectedMinWidth")} x ${value(metrics, "expectedMinHeight")}px`;
+    case "long_unbroken_text":
+      return "Text should wrap or truncate without forcing horizontal scroll";
+    default:
+      return issue.details;
+  }
+}
+
+function actualText(issue: ResponsiveIssue) {
+  const metrics = issue.metrics;
+  switch (issue.type) {
+    case "horizontal_overflow":
+      return `Measured page width ${value(metrics, "scrollWidth")}px, overflow ${value(metrics, "overflowPx")}px`;
+    case "element_wider_than_viewport":
+      return `Measured element width ${value(metrics, "width")}px`;
+    case "element_outside_viewport":
+      return `Measured left ${value(metrics, "left")}px, right ${value(metrics, "right")}px`;
+    case "clipped_text":
+      return `Visible box ${value(metrics, "clientWidth")} x ${value(metrics, "clientHeight")}px, content needs ${value(metrics, "scrollWidth")} x ${value(metrics, "scrollHeight")}px`;
+    case "sticky_covering_content":
+      return `Measured height ${value(metrics, "height")}px`;
+    case "oversized_modal":
+      return `Measured overlay ${value(metrics, "width")} x ${value(metrics, "height")}px`;
+    case "small_tap_target":
+      return `Measured target ${value(metrics, "width")} x ${value(metrics, "height")}px`;
+    case "long_unbroken_text":
+      return `Unbroken text length ${value(metrics, "length")} characters`;
+    default:
+      return metricSummary(metrics);
+  }
+}
+
+function locationText(issue: ResponsiveIssue) {
+  const x = value(issue.metrics, "x");
+  const y = value(issue.metrics, "y");
+  if (typeof x === "number" && typeof y === "number") return `Around x:${x}px, y:${y}px`;
+  return issue.selector ? "Selector" : "Document";
 }
 
 export default function ResponsiveAgentPage() {
@@ -376,16 +470,29 @@ export default function ResponsiveAgentPage() {
                         {issue.severity}
                       </span>
                       <span className="rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium capitalize text-[#4b5563]">
-                        {issue.viewport === "static" ? "HTML preview" : issue.viewport}
+                        {viewportText(issue)}
                       </span>
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
                     </div>
-                    <p className="text-[13px] font-medium text-[#17171c]">{issue.element}</p>
-                    <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">{issue.details}</p>
-                    {issue.selector && <p className="mt-2 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>}
-                    {metricSummary(issue.metrics) && (
-                      <p className="mt-2 text-[11px] text-[#71717a]">{metricSummary(issue.metrics)}</p>
-                    )}
+                    <p className="text-[13px] font-semibold text-[#17171c]">{issueHeadline(issue)}</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">
+                      Element: <span className="font-medium text-[#17171c]">{issue.element}</span>
+                    </p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
+                        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
+                      </div>
+                      <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
+                        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{actualText(issue)}</p>
+                      </div>
+                      <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where</p>
+                        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
+                      </div>
+                    </div>
+                    {issue.selector && <p className="mt-3 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>}
                   </div>
                 ))}
               </div>

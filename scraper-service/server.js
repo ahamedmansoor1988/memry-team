@@ -201,14 +201,40 @@ async function inspectResponsive(page, viewport) {
   });
 
   return page.evaluate((vp) => {
+    function isAssistiveOnly(el) {
+      const className = String(el.className || "").toLowerCase();
+      if (el.getAttribute("aria-hidden") === "true") return true;
+      if (el.closest("[aria-hidden='true'], [hidden], template")) return true;
+      return className.includes("screen-reader-text") ||
+        className.includes("sr-only") ||
+        className.includes("visually-hidden") ||
+        className.includes("skip-link");
+    }
+
     function isVisible(el) {
       const cs = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
       return cs.display !== "none" &&
         cs.visibility !== "hidden" &&
         cs.opacity !== "0" &&
+        cs.pointerEvents !== "none" &&
         rect.width > 0 &&
         rect.height > 0;
+    }
+
+    function isOnScreen(rect) {
+      return rect.right > 1 &&
+        rect.left < window.innerWidth - 1 &&
+        rect.bottom > 1 &&
+        rect.top < window.innerHeight - 1;
+    }
+
+    function isUtilityShell(el) {
+      const id = String(el.id || "").toLowerCase();
+      const className = String(el.className || "").toLowerCase();
+      return id.includes("hs-web-interactives") ||
+        className.includes("hs-web-interactives") ||
+        className.includes("elementskit-menu-offcanvas-elements");
     }
 
     function labelFor(el) {
@@ -249,7 +275,11 @@ async function inspectResponsive(page, viewport) {
         element: el ? labelFor(el) : "document",
         selector,
         details,
-        metrics,
+        metrics: {
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          ...metrics,
+        },
       });
     }
 
@@ -264,44 +294,63 @@ async function inspectResponsive(page, viewport) {
       });
     }
 
-    const elements = Array.from(document.body.querySelectorAll("*")).filter(isVisible);
+    const elements = Array.from(document.body.querySelectorAll("*")).filter(el => {
+      if (!isVisible(el) || isAssistiveOnly(el)) return false;
+      const rect = el.getBoundingClientRect();
+      return isOnScreen(rect);
+    });
     for (const el of elements) {
       if (issues.length > 80) break;
       const rect = el.getBoundingClientRect();
       const cs = window.getComputedStyle(el);
+      const text = (el.innerText || "").trim();
 
       if (rect.width > window.innerWidth + 2) {
         add("element_wider_than_viewport", "high", el, "Element is wider than the viewport.", {
           width: Math.round(rect.width),
-          viewportWidth: window.innerWidth,
+          expectedMaxWidth: window.innerWidth,
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
         });
       }
 
-      if (rect.right > window.innerWidth + 2 || rect.left < -2) {
+      if ((rect.right > window.innerWidth + 2 || rect.left < -2) && isOnScreen(rect)) {
         add("element_outside_viewport", "medium", el, "Visible element extends outside the viewport bounds.", {
           left: Math.round(rect.left),
           right: Math.round(rect.right),
-          viewportWidth: window.innerWidth,
+          expectedLeftMin: 0,
+          expectedRightMax: window.innerWidth,
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
         });
       }
 
       const clipsX = el.scrollWidth > el.clientWidth + 2;
       const clipsY = el.scrollHeight > el.clientHeight + 2;
       const hidesOverflow = ["hidden", "clip", "auto", "scroll"].includes(cs.overflowX) || ["hidden", "clip", "auto", "scroll"].includes(cs.overflowY);
-      const text = (el.innerText || "").trim();
-      if (text.length > 2 && hidesOverflow && (clipsX || clipsY)) {
+      if (text.length > 2 && hidesOverflow && (clipsX || clipsY) && !isUtilityShell(el)) {
         add("clipped_text", "high", el, "Text content appears clipped inside its container.", {
           clientWidth: el.clientWidth,
           scrollWidth: el.scrollWidth,
           clientHeight: el.clientHeight,
           scrollHeight: el.scrollHeight,
+          expectedWidthAtLeast: clipsX ? el.scrollWidth : el.clientWidth,
+          expectedHeightAtLeast: clipsY ? el.scrollHeight : el.clientHeight,
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
         });
       }
 
-      if (/\b(fixed|sticky)\b/.test(cs.position) && rect.top <= 4 && rect.height > Math.min(120, window.innerHeight * 0.18)) {
+      if (/\b(fixed|sticky)\b/.test(cs.position) &&
+        text.length > 0 &&
+        !isUtilityShell(el) &&
+        rect.top <= 4 &&
+        rect.height > Math.min(120, window.innerHeight * 0.18)) {
         add("sticky_covering_content", rect.height > window.innerHeight * 0.28 ? "high" : "medium", el, "Fixed or sticky element occupies a large top area.", {
           height: Math.round(rect.height),
-          viewportHeight: window.innerHeight,
+          expectedMaxHeight: Math.round(window.innerHeight * 0.18),
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
         });
       }
 
@@ -312,14 +361,23 @@ async function inspectResponsive(page, viewport) {
           height: Math.round(rect.height),
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
+          expectedMaxWidth: window.innerWidth,
+          expectedMaxHeight: window.innerHeight,
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
         });
       }
 
-      if ((el.matches("a, button, input, select, textarea, [role='button'], [tabindex]")) &&
+      if (vp.name !== "desktop" &&
+        (el.matches("a, button, input, select, textarea, [role='button'], [tabindex]")) &&
         rect.width > 0 && rect.height > 0 && (rect.width < 36 || rect.height < 36)) {
         add("small_tap_target", "low", el, "Interactive element is smaller than comfortable mobile tap target size.", {
           width: Math.round(rect.width),
           height: Math.round(rect.height),
+          expectedMinWidth: 36,
+          expectedMinHeight: 36,
+          x: Math.round(rect.left),
+          y: Math.round(rect.top),
         });
       }
     }
@@ -330,9 +388,13 @@ async function inspectResponsive(page, viewport) {
       const word = node.textContent?.match(/[^\s]{36,}/)?.[0];
       if (!word) continue;
       const el = node.parentElement;
-      if (!el || !isVisible(el)) continue;
+      if (!el || !isVisible(el) || isAssistiveOnly(el) || !isOnScreen(el.getBoundingClientRect())) continue;
+      const rect = el.getBoundingClientRect();
       add("long_unbroken_text", "medium", el, "Long unbroken text may force horizontal overflow on narrow screens.", {
         length: word.length,
+        expectedWrap: true,
+        x: Math.round(rect.left),
+        y: Math.round(rect.top),
       });
     }
 
