@@ -443,6 +443,13 @@ function isStrictTextFallbackMatch(figmaText: string, liveText: string): boolean
   return overlap >= 4 && score >= 0.85;
 }
 
+function isContainmentTextMatch(figmaText: string, liveText: string): boolean {
+  const figmaKey = normalizeCopyForCompare(figmaText);
+  const liveKey = normalizeCopyForCompare(liveText);
+  if (!figmaKey || !liveKey || figmaKey === liveKey) return false;
+  return figmaKey.length >= 8 && liveKey.length >= 8 && (figmaKey.includes(liveKey) || liveKey.includes(figmaKey));
+}
+
 function bestLiveMatchByGeometry(figmaNode: TextNode, frame: FrameInfo, candidates: any[]): any | null {
   if (candidates.length === 0) return null;
   const figmaBounds = normalizedFigmaBounds(figmaNode, frame);
@@ -1339,6 +1346,14 @@ export async function POST(req: NextRequest) {
               return [{ item: s, text, key, shape: copyShape(text), bounds }];
             })
           );
+          const liveStylesByExactKey = new Map<string, any[]>();
+          for (const s of rawStyles) {
+            const key = normalizeCopyForCompare(s.text?.trim() ?? "");
+            if (!key) continue;
+            const items = liveStylesByExactKey.get(key) ?? [];
+            items.push(s);
+            liveStylesByExactKey.set(key, items);
+          }
           const usedLiveContentKeys = new Set<string>();
 
           for (const candidate of figmaContentCandidates) {
@@ -1350,7 +1365,8 @@ export async function POST(req: NextRequest) {
             if (!figmaKey || figmaWords.length < 1) continue;
 
             let bestMatch: any = null;
-            const exactMatch = findLiveMatchForFigmaNode(n, frame, rawStyles, false);
+            const exactMatch = bestLiveMatchByGeometry(n, frame, liveStylesByExactKey.get(figmaKey) ?? [])
+              ?? findLiveMatchForFigmaNode(n, frame, rawStyles, false);
             if (exactMatch) {
               addLayoutPair(n, exactMatch);
               contentMatchedFigmaKeys.add(figmaKey);
@@ -1387,7 +1403,11 @@ export async function POST(req: NextRequest) {
               addLayoutPair(n, bestMatch);
               contentMatchedFigmaKeys.add(figmaKey);
               usedLiveContentKeys.add(normalizeCopyForCompare(liveText));
-              if (inclContent && normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText)) {
+              if (
+                inclContent &&
+                normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText) &&
+                !isContainmentTextMatch(figmaText, liveText)
+              ) {
                 contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
                 deterministicContentIssues.push(contentIssue(figmaText, liveText));
               }
