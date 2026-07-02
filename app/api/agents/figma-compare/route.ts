@@ -338,6 +338,20 @@ function textOverlapStats(figmaText: string, liveText: string) {
   };
 }
 
+function bidirectionalTextOverlap(figmaText: string, liveText: string) {
+  const figmaWords = meaningfulWords(figmaText);
+  const liveWords = meaningfulWords(liveText);
+  const figmaSet = new Set(figmaWords);
+  const liveSet = new Set(liveWords);
+  const overlap = figmaWords.filter(word => liveSet.has(word)).length;
+  const reverseOverlap = liveWords.filter(word => figmaSet.has(word)).length;
+  return {
+    overlap,
+    figmaScore: figmaWords.length === 0 ? 0 : overlap / figmaWords.length,
+    liveScore: liveWords.length === 0 ? 0 : reverseOverlap / liveWords.length,
+  };
+}
+
 function copyShape(text: string): CopyShape {
   const normalized = normalizeCopyForCompare(text);
   if (/^[\d\s]+$/.test(normalized)) return "numeric";
@@ -448,6 +462,29 @@ function isContainmentTextMatch(figmaText: string, liveText: string): boolean {
   const liveKey = normalizeCopyForCompare(liveText);
   if (!figmaKey || !liveKey || figmaKey === liveKey) return false;
   return figmaKey.length >= 8 && liveKey.length >= 8 && (figmaKey.includes(liveKey) || liveKey.includes(figmaKey));
+}
+
+function shouldReportContentMismatch(figma: ContentCandidate<TextNode>, live: any): boolean {
+  const figmaText = figma.text;
+  const liveText = live?.text?.trim() ?? "";
+  const figmaKey = normalizeCopyForCompare(figmaText);
+  const liveKey = normalizeCopyForCompare(liveText);
+  if (!figmaKey || !liveKey || figmaKey === liveKey) return false;
+  if (isContainmentTextMatch(figmaText, liveText)) return false;
+
+  const liveBounds = normalizedLiveBounds(live);
+  if (!liveBounds) return false;
+
+  const overlap = bidirectionalTextOverlap(figmaText, liveText);
+  const geoDistance = geometryDistance(figma.bounds, liveBounds);
+  const ratio = lengthRatio(figmaText, liveText);
+  const liveShape = copyShape(liveText);
+  const sameShape = figma.shape === liveShape;
+
+  if (Math.max(overlap.figmaScore, overlap.liveScore) >= 0.55) return true;
+  if (sameShape && geoDistance <= 0.025 && ratio >= 0.45) return true;
+  if (sameShape && geoDistance <= 0.04 && ratio >= 0.5 && Math.max(overlap.figmaScore, overlap.liveScore) >= 0.4) return true;
+  return false;
 }
 
 function bestLiveMatchByGeometry(figmaNode: TextNode, frame: FrameInfo, candidates: any[]): any | null {
@@ -1403,11 +1440,7 @@ export async function POST(req: NextRequest) {
               addLayoutPair(n, bestMatch);
               contentMatchedFigmaKeys.add(figmaKey);
               usedLiveContentKeys.add(normalizeCopyForCompare(liveText));
-              if (
-                inclContent &&
-                normalizeCopyForCompare(figmaText) !== normalizeCopyForCompare(liveText) &&
-                !isContainmentTextMatch(figmaText, liveText)
-              ) {
+              if (inclContent && shouldReportContentMismatch(candidate, bestMatch)) {
                 contentLines.push(`Figma: "${figmaText.slice(0, 100)}" → Live: "${liveText.slice(0, 100)}"`);
                 deterministicContentIssues.push(contentIssue(figmaText, liveText));
               }
