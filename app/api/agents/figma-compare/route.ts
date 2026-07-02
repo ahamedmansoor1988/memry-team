@@ -261,6 +261,11 @@ interface LayoutPair {
   reliableForSpacing: boolean;
 }
 
+interface UnmatchedFigmaNode {
+  text: string;
+  nodeId: string;
+}
+
 function normalizedFigmaBounds(node: TextNode, frame: FrameInfo): NormalizedBounds | null {
   const box = node.absoluteBoundingBox;
   const frameBox = frame.absoluteBoundingBox;
@@ -462,6 +467,20 @@ function isContainmentTextMatch(figmaText: string, liveText: string): boolean {
   const liveKey = normalizeCopyForCompare(liveText);
   if (!figmaKey || !liveKey || figmaKey === liveKey) return false;
   return figmaKey.length >= 8 && liveKey.length >= 8 && (figmaKey.includes(liveKey) || liveKey.includes(figmaKey));
+}
+
+function isFigmaCopyPresentInLive(figmaText: string, rawStyles: any[]): boolean {
+  const figmaKey = normalizeCopyForCompare(figmaText);
+  if (!figmaKey || !isLikelyUiCopy(figmaText)) return false;
+
+  return rawStyles.some(style => {
+    const liveText = style?.text?.trim() ?? "";
+    const liveKey = normalizeCopyForCompare(liveText);
+    if (!liveKey || !isLikelyUiCopy(liveText)) return false;
+    if (figmaKey === liveKey) return true;
+    if (isContainmentTextMatch(figmaText, liveText)) return true;
+    return isStrictTextFallbackMatch(figmaText, liveText);
+  });
 }
 
 function shouldReportContentMismatch(figma: ContentCandidate<TextNode>, live: any): boolean {
@@ -1316,7 +1335,7 @@ export async function POST(req: NextRequest) {
           });
         };
 
-        const unmatchedFigma: string[] = [];
+        const unmatchedFigma: UnmatchedFigmaNode[] = [];
         if (rawStyles.length > 0) {
           const matchedLines: string[] = [];
 
@@ -1337,13 +1356,15 @@ export async function POST(req: NextRequest) {
               if (inclColor)  parts.push(`color: ${n.color} → ${live.color}`);
               matchedLines.push(parts.join(" | "));
             } else {
-              unmatchedFigma.push(`"${n.characters.slice(0, 40)}" (no live match — skipped)`);
+              unmatchedFigma.push({ text: n.characters.trim(), nodeId: n.id });
             }
           }
 
           liveContext = matchedLines.join("\n");
           if (unmatchedFigma.length > 0) {
-            liveContext += `\n\nUNMATCHED FIGMA NODES (skip these):\n${unmatchedFigma.join("\n")}`;
+            liveContext += `\n\nUNMATCHED FIGMA NODES (skip these):\n${unmatchedFigma
+              .map(n => `"${shortLabel(n.text, 80)}" (no live match — skipped)`)
+              .join("\n")}`;
           }
           send("step", { text: `Matched ${matchedLines.length}/${textNodes.length} Figma nodes to live elements. ${unmatchedFigma.length} unmatched (skipped).` });
         } else {
@@ -1496,14 +1517,15 @@ export async function POST(req: NextRequest) {
 
           if (activeChecks.includes("missing_elements") && unmatchedFigma.length > 0) {
             const missingItems = unmatchedFigma
-              .map(label => label.replace(/" \(no live match.*$/, "").replace(/^"/, ""))
+              .map(n => n.text)
               .filter(label => {
                 const key = normalizeCopyForCompare(label);
                 if (!key || !isLikelyUiCopy(label)) return false;
-                return !contentMatchedFigmaKeys.has(key);
+                if (contentMatchedFigmaKeys.has(key)) return false;
+                return !isFigmaCopyPresentInLive(label, rawStyles);
               })
               .map(label => ({
-                element: label,
+                element: shortLabel(label, 100),
                 category: "missing_elements",
                 issue: "Missing on live page",
                 severity: "high",
@@ -1801,14 +1823,15 @@ Output format — ONLY a valid JSON array, no text before or after:
         // Prepend missing elements (no AI needed — direct from unmatched nodes)
         if (activeChecks.includes("missing_elements") && unmatchedFigma.length > 0) {
           const missingItems = unmatchedFigma
-            .map(label => label.replace(/" \(no live match.*$/, "").replace(/^"/, ""))
+            .map(n => n.text)
             .filter(label => {
               const key = normalizeCopyForCompare(label);
               if (!key || !isLikelyUiCopy(label)) return false;
-              return !contentMatchedFigmaKeys.has(key);
+              if (contentMatchedFigmaKeys.has(key)) return false;
+              return !isFigmaCopyPresentInLive(label, rawStyles);
             })
             .map(label => ({
-              element: label,
+              element: shortLabel(label, 100),
               category: "missing_elements",
               issue: "Missing on live page",
               severity: "high",
