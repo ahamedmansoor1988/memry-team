@@ -469,11 +469,31 @@ function isContainmentTextMatch(figmaText: string, liveText: string): boolean {
   return figmaKey.length >= 8 && liveKey.length >= 8 && (figmaKey.includes(liveKey) || liveKey.includes(figmaKey));
 }
 
+function buildLiveCopyCorpus(rawStyles: any[]): string {
+  const items = rawStyles
+    .map(style => {
+      const text = style?.text?.trim() ?? "";
+      const bounds = normalizedLiveBounds(style);
+      return { text, bounds };
+    })
+    .filter(item => item.text && isLikelyUiCopy(item.text))
+    .sort((a, b) => {
+      if (!a.bounds && !b.bounds) return 0;
+      if (!a.bounds) return 1;
+      if (!b.bounds) return -1;
+      if (Math.abs(a.bounds.centerY - b.bounds.centerY) > 0.01) return a.bounds.centerY - b.bounds.centerY;
+      return a.bounds.centerX - b.bounds.centerX;
+    })
+    .map(item => item.text);
+
+  return normalizeCopyForCompare(items.join(" "));
+}
+
 function isFigmaCopyPresentInLive(figmaText: string, rawStyles: any[]): boolean {
   const figmaKey = normalizeCopyForCompare(figmaText);
   if (!figmaKey || !isLikelyUiCopy(figmaText)) return false;
 
-  return rawStyles.some(style => {
+  const isPresentInSingleLiveNode = rawStyles.some(style => {
     const liveText = style?.text?.trim() ?? "";
     const liveKey = normalizeCopyForCompare(liveText);
     if (!liveKey || !isLikelyUiCopy(liveText)) return false;
@@ -481,6 +501,17 @@ function isFigmaCopyPresentInLive(figmaText: string, rawStyles: any[]): boolean 
     if (isContainmentTextMatch(figmaText, liveText)) return true;
     return isStrictTextFallbackMatch(figmaText, liveText);
   });
+  if (isPresentInSingleLiveNode) return true;
+
+  // Styled headlines/subtitles often arrive from Chrome as multiple text nodes.
+  // Missing-comps is a presence check, so compare against the combined readable
+  // page text before declaring a Figma sentence absent.
+  const liveCorpus = buildLiveCopyCorpus(rawStyles);
+  if (!liveCorpus) return false;
+  if (liveCorpus.includes(figmaKey)) return true;
+
+  const { figmaWords, overlap, score } = textOverlapStats(figmaText, liveCorpus);
+  return figmaWords.length >= 4 && overlap >= figmaWords.length - 1 && score >= 0.85;
 }
 
 function shouldReportContentMismatch(figma: ContentCandidate<TextNode>, live: any): boolean {
