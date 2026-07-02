@@ -287,7 +287,7 @@ async function inspectResponsive(page, viewport) {
     const body = document.body;
     const scrollWidth = Math.max(doc.scrollWidth, body?.scrollWidth || 0);
     if (scrollWidth > window.innerWidth + 2) {
-      add("horizontal_overflow", "high", doc, "Document is wider than the viewport.", {
+      add("horizontal_overflow", "high", null, "Document is wider than the viewport.", {
         viewportWidth: window.innerWidth,
         scrollWidth,
         overflowPx: scrollWidth - window.innerWidth,
