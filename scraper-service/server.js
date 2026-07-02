@@ -12,13 +12,25 @@ let browser = null;
 async function getBrowser() {
   if (!browser || !browser.isConnected()) {
     try {
-      console.log("[scraper] connecting to Browserless...");
-      browser = await chromium.connectOverCDP(
-        `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
-      );
-      console.log("[scraper] connected to Browserless");
+      if (process.env.BROWSERLESS_TOKEN) {
+        console.log("[scraper] connecting to Browserless...");
+        browser = await chromium.connectOverCDP(
+          `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_TOKEN}`
+        );
+        console.log("[scraper] connected to Browserless");
+      } else {
+        const executablePath = process.env.CHROME_EXECUTABLE_PATH ||
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+        console.log("[scraper] launching local Chrome...");
+        browser = await chromium.launch({
+          executablePath,
+          headless: true,
+          args: ["--no-sandbox", "--disable-dev-shm-usage"],
+        });
+        console.log("[scraper] local Chrome ready");
+      }
     } catch (err) {
-      console.error("[scraper] Browserless connection failed:", err.message);
+      console.error("[scraper] browser startup failed:", err.message);
       throw err;
     }
   }
@@ -180,6 +192,160 @@ async function extractStyles(page) {
   });
 }
 
+async function inspectResponsive(page, viewport) {
+  await page.setViewportSize({ width: viewport.width, height: viewport.height });
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    await document.fonts?.ready?.catch?.(() => {});
+    await new Promise(r => setTimeout(r, 600));
+  });
+
+  return page.evaluate((vp) => {
+    function isVisible(el) {
+      const cs = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return cs.display !== "none" &&
+        cs.visibility !== "hidden" &&
+        cs.opacity !== "0" &&
+        rect.width > 0 &&
+        rect.height > 0;
+    }
+
+    function labelFor(el) {
+      const aria = el.getAttribute("aria-label");
+      if (aria) return aria.slice(0, 80);
+      const text = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text) return text.slice(0, 80);
+      const src = el.getAttribute("src");
+      if (src) return src.split("/").pop()?.slice(0, 80) || el.tagName.toLowerCase();
+      return el.id ? `#${el.id}` : el.className ? `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).slice(0, 2).join(".")}` : el.tagName.toLowerCase();
+    }
+
+    function selectorFor(el) {
+      if (el.id) return `#${CSS.escape(el.id)}`;
+      const parts = [];
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE && parts.length < 4) {
+        const tag = cur.tagName.toLowerCase();
+        const cls = String(cur.className || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map(c => `.${CSS.escape(c)}`).join("");
+        parts.unshift(`${tag}${cls}`);
+        cur = cur.parentElement;
+      }
+      return parts.join(" > ");
+    }
+
+    const issues = [];
+    const seen = new Set();
+    function add(type, severity, el, details, metrics = {}) {
+      const selector = el ? selectorFor(el) : "document";
+      const key = `${vp.name}:${type}:${selector}:${details}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      issues.push({
+        id: `${vp.name}-${issues.length + 1}`,
+        viewport: vp.name,
+        type,
+        severity,
+        element: el ? labelFor(el) : "document",
+        selector,
+        details,
+        metrics,
+      });
+    }
+
+    const doc = document.documentElement;
+    const body = document.body;
+    const scrollWidth = Math.max(doc.scrollWidth, body?.scrollWidth || 0);
+    if (scrollWidth > window.innerWidth + 2) {
+      add("horizontal_overflow", "high", doc, "Document is wider than the viewport.", {
+        viewportWidth: window.innerWidth,
+        scrollWidth,
+        overflowPx: scrollWidth - window.innerWidth,
+      });
+    }
+
+    const elements = Array.from(document.body.querySelectorAll("*")).filter(isVisible);
+    for (const el of elements) {
+      if (issues.length > 80) break;
+      const rect = el.getBoundingClientRect();
+      const cs = window.getComputedStyle(el);
+
+      if (rect.width > window.innerWidth + 2) {
+        add("element_wider_than_viewport", "high", el, "Element is wider than the viewport.", {
+          width: Math.round(rect.width),
+          viewportWidth: window.innerWidth,
+        });
+      }
+
+      if (rect.right > window.innerWidth + 2 || rect.left < -2) {
+        add("element_outside_viewport", "medium", el, "Visible element extends outside the viewport bounds.", {
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          viewportWidth: window.innerWidth,
+        });
+      }
+
+      const clipsX = el.scrollWidth > el.clientWidth + 2;
+      const clipsY = el.scrollHeight > el.clientHeight + 2;
+      const hidesOverflow = ["hidden", "clip", "auto", "scroll"].includes(cs.overflowX) || ["hidden", "clip", "auto", "scroll"].includes(cs.overflowY);
+      const text = (el.innerText || "").trim();
+      if (text.length > 2 && hidesOverflow && (clipsX || clipsY)) {
+        add("clipped_text", "high", el, "Text content appears clipped inside its container.", {
+          clientWidth: el.clientWidth,
+          scrollWidth: el.scrollWidth,
+          clientHeight: el.clientHeight,
+          scrollHeight: el.scrollHeight,
+        });
+      }
+
+      if (/\b(fixed|sticky)\b/.test(cs.position) && rect.top <= 4 && rect.height > Math.min(120, window.innerHeight * 0.18)) {
+        add("sticky_covering_content", rect.height > window.innerHeight * 0.28 ? "high" : "medium", el, "Fixed or sticky element occupies a large top area.", {
+          height: Math.round(rect.height),
+          viewportHeight: window.innerHeight,
+        });
+      }
+
+      if ((el.matches("[role='dialog'], dialog, [class*='modal'], [class*='drawer']")) &&
+        (rect.width > window.innerWidth || rect.height > window.innerHeight)) {
+        add("oversized_modal", "high", el, "Dialog or modal is larger than the viewport.", {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+        });
+      }
+
+      if ((el.matches("a, button, input, select, textarea, [role='button'], [tabindex]")) &&
+        rect.width > 0 && rect.height > 0 && (rect.width < 36 || rect.height < 36)) {
+        add("small_tap_target", "low", el, "Interactive element is smaller than comfortable mobile tap target size.", {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        });
+      }
+    }
+
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const word = node.textContent?.match(/[^\s]{36,}/)?.[0];
+      if (!word) continue;
+      const el = node.parentElement;
+      if (!el || !isVisible(el)) continue;
+      add("long_unbroken_text", "medium", el, "Long unbroken text may force horizontal overflow on narrow screens.", {
+        length: word.length,
+      });
+    }
+
+    return {
+      viewport: vp,
+      scrollWidth,
+      viewportWidth: window.innerWidth,
+      issueCount: issues.length,
+      issues,
+    };
+  }, viewport);
+}
+
 // POST /scrape — main endpoint
 app.post("/scrape", async (req, res) => {
   const { url } = req.body ?? {};
@@ -241,7 +407,54 @@ app.post("/scrape", async (req, res) => {
   }
 });
 
+// POST /responsive — checks layout fit across viewport sizes
+app.post("/responsive", async (req, res) => {
+  const { url, viewports } = req.body ?? {};
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "url is required" });
+  }
+
+  const checks = Array.isArray(viewports) && viewports.length > 0
+    ? viewports
+    : [
+      { name: "mobile", width: 390, height: 844 },
+      { name: "tablet", width: 768, height: 1024 },
+      { name: "desktop", width: 1440, height: 900 },
+    ];
+
+  let page;
+  try {
+    const b = await getBrowser();
+    page = await b.newPage();
+    await page.route("**/*", route => {
+      const type = route.request().resourceType();
+      if (type === "media") return route.abort();
+      return route.continue();
+    });
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+
+    const results = [];
+    for (const viewport of checks) {
+      results.push(await inspectResponsive(page, viewport));
+    }
+
+    res.json({
+      url,
+      checkedAt: new Date().toISOString(),
+      mode: "browser",
+      viewports: checks,
+      issues: results.flatMap(r => r.issues),
+      viewportResults: results,
+    });
+  } catch (err) {
+    console.error("[responsive] error:", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (page) await page.close().catch(() => {});
+  }
+});
+
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "dedup-v2" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "responsive-v1" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));

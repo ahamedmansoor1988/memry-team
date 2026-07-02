@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings } from "lucide-react";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
+import { ScanSearch, LogOut, History, Settings, MonitorCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch },
+  { id: "responsive",    label: "Responsive",    icon: MonitorCheck },
   { id: "history",       label: "History",        icon: History    },
 ];
 
@@ -14,7 +16,6 @@ interface Props { userEmail: string; }
 
 export function Sidebar({ userEmail }: Props) {
   const pathname = usePathname();
-  const router   = useRouter();
 
   async function signOut() {
     const supabase = createClient();
@@ -26,7 +27,7 @@ export function Sidebar({ userEmail }: Props) {
     <aside className="flex h-screen w-[220px] shrink-0 flex-col bg-white border-r border-black/[0.06] text-[#0f0f0f]">
       {/* Logo */}
       <div className="flex h-[45px] items-center gap-2.5 px-4 border-b border-black/[0.06] shrink-0">
-        <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
+        <Image src="/loupe.svg" alt="Loupe" width={482} height={207} className="h-7 w-auto" />
         
       </div>
 
