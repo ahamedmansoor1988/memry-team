@@ -10,6 +10,8 @@ function supabaseAdmin() {
   );
 }
 
+const RUN_MARKER_CATEGORY = "__run";
+
 export async function GET(req: NextRequest) {
   const slug = req.nextUrl.searchParams.get("slug");
   if (!slug) return NextResponse.json({ error: "missing slug" }, { status: 400 });
@@ -39,6 +41,7 @@ export async function GET(req: NextRequest) {
   // Deduplicate
   const seen = new Set<string>();
   const issues = (data ?? []).filter(row => {
+    if (row.category === RUN_MARKER_CATEGORY) return false;
     const key = `${row.element}||${row.issue}`;
     if (seen.has(key)) return false;
     seen.add(key);

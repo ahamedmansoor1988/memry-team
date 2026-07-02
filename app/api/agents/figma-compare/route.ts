@@ -15,6 +15,62 @@ function sse(type: string, payload: object) {
   return `data: ${JSON.stringify({ type, ...payload })}\n\n`;
 }
 
+const RUN_MARKER_CATEGORY = "__run";
+
+interface PersistableIssue {
+  element: string;
+  category?: string | null;
+  issue: string;
+  severity?: string | null;
+}
+
+async function persistScanRun(params: {
+  snapshotId: string | null;
+  fileKey: string;
+  nodeId: string;
+  liveUrl: string;
+  scannedAt: string;
+  summary: string;
+  issues: PersistableIssue[];
+}) {
+  const { snapshotId, fileKey, nodeId, liveUrl, scannedAt, summary, issues } = params;
+  if (!snapshotId) {
+    console.warn("[figma-compare] scan history skipped: missing snapshotId");
+    return;
+  }
+
+  try {
+    const rows = [
+      {
+        snapshot_id: snapshotId,
+        file_key:    fileKey,
+        node_id:     nodeId,
+        element:     "Scan completed",
+        category:    RUN_MARKER_CATEGORY,
+        issue:       summary.slice(0, 500),
+        severity:    "info",
+        live_url:    liveUrl,
+        scanned_at:  scannedAt,
+      },
+      ...issues.map(d => ({
+        snapshot_id: snapshotId,
+        file_key:    fileKey,
+        node_id:     nodeId,
+        element:     d.element,
+        category:    d.category ?? null,
+        issue:       d.issue,
+        severity:    d.severity ?? "medium",
+        live_url:    liveUrl,
+        scanned_at:  scannedAt,
+      })),
+    ];
+    const { error } = await supabaseAdmin().from("qa_issues").insert(rows);
+    if (error) console.error("[figma-compare] scan history insert error:", error.message);
+  } catch (err) {
+    console.error("[figma-compare] scan history insert exception:", err);
+  }
+}
+
 interface FigmaRequestLog {
   reqId: string; method: string; path: string; startedAt: string;
   durationMs: number; status: number; retryAfterSec: number | null;
@@ -1388,29 +1444,24 @@ export async function POST(req: NextRequest) {
           }
 
           if (deterministicDiscrepancies.length === 0) {
+            const scannedAt = new Date().toISOString();
+            const resultText = "No discrepancies found for the selected deterministic checks.";
+            await persistScanRun({
+              snapshotId: snapshotId ?? null,
+              fileKey,
+              nodeId,
+              liveUrl,
+              scannedAt,
+              summary: resultText,
+              issues: [],
+            });
             send("result", {
-              text: "No discrepancies found for the selected deterministic checks.",
+              text: resultText,
               table: [],
               snapshotId: snapshotId ?? null,
             });
             controller.close();
             return;
-          }
-
-          if (snapshotId) {
-            const issueRows = deterministicDiscrepancies.map(d => ({
-              snapshot_id: snapshotId,
-              file_key:    fileKey,
-              node_id:     nodeId,
-              element:     d.element,
-              category:    d.category,
-              issue:       d.issue,
-              severity:    d.severity,
-              live_url:    liveUrl,
-              scanned_at:  new Date().toISOString(),
-            }));
-            const { error: issueInsertErr } = await supabaseAdmin().from("qa_issues").insert(issueRows);
-            if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
           }
 
           const byCategory = deterministicDiscrepancies.reduce((acc, d) => {
@@ -1420,9 +1471,20 @@ export async function POST(req: NextRequest) {
           const summary = Object.entries(byCategory)
             .map(([cat, count]) => `${count} ${cat.replace("_", " ")}`)
             .join(", ");
+          const resultText = `Found ${deterministicDiscrepancies.length} issue${deterministicDiscrepancies.length === 1 ? "" : "s"}: ${summary}.`;
+          const scannedAt = new Date().toISOString();
+          await persistScanRun({
+            snapshotId: snapshotId ?? null,
+            fileKey,
+            nodeId,
+            liveUrl,
+            scannedAt,
+            summary: resultText,
+            issues: deterministicDiscrepancies,
+          });
 
           send("result", {
-            text: `Found ${deterministicDiscrepancies.length} issue${deterministicDiscrepancies.length === 1 ? "" : "s"}: ${summary}.`,
+            text: resultText,
             table: deterministicDiscrepancies.map(d => ({
               element: d.element,
               issue: d.issue,
@@ -1677,8 +1739,19 @@ Output format — ONLY a valid JSON array, no text before or after:
         const table: Array<{ element: string; issue: string; category?: string; severity?: string; commentId?: string }> = [];
 
         if (discrepancies.length === 0) {
+          const resultText = "No discrepancies found. This can happen if:\n• The live URL doesn't match the Figma frame (e.g. wrong page)\n• The Loupe extension hasn't captured styles from the live site yet (visit the page first, then run again)\n• The design and live site genuinely match";
+          const scannedAt = new Date().toISOString();
+          await persistScanRun({
+            snapshotId: snapshotId ?? null,
+            fileKey,
+            nodeId,
+            liveUrl,
+            scannedAt,
+            summary: resultText,
+            issues: [],
+          });
           send("result", {
-            text: "No discrepancies found. This can happen if:\n• The live URL doesn't match the Figma frame (e.g. wrong page)\n• The Loupe extension hasn't captured styles from the live site yet (visit the page first, then run again)\n• The design and live site genuinely match",
+            text: resultText,
             table: [],
             snapshotId: snapshotId ?? null,
           });
@@ -1698,9 +1771,20 @@ Output format — ONLY a valid JSON array, no text before or after:
         const summary = Object.entries(byCategory)
           .map(([cat, count]) => `${count} ${cat.replace("_", " ")}`)
           .join(", ");
+        const resultText = `Found ${discrepancies.length} issues: ${summary}. Use "Publish to Figma" to post comments when ready.`;
+        const scannedAt = new Date().toISOString();
+        await persistScanRun({
+          snapshotId: snapshotId ?? null,
+          fileKey,
+          nodeId,
+          liveUrl,
+          scannedAt,
+          summary: resultText,
+          issues: discrepancies,
+        });
 
         send("result", {
-          text: `Found ${discrepancies.length} issues: ${summary}. Use "Publish to Figma" to post comments when ready.`,
+          text: resultText,
           table,
           snapshotId: snapshotId ?? null,
           figmaApiReport: {
@@ -1715,28 +1799,6 @@ Output format — ONLY a valid JSON array, no text before or after:
             })),
           },
         });
-
-        // Persist issues after sending the UI result. Persistence must never
-        // prevent the user from seeing the comparison table.
-        if (snapshotId) {
-          try {
-            const issueRows = discrepancies.map(d => ({
-              snapshot_id: snapshotId,
-              file_key:    fileKey,
-              node_id:     nodeId,
-              element:     d.element,
-              category:    d.category ?? null,
-              issue:       d.issue,
-              severity:    d.severity ?? "medium",
-              live_url:    liveUrl,
-              scanned_at:  new Date().toISOString(),
-            }));
-            const { error: issueInsertErr } = await supabaseAdmin().from("qa_issues").insert(issueRows);
-            if (issueInsertErr) console.error("[figma-compare] qa_issues insert error:", issueInsertErr.message);
-          } catch (persistErr) {
-            console.error("[figma-compare] qa_issues insert exception:", persistErr);
-          }
-        }
 
       } catch (err) {
         controller.enqueue(encoder.encode(sse("error", { text: `Unexpected error: ${String(err)}` })));

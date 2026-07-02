@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 export const maxDuration = 120;
 
+const RUN_MARKER_CATEGORY = "__run";
+
 function supabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -83,6 +85,7 @@ export async function POST(req: NextRequest) {
     .from("qa_issues")
     .select("id, element, category, issue, severity")
     .eq("snapshot_id", snapshotId)
+    .neq("category", RUN_MARKER_CATEGORY)
     .is("figma_comment_id", null);
 
   if (issuesErr) return NextResponse.json({ error: issuesErr.message }, { status: 500 });

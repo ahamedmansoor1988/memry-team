@@ -24,6 +24,8 @@ const categoryColors: Record<string, { bg: string; text: string; label: string }
   font_size:        { bg: "#eff6ff", text: "#2563eb", label: "Font Size"   },
   font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },
   color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
+  content:          { bg: "#f0fdf4", text: "#16a34a", label: "Content"     },
+  spacing:          { bg: "#ecfeff", text: "#0891b2", label: "Spacing"     },
 };
 
 function IssueDiff({ issue }: { issue: string }) {
@@ -142,6 +144,9 @@ export default function HistoryPage() {
               {/* Issues table */}
               {isOpen && (
                 <div className="border-t border-[#f0f0f0]">
+                  {run.issues.length === 0 ? (
+                    <div className="px-4 py-4 text-[12px] text-[#71717a]">No issues found in this run.</div>
+                  ) : (
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
@@ -170,6 +175,7 @@ export default function HistoryPage() {
                       })}
                     </tbody>
                   </table>
+                  )}
                 </div>
               )}
             </div>

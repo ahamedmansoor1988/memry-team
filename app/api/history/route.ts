@@ -10,12 +10,14 @@ function supabaseAdmin() {
   );
 }
 
+const RUN_MARKER_CATEGORY = "__run";
+
 export async function GET() {
   const { data, error } = await supabaseAdmin()
     .from("qa_issues")
     .select("id, element, category, issue, severity, live_url, scanned_at")
     .order("scanned_at", { ascending: false })
-    .limit(200);
+    .limit(1000);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -25,7 +27,7 @@ export async function GET() {
     const minute = row.scanned_at?.slice(0, 16) ?? "";
     const key = `${row.live_url}||${minute}`;
     if (!runMap.has(key)) runMap.set(key, { live_url: row.live_url, scanned_at: row.scanned_at, issues: [] });
-    runMap.get(key)!.issues.push(row);
+    if (row.category !== RUN_MARKER_CATEGORY) runMap.get(key)!.issues.push(row);
   }
 
   // Deduplicate issues within each run
