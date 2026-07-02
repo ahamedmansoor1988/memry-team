@@ -12,8 +12,8 @@ const STEPS = [
 ];
 
 const ROWS = [
-  { el: "Solutions",   type: "Missing", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
-  { el: "Pricing",     type: "Missing", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
+  { el: "Solutions",   type: "Missing Comps", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
+  { el: "Pricing",     type: "Missing Comps", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
   { el: "Book a demo", type: "Color",   bg: "#fdf2f8", c: "#db2777", issue: "Figma: #030407 → #FCFCFD" },
 ];
 

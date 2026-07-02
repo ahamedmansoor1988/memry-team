@@ -19,7 +19,7 @@ interface Run {
 }
 
 const categoryColors: Record<string, { bg: string; text: string; label: string }> = {
-  missing_elements: { bg: "#fef2f2", text: "#dc2626", label: "Missing"     },
+  missing_elements: { bg: "#fef2f2", text: "#dc2626", label: "Missing Comps" },
   font_family:      { bg: "#faf5ff", text: "#9333ea", label: "Font Family" },
   font_size:        { bg: "#eff6ff", text: "#2563eb", label: "Font Size"   },
   font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },

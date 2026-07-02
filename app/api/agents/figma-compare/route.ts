@@ -1255,7 +1255,7 @@ export async function POST(req: NextRequest) {
         // ── Step 4: Build live context — match Figma nodes to live styles by text ─
         // Declare check flags here so Step 4 matching can use them
         const TYPOGRAPHY_CHECKS = ["font_family", "font_size", "font_weight", "color"] as const;
-        const ALL_CHECKS = [...TYPOGRAPHY_CHECKS, "missing_elements", "content", "spacing"] as const;
+        const ALL_CHECKS = [...TYPOGRAPHY_CHECKS, "missing_elements"] as const;
         const enabledChecks = (checks ?? TYPOGRAPHY_CHECKS as unknown as string[])
           .filter(c => (ALL_CHECKS as readonly string[]).includes(c));
         const activeChecks = enabledChecks.length > 0 ? enabledChecks : [...TYPOGRAPHY_CHECKS];
@@ -1485,7 +1485,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        const deterministicCheckNames = new Set(["content", "spacing", "missing_elements", "font_family", "font_size", "font_weight", "color"]);
+        const deterministicCheckNames = new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"]);
         const onlyDeterministicChecks = activeChecks.every(c => deterministicCheckNames.has(c));
         if (onlyDeterministicChecks) {
           let deterministicDiscrepancies = [

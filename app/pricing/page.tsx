@@ -41,7 +41,7 @@ const PLANS = [
     features: [
       "Unlimited runs",
       "5 saved targets",
-      "All checks (fonts, color, spacing, buttons, footer)",
+      "All checks (missing comps, fonts, color)",
       "Full run history",
       "Shareable result links",
       "Chrome extension",

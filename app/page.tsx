@@ -8,12 +8,11 @@ export const metadata = {
 };
 
 const CHECKS = [
-  "Missing elements",
+  "Missing comps",
   "Font family",
   "Font size",
   "Font weight",
   "Color",
-  "Spacing",
 ];
 
 const HOW = [

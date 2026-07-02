@@ -135,7 +135,7 @@ export default function SettingsPage() {
             <span>
               <span className="block text-[13px] font-medium text-[#0f0f0f]">Enable AI fallback</span>
               <span className="block text-[11px] text-[#71717a] leading-relaxed">
-                Guardrails block AI from inventing content, spacing, or typography issues. If live capture is missing, Loupe will ask for extension recapture instead of guessing.
+                Guardrails block AI from inventing design QA issues. If live capture is missing, Loupe will ask for extension recapture instead of guessing.
               </span>
             </span>
           </label>

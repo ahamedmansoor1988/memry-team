@@ -25,17 +25,16 @@ interface SnapshotMeta {
 }
 
 const CHECK_OPTIONS = [
-  { id: "missing_elements", label: "Missing Elements" },
+  { id: "missing_elements", label: "Missing Comps" },
   { id: "font_family",      label: "Font Family"      },
   { id: "font_size",        label: "Font Size"        },
   { id: "font_weight",      label: "Font Weight"      },
   { id: "color",            label: "Color"            },
-  { id: "content",          label: "Content"          },
-  { id: "spacing",          label: "Spacing"          },
 ];
+const CHECK_IDS = new Set(CHECK_OPTIONS.map(check => check.id));
 
 const EXTENSION_STYLE_MAX_AGE_MS = 10 * 60 * 1000;
-const LOUPE_UI_TEXT = /^(font family|font size|font weight|color|content|spacing|missing elements|ai identified|results will appear here|figma vs live|design qa)$/i;
+const LOUPE_UI_TEXT = /^(font family|font size|font weight|color|missing elements|missing comps|ai identified|results will appear here|figma vs live|design qa)$/i;
 
 function normalizeUrlForCompare(value: string) {
   try {
@@ -63,7 +62,7 @@ export default function FigmaComparePage() {
   const [aiModel, setAiModelRaw] = useState("");
   const [aiKey, setAiKeyRaw] = useState("");
   const [checks, setChecks] = useState<Set<string>>(
-    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color", "content", "spacing"])
+    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"])
   );
   const [configOpen, setConfigOpen] = useState(false);
 
@@ -155,7 +154,7 @@ export default function FigmaComparePage() {
 
     if (urlFigma)  { localStorage.setItem("loupe_figma_url", urlFigma); }
     if (urlLive)   { localStorage.setItem("loupe_live_url",  urlLive);  }
-    if (urlChecks) { setChecks(new Set(urlChecks.split(",").filter(Boolean))); }
+    if (urlChecks) { setChecks(new Set(urlChecks.split(",").filter(id => CHECK_IDS.has(id)))); }
 
 
     setFigmaUrlRaw(savedFigma);
@@ -318,12 +317,6 @@ export default function FigmaComparePage() {
         activeSnapshot = await syncDesign();
         if (!activeSnapshot) return;
       }
-      if (activeSnapshot && checks.has("content") && activeSnapshot.depthUsed < 10 && !forceRefresh) {
-        addRun({ type: "step", text: `Content check needs a deeper Figma snapshot — refreshing depth ${activeSnapshot.depthUsed} snapshot…` });
-        activeSnapshot = await syncDesign();
-        if (!activeSnapshot) return;
-      }
-
       // ── Browser cache (speed only) ───────────────────────────────────────────
       const cacheKey = `loupe_nodes_v2_${fileKey}_${nodeId}`;
       const cached   = localStorage.getItem(cacheKey);
@@ -762,13 +755,11 @@ function RunBubble({ msg }: { msg: RunMessage }) {
   );
   if (msg.type === "result") {
     const categoryColors: Record<string, { bg: string; text: string; label: string }> = {
-      missing_elements: { bg: "#fef2f2", text: "#dc2626", label: "Missing"     },
+      missing_elements: { bg: "#fef2f2", text: "#dc2626", label: "Missing Comps" },
       font_family:      { bg: "#faf5ff", text: "#9333ea", label: "Font Family" },
       font_size:        { bg: "#eff6ff", text: "#2563eb", label: "Font Size"   },
       font_weight:      { bg: "#fffbeb", text: "#d97706", label: "Font Weight" },
       color:            { bg: "#fdf2f8", text: "#db2777", label: "Color"       },
-      content:          { bg: "#f0fdf4", text: "#16a34a", label: "Content"     },
-      spacing:          { bg: "#ecfeff", text: "#0891b2", label: "Spacing"     },
     };
 
     // Build category summary for banner

@@ -34,7 +34,7 @@ export default function LoginPage() {
 
         <div className="space-y-5 w-full max-w-[300px]">
           {[
-            { title: "Figma vs Live", desc: "Compare any Figma frame against the real page — fonts, colors, spacing." },
+            { title: "Figma vs Live", desc: "Compare any Figma frame against the real page — missing comps, fonts, and colors." },
             { title: "Full run history", desc: "Every comparison is saved. Track regressions and see what changed between runs." },
             { title: "Shareable reports", desc: "Send a link to your team. No login needed to view." },
           ].map(f => (
