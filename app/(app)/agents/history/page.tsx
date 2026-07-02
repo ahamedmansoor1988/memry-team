@@ -100,7 +100,6 @@ export default function HistoryPage() {
           const isOpen = expanded.has(key);
           const date = new Date(run.scanned_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
           const time = new Date(run.scanned_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-          const highCount = run.issues.filter(i => i.severity === "high" || i.category === "missing_elements").length;
 
           return (
             <div key={key} className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
@@ -115,13 +114,8 @@ export default function HistoryPage() {
                   <p className="text-[11px] text-[#71717a] mt-0.5">{date} at {time}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {highCount > 0 && (
-                    <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: "#fef2f2", color: "#dc2626" }}>
-                      {highCount} high
-                    </span>
-                  )}
                   <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#3f3f46]">
-                    {run.issues.length} issues
+                    {run.issues.length} {run.issues.length === 1 ? "issue" : "issues"}
                   </span>
                   <button
                     onClick={e => { e.stopPropagation(); copyShareLink(run, key); }}
