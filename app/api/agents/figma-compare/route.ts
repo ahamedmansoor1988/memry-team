@@ -479,8 +479,17 @@ function findLiveMatchForFigmaNode(figmaNode: TextNode, frame: FrameInfo, rawSty
   if (!allowSubstring) return null;
 
   const substringCandidates = rawStyles.filter(s => {
-    const liveText = s.text?.trim().toLowerCase() ?? "";
-    if (!liveText.includes(figmaText) || figmaText.length < 4) return false;
+    const liveTextRaw = s.text?.trim() ?? "";
+    const liveText = liveTextRaw.toLowerCase();
+    const liveKey = normalizeCopyForCompare(liveTextRaw);
+    const hasRawContainment = liveText.includes(figmaText);
+    const hasNormalizedContainment =
+      figmaKey.length >= 4 &&
+      (
+        liveKey.includes(figmaKey) ||
+        (liveKey.length >= 12 && figmaKey.includes(liveKey))
+      );
+    if ((!hasRawContainment && !hasNormalizedContainment) || figmaText.length < 4) return false;
     if (isFigmaNavNode && s.inNav === false) return false;
     if (isShortNavText && (s.text?.trim().length ?? 0) > figmaText.length + 5) return false;
     return true;

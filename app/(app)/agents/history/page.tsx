@@ -73,11 +73,11 @@ export default function HistoryPage() {
   }
 
   if (loading) return (
-    <div className="flex-1 flex items-center justify-center text-[13px] text-[#71717a]">Loading history…</div>
+    <div className="flex h-full items-center justify-center text-[13px] text-[#71717a]">Loading history…</div>
   );
 
   if (!runs.length) return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
+    <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
       <History size={32} className="text-[#e0e0e6]" />
       <p className="text-[14px] font-medium text-[#17171c]">No runs yet</p>
       <p className="text-[12px] text-[#71717a]">Run a Figma vs Live comparison to see history here.</p>
@@ -85,7 +85,7 @@ export default function HistoryPage() {
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-[#f0f0f0] px-6 h-[45px] flex items-center gap-3 shrink-0">
         <History size={16} className="text-[#71717a]" />
@@ -143,7 +143,7 @@ export default function HistoryPage() {
 
               {/* Issues table */}
               {isOpen && (
-                <div className="border-t border-[#f0f0f0]">
+                <div className="border-t border-[#f0f0f0] overflow-x-auto">
                   {run.issues.length === 0 ? (
                     <div className="px-4 py-4 text-[12px] text-[#71717a]">No issues found in this run.</div>
                   ) : (
