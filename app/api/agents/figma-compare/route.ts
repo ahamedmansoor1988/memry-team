@@ -29,17 +29,18 @@ interface AiSettings {
   enabled?: boolean;
   provider?: string;
   model?: string;
-  apiKey?: string;
 }
 
 function resolveAiConfig(ai: AiSettings | undefined) {
-  const enabled = ai?.enabled === true;
-  const provider = AI_PROVIDERS.has(ai?.provider ?? "") ? ai!.provider! : "groq";
-  const keyFromSettings = ai?.apiKey?.trim() ?? "";
+  const envEnabled = /^(1|true|yes)$/i.test(process.env.LOUPE_AI_ENABLED ?? "");
+  const envProvider = process.env.LOUPE_AI_PROVIDER ?? "";
+  const enabled = envEnabled || ai?.enabled === true;
+  const providerCandidate = envProvider || ai?.provider || "groq";
+  const provider = AI_PROVIDERS.has(providerCandidate) ? providerCandidate : "groq";
   const keyFromEnv = provider === "openai" ? process.env.OPENAI_API_KEY : process.env.GROQ_API_KEY;
-  const apiKey = keyFromSettings || keyFromEnv || "";
+  const apiKey = keyFromEnv || "";
   const defaultModel = provider === "openai" ? "gpt-4o-mini" : "llama-3.3-70b-versatile";
-  const model = ai?.model?.trim() || defaultModel;
+  const model = process.env.LOUPE_AI_MODEL?.trim() || ai?.model?.trim() || defaultModel;
   const endpoint = provider === "openai"
     ? "https://api.openai.com/v1/chat/completions"
     : "https://api.groq.com/openai/v1/chat/completions";
@@ -1649,14 +1650,14 @@ export async function POST(req: NextRequest) {
 
         if (!aiConfig.enabled) {
           send("error", {
-            text: "AI fallback is disabled. Loupe's deterministic checks ran, but this scan requested an unsupported AI-only check. Enable AI fallback in Settings to use future AI-assisted checks.",
+            text: "AI fallback is disabled. Loupe's deterministic checks ran, but this scan requested an unsupported AI-only check.",
           });
           controller.close();
           return;
         }
         if (!aiConfig.apiKey) {
           send("error", {
-            text: `AI fallback needs a ${aiConfig.provider === "openai" ? "OpenAI" : "Groq"} API key. Add one in Settings → AI Keys & Guardrails.`,
+            text: `AI fallback needs a server ${aiConfig.provider === "openai" ? "OpenAI" : "Groq"} API key.`,
           });
           controller.close();
           return;

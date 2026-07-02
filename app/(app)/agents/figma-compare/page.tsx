@@ -57,10 +57,6 @@ export default function FigmaComparePage() {
   const [figmaUrl, setFigmaUrlRaw] = useState("");
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
-  const [aiEnabled, setAiEnabledRaw] = useState(false);
-  const [aiProvider, setAiProviderRaw] = useState("groq");
-  const [aiModel, setAiModelRaw] = useState("");
-  const [aiKey, setAiKeyRaw] = useState("");
   const [checks, setChecks] = useState<Set<string>>(
     new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"])
   );
@@ -147,10 +143,6 @@ export default function FigmaComparePage() {
     const savedFigma = urlFigma ?? localStorage.getItem("loupe_figma_url") ?? "";
     const savedLive  = urlLive  ?? localStorage.getItem("loupe_live_url")  ?? "";
     const savedPat   = localStorage.getItem("loupe_pat") ?? "";
-    const savedAiEnabled = localStorage.getItem("loupe_ai_enabled") === "1";
-    const savedAiProvider = localStorage.getItem("loupe_ai_provider") ?? "groq";
-    const savedAiModel = localStorage.getItem("loupe_ai_model") ?? "";
-    const savedAiKey = localStorage.getItem("loupe_ai_key") ?? "";
 
     if (urlFigma)  { localStorage.setItem("loupe_figma_url", urlFigma); }
     if (urlLive)   { localStorage.setItem("loupe_live_url",  urlLive);  }
@@ -160,10 +152,6 @@ export default function FigmaComparePage() {
     setFigmaUrlRaw(savedFigma);
     setLiveUrlRaw(savedLive);
     setPatRaw(savedPat);
-    setAiEnabledRaw(savedAiEnabled);
-    setAiProviderRaw(savedAiProvider);
-    setAiModelRaw(savedAiModel);
-    setAiKeyRaw(savedAiKey);
     if (savedFigma) checkSnapshot(savedFigma);
 
     if (autorun && savedFigma && savedLive && savedPat) {
@@ -429,12 +417,6 @@ export default function FigmaComparePage() {
           pat: pat.trim(),
           checks: Array.from(checks),
           forceRefresh,
-          ai: {
-            enabled: aiEnabled,
-            provider: aiProvider,
-            model: aiModel.trim(),
-            apiKey: aiKey.trim(),
-          },
         }),
       });
 
