@@ -12,8 +12,11 @@ import {
   Loader2,
   MousePointerClick,
   Play,
+  Share2,
   Tags,
 } from "lucide-react";
+import { qaScore } from "@/lib/qa-score";
+import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
 
 interface A11yIssue {
   id: string;
@@ -32,6 +35,7 @@ interface A11yResult {
   scannerStatus?: ScannerStatus;
   issues: A11yIssue[];
   truncatedTypes?: Array<{ type: string; total: number; shown: number }>;
+  screenshot?: Screenshot;
 }
 
 type ScannerStatus = "ready" | "not_configured" | "missing_endpoint" | "unreachable";
@@ -148,10 +152,13 @@ function locationText(issue: A11yIssue) {
   return issue.selector && issue.selector !== "document" ? "Selector" : "Document";
 }
 
-function IssueCard({ issue }: { issue: A11yIssue }) {
+function IssueCard({ issue, index }: { issue: A11yIssue; index?: number }) {
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        {typeof index === "number" && (
+          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
+        )}
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
           {issue.severity}
         </span>
@@ -224,6 +231,81 @@ export default function AccessibilityAgentPage() {
       low: issues.filter(i => i.severity === "low").length,
     };
   }, [result]);
+
+  // Stable finding numbers, following category display order.
+  const issueIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    let n = 1;
+    for (const { issues } of issuesByCategory) for (const issue of issues) map.set(issue.id, n++);
+    return map;
+  }, [issuesByCategory]);
+
+  const score = useMemo(
+    () => (result && result.mode === "browser" ? qaScore(result.issues) : null),
+    [result]
+  );
+
+  const [shareState, setShareState] = useState<"idle" | "saving" | "copied" | "error">("idle");
+
+  function num(metrics: A11yIssue["metrics"], key: string): number | undefined {
+    const v = metrics?.[key];
+    return typeof v === "number" ? v : undefined;
+  }
+
+  function displayFinding(issue: A11yIssue) {
+    return {
+      id: issue.id,
+      index: issueIndex.get(issue.id) ?? 0,
+      severity: issue.severity,
+      typeLabel: formatType(issue.type),
+      headline: issue.details,
+      why: WHY_COPY[issue.type],
+      element: issue.element,
+      selector: issue.selector,
+      expected: expectedText(issue),
+      measured: actualText(issue),
+      x: num(issue.metrics, "x"),
+      y: num(issue.metrics, "y"),
+      width: num(issue.metrics, "width"),
+      height: num(issue.metrics, "height"),
+    };
+  }
+
+  async function shareReport() {
+    if (!result || score === null) return;
+    setShareState("saving");
+    try {
+      const allFindings = issuesByCategory.flatMap(({ issues }) => issues.map(displayFinding));
+      const res = await fetch("/api/agents/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "accessibility",
+          report: {
+            kind: "accessibility",
+            url: result.url,
+            checkedAt: result.checkedAt,
+            score,
+            scoreLabel: "Accessibility QA",
+            sections: [{
+              id: "page",
+              title: "Annotated page — desktop (1440px)",
+              screenshot: result.screenshot,
+              findings: allFindings,
+            }],
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Share failed");
+      await navigator.clipboard.writeText(`${window.location.origin}${data.url}`);
+      setShareState("copied");
+    } catch {
+      setShareState("error");
+    } finally {
+      setTimeout(() => setShareState("idle"), 2500);
+    }
+  }
 
   async function run() {
     if (!canRun) return;
@@ -373,12 +455,19 @@ export default function AccessibilityAgentPage() {
                     </p>
                   </div>
                 )}
+                {result.screenshot && (
+                  <AnnotatedScreenshot
+                    screenshot={result.screenshot}
+                    findings={issuesByCategory.flatMap(({ issues }) => issues.map(displayFinding))}
+                    caption="Desktop (1440px) — numbered boxes match the findings below."
+                  />
+                )}
                 {issuesByCategory.map(({ cat, issues }) => (
                   <div key={cat.id} className="space-y-2">
                     <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                       {cat.label} · {issues.length} issue{issues.length === 1 ? "" : "s"}
                     </p>
-                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} />)}
+                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} />)}
                   </div>
                 ))}
                 {result.truncatedTypes && result.truncatedTypes.length > 0 && (
@@ -391,6 +480,20 @@ export default function AccessibilityAgentPage() {
           </section>
 
           <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+            {score !== null && result && (
+              <div className="mb-4 space-y-2">
+                <ScoreBadge score={score} label="Accessibility QA score" />
+                <button
+                  onClick={shareReport}
+                  disabled={shareState === "saving"}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {shareState === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                  {shareState === "copied" ? "Link copied!" : shareState === "error" ? "Share failed — retry" : "Share report"}
+                </button>
+                <p className="text-[10px] leading-relaxed text-[#a1a1aa]">Creates a public link with the annotated screenshot anyone can open.</p>
+              </div>
+            )}
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg bg-white p-3">

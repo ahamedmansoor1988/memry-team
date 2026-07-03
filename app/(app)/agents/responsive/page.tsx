@@ -16,8 +16,11 @@ import {
   Smartphone,
   Tablet,
   Monitor,
+  Share2,
   TextCursorInput,
 } from "lucide-react";
+import { qaScore } from "@/lib/qa-score";
+import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
 
 type ViewportName = "mobile" | "tablet" | "desktop";
 
@@ -32,12 +35,18 @@ interface ResponsiveIssue {
   metrics?: Record<string, number | string | boolean | null>;
 }
 
+interface ViewportResultMeta {
+  viewport: { name: string; width: number; height: number };
+  screenshot?: Screenshot;
+}
+
 interface ResponsiveResult {
   url: string;
   checkedAt: string;
   mode: "browser" | "static_fallback";
   scannerStatus?: ScannerStatus;
   issues: ResponsiveIssue[];
+  viewportResults?: ViewportResultMeta[];
 }
 
 type ScannerStatus = "ready" | "not_configured" | "missing_endpoint" | "unreachable";
@@ -258,10 +267,13 @@ function groupHeading(viewport: string) {
   return meta ? `${meta.label} (${meta.size})` : viewport;
 }
 
-function IssueCard({ issue }: { issue: ResponsiveIssue }) {
+function IssueCard({ issue, index }: { issue: ResponsiveIssue; index?: number }) {
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
+        {typeof index === "number" && (
+          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
+        )}
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
           {issue.severity}
         </span>
@@ -330,6 +342,88 @@ export default function ResponsiveAgentPage() {
     high: layoutIssues.filter(i => i.severity === "high").length,
     medium: layoutIssues.filter(i => i.severity === "medium").length,
   }), [result, layoutIssues, touchIssues]);
+
+  // Stable finding numbers, in display order: layout groups first, touch last.
+  const issueIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    let n = 1;
+    for (const [, issues] of layoutByViewport) for (const issue of issues) map.set(issue.id, n++);
+    for (const issue of touchIssues) map.set(issue.id, n++);
+    return map;
+  }, [layoutByViewport, touchIssues]);
+
+  const score = useMemo(
+    () => (result && result.mode === "browser" ? qaScore(result.issues) : null),
+    [result]
+  );
+
+  const [shareState, setShareState] = useState<"idle" | "saving" | "copied" | "error">("idle");
+
+  function num(metrics: ResponsiveIssue["metrics"], key: string): number | undefined {
+    const v = metrics?.[key];
+    return typeof v === "number" ? v : undefined;
+  }
+
+  function displayFinding(issue: ResponsiveIssue) {
+    return {
+      id: issue.id,
+      index: issueIndex.get(issue.id) ?? 0,
+      severity: issue.severity,
+      typeLabel: formatType(issue.type),
+      headline: issueHeadline(issue),
+      why: WHY_COPY[issue.type],
+      element: issue.element,
+      selector: issue.selector,
+      expected: expectedText(issue),
+      measured: actualText(issue),
+      x: num(issue.metrics, "x"),
+      y: num(issue.metrics, "y"),
+      width: num(issue.metrics, "width"),
+      height: num(issue.metrics, "height"),
+    };
+  }
+
+  function screenshotFor(viewport: string) {
+    return result?.viewportResults?.find(v => v.viewport?.name === viewport)?.screenshot;
+  }
+
+  async function shareReport() {
+    if (!result || score === null) return;
+    setShareState("saving");
+    try {
+      const sections = layoutByViewport.map(([viewport, issues]) => ({
+        id: viewport,
+        title: groupHeading(viewport),
+        screenshot: screenshotFor(viewport),
+        findings: issues.map(displayFinding),
+      }));
+      for (const v of result.viewportResults ?? []) {
+        if (!sections.some(s => s.id === v.viewport.name)) {
+          sections.push({ id: v.viewport.name, title: groupHeading(v.viewport.name), screenshot: v.screenshot, findings: [] });
+        }
+      }
+      sections.sort((a, b) => (VIEWPORT_ORDER[a.id] ?? 9) - (VIEWPORT_ORDER[b.id] ?? 9));
+      if (touchIssues.length > 0) {
+        sections.push({ id: "touch", title: `Touch warnings (${touchIssues.length})`, screenshot: undefined, findings: touchIssues.map(displayFinding) });
+      }
+      const res = await fetch("/api/agents/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "responsive",
+          report: { kind: "responsive", url: result.url, checkedAt: result.checkedAt, score, scoreLabel: "Responsive QA", sections },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Share failed");
+      await navigator.clipboard.writeText(`${window.location.origin}${data.url}`);
+      setShareState("copied");
+    } catch {
+      setShareState("error");
+    } finally {
+      setTimeout(() => setShareState("idle"), 2500);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/agents/responsive")
@@ -545,14 +639,24 @@ export default function ResponsiveAgentPage() {
                     </p>
                   </div>
                 )}
-                {layoutByViewport.map(([viewport, issues]) => (
-                  <div key={viewport} className="space-y-2">
-                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
-                      {groupHeading(viewport)} · {issues.length} issue{issues.length === 1 ? "" : "s"}
-                    </p>
-                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} />)}
-                  </div>
-                ))}
+                {layoutByViewport.map(([viewport, issues]) => {
+                  const shot = screenshotFor(viewport);
+                  return (
+                    <div key={viewport} className="space-y-2">
+                      <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
+                        {groupHeading(viewport)} · {issues.length} issue{issues.length === 1 ? "" : "s"}
+                      </p>
+                      {shot && (
+                        <AnnotatedScreenshot
+                          screenshot={shot}
+                          findings={issues.map(displayFinding)}
+                          caption={`${groupHeading(viewport)} — numbered boxes match the findings below.`}
+                        />
+                      )}
+                      {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} />)}
+                    </div>
+                  );
+                })}
 
                 {touchIssues.length > 0 && (
                   <div className="rounded-xl border border-black/[0.08] bg-[#fafafa]">
@@ -585,6 +689,20 @@ export default function ResponsiveAgentPage() {
           </section>
 
           <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+            {score !== null && result && (
+              <div className="mb-4 space-y-2">
+                <ScoreBadge score={score} label="Responsive QA score" />
+                <button
+                  onClick={shareReport}
+                  disabled={shareState === "saving"}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {shareState === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                  {shareState === "copied" ? "Link copied!" : shareState === "error" ? "Share failed — retry" : "Share report"}
+                </button>
+                <p className="text-[10px] leading-relaxed text-[#a1a1aa]">Creates a public link with screenshots and findings anyone can open.</p>
+              </div>
+            )}
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg bg-white p-3">

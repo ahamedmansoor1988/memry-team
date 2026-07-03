@@ -192,6 +192,28 @@ async function extractStyles(page) {
   });
 }
 
+// Page screenshot as a data URL — clipped so huge pages don't blow up the
+// response payload (Vercel proxies it and caps bodies around 4.5MB).
+const SCREENSHOT_MAX_HEIGHT = 3500;
+async function captureScreenshot(page, width) {
+  const scrollHeight = await page.evaluate(() =>
+    Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0)
+  );
+  const height = Math.min(scrollHeight, SCREENSHOT_MAX_HEIGHT);
+  const buf = await page.screenshot({
+    type: "jpeg",
+    quality: 40,
+    clip: { x: 0, y: 0, width, height },
+  });
+  return {
+    dataUrl: `data:image/jpeg;base64,${buf.toString("base64")}`,
+    width,
+    height,
+    truncated: scrollHeight > SCREENSHOT_MAX_HEIGHT,
+    fullHeight: scrollHeight,
+  };
+}
+
 async function inspectResponsive(page, viewport) {
   await page.setViewportSize({ width: viewport.width, height: viewport.height });
   await page.evaluate(async () => {
@@ -519,7 +541,9 @@ app.post("/responsive", async (req, res) => {
 
     const results = [];
     for (const viewport of checks) {
-      results.push(await inspectResponsive(page, viewport));
+      const result = await inspectResponsive(page, viewport);
+      result.screenshot = await captureScreenshot(page, viewport.width);
+      results.push(result);
     }
 
     res.json({
@@ -859,10 +883,12 @@ app.post("/accessibility", async (req, res) => {
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
 
     const result = await inspectAccessibility(page);
+    const screenshot = await captureScreenshot(page, 1440);
     res.json({
       url,
       checkedAt: new Date().toISOString(),
       mode: "browser",
+      screenshot,
       ...result,
     });
   } catch (err) {
@@ -874,6 +900,6 @@ app.post("/accessibility", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "a11y-v1" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "report-v1" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
