@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Check,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Loader2,
   MonitorCheck,
@@ -72,7 +73,7 @@ const CHECK_GROUPS = [
   {
     icon: MousePointerClick,
     title: "Touch",
-    text: "Small links and buttons that are hard to tap on mobile.",
+    text: "Small tap targets, reported separately so they never bury layout issues.",
   },
 ];
 
@@ -90,10 +91,27 @@ const TYPE_LABELS: Record<string, string> = {
   clipped_text: "Clipped text",
   sticky_covering_content: "Sticky overlap",
   oversized_modal: "Oversized modal",
-  small_tap_target: "Small target",
+  small_tap_target: "Touch warning",
   long_unbroken_text: "Long text",
   viewport_meta: "Viewport meta",
   fixed_or_sticky: "Fixed/sticky",
+};
+
+// Tap-size findings are touch usability, not layout breakage — kept out of the main list.
+const TOUCH_TYPES = new Set(["small_tap_target"]);
+
+const VIEWPORT_ORDER: Record<string, number> = { mobile: 0, tablet: 1, desktop: 2, static: 3 };
+
+const WHY_COPY: Record<string, string> = {
+  horizontal_overflow: "Users see sideways scrolling or clipped content at this width.",
+  element_wider_than_viewport: "This element forces the page wider than the screen.",
+  element_outside_viewport: "Part of this element is cut off at this width.",
+  clipped_text: "Text may be cut off or unreadable at this breakpoint.",
+  sticky_covering_content: "The header or drawer can cover page content while scrolling.",
+  oversized_modal: "The overlay cannot fit on this screen, so content or controls get cut off.",
+  long_unbroken_text: "Unbroken text can force sideways scrolling on narrow screens.",
+  small_tap_target: "Small targets are hard to tap accurately. Usability note, not layout breakage.",
+  viewport_meta: "Without a viewport meta tag, phones render the page at desktop width.",
 };
 
 function modeLabel(mode: ResponsiveResult["mode"]) {
@@ -203,8 +221,11 @@ function expectedText(issue: ResponsiveIssue) {
 function actualText(issue: ResponsiveIssue) {
   const metrics = issue.metrics;
   switch (issue.type) {
-    case "horizontal_overflow":
-      return `Measured page width ${value(metrics, "scrollWidth")}px, overflow ${value(metrics, "overflowPx")}px`;
+    case "horizontal_overflow": {
+      const culpritWidth = value(metrics, "width");
+      const base = `Measured page width ${value(metrics, "scrollWidth")}px, overflow ${value(metrics, "overflowPx")}px`;
+      return typeof culpritWidth === "number" ? `${base} · widest element ${culpritWidth}px wide` : base;
+    }
     case "element_wider_than_viewport":
       return `Measured element width ${value(metrics, "width")}px`;
     case "element_outside_viewport":
@@ -231,6 +252,50 @@ function locationText(issue: ResponsiveIssue) {
   return issue.selector ? "Selector" : "Document";
 }
 
+function groupHeading(viewport: string) {
+  if (viewport === "static") return "HTML preview";
+  const meta = VIEWPORT_META[viewport as ViewportName];
+  return meta ? `${meta.label} (${meta.size})` : viewport;
+}
+
+function IssueCard({ issue }: { issue: ResponsiveIssue }) {
+  return (
+    <div className="rounded-xl border border-black/[0.08] bg-white p-4">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
+          {issue.severity}
+        </span>
+        <span className="rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium capitalize text-[#4b5563]">
+          {viewportText(issue)}
+        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
+      </div>
+      <p className="text-[13px] font-semibold text-[#17171c]">{issueHeadline(issue)}</p>
+      {WHY_COPY[issue.type] && (
+        <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">{WHY_COPY[issue.type]}</p>
+      )}
+      <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">
+        Element: <span className="font-medium text-[#17171c]">{issue.element}</span>
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
+          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
+        </div>
+        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
+          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{actualText(issue)}</p>
+        </div>
+        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where</p>
+          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
+        </div>
+      </div>
+      {issue.selector && <p className="mt-3 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>}
+    </div>
+  );
+}
+
 export default function ResponsiveAgentPage() {
   const [url, setUrl] = useState("");
   const [selected, setSelected] = useState<Set<ViewportName>>(new Set<ViewportName>(["mobile", "tablet", "desktop"]));
@@ -239,18 +304,32 @@ export default function ResponsiveAgentPage() {
   const [result, setResult] = useState<ResponsiveResult | null>(null);
   const [browserScannerConnected, setBrowserScannerConnected] = useState<boolean | null>(null);
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
+  const [showTouch, setShowTouch] = useState(false);
 
   const canRun = url.trim().startsWith("http") && selected.size > 0 && !running;
 
-  const counts = useMemo(() => {
+  const { layoutIssues, touchIssues, layoutByViewport } = useMemo(() => {
     const issues = result?.issues ?? [];
-    return {
-      total: issues.length,
-      high: issues.filter(i => i.severity === "high").length,
-      medium: issues.filter(i => i.severity === "medium").length,
-      low: issues.filter(i => i.severity === "low").length,
-    };
+    const layout = issues.filter(i => !TOUCH_TYPES.has(i.type));
+    const touch = issues.filter(i => TOUCH_TYPES.has(i.type));
+    const grouped = new Map<string, ResponsiveIssue[]>();
+    for (const issue of layout) {
+      const list = grouped.get(issue.viewport) ?? [];
+      list.push(issue);
+      grouped.set(issue.viewport, list);
+    }
+    const byViewport = Array.from(grouped.entries())
+      .sort((a, b) => (VIEWPORT_ORDER[a[0]] ?? 9) - (VIEWPORT_ORDER[b[0]] ?? 9));
+    return { layoutIssues: layout, touchIssues: touch, layoutByViewport: byViewport };
   }, [result]);
+
+  const counts = useMemo(() => ({
+    total: (result?.issues ?? []).length,
+    layout: layoutIssues.length,
+    touch: touchIssues.length,
+    high: layoutIssues.filter(i => i.severity === "high").length,
+    medium: layoutIssues.filter(i => i.severity === "medium").length,
+  }), [result, layoutIssues, touchIssues]);
 
   useEffect(() => {
     fetch("/api/agents/responsive")
@@ -429,12 +508,15 @@ export default function ResponsiveAgentPage() {
               </div>
             )}
 
-            {result && counts.total === 0 && result.mode === "browser" && (
+            {result && counts.layout === 0 && result.mode === "browser" && (
               <div className="flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
                 <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />
                 <div>
-                  <p className="text-[13px] font-medium text-emerald-800">No responsive layout issues found.</p>
-                  <p className="mt-0.5 text-[12px] text-emerald-700">Checked {Array.from(selected).join(", ")} using {modeLabel(result.mode)}.</p>
+                  <p className="text-[13px] font-medium text-emerald-800">No layout issues found.</p>
+                  <p className="mt-0.5 text-[12px] text-emerald-700">
+                    Checked {Array.from(selected).join(", ")} using {modeLabel(result.mode)}.
+                    {counts.touch > 0 && ` ${counts.touch} touch warning${counts.touch === 1 ? "" : "s"} listed below.`}
+                  </p>
                 </div>
               </div>
             )}
@@ -463,38 +545,41 @@ export default function ResponsiveAgentPage() {
                     </p>
                   </div>
                 )}
-                {result.issues.map(issue => (
-                  <div key={issue.id} className="rounded-xl border border-black/[0.08] bg-white p-4">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
-                        {issue.severity}
-                      </span>
-                      <span className="rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium capitalize text-[#4b5563]">
-                        {viewportText(issue)}
-                      </span>
-                      <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
-                    </div>
-                    <p className="text-[13px] font-semibold text-[#17171c]">{issueHeadline(issue)}</p>
-                    <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">
-                      Element: <span className="font-medium text-[#17171c]">{issue.element}</span>
+                {layoutByViewport.map(([viewport, issues]) => (
+                  <div key={viewport} className="space-y-2">
+                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
+                      {groupHeading(viewport)} · {issues.length} issue{issues.length === 1 ? "" : "s"}
                     </p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
-                        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
-                      </div>
-                      <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
-                        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{actualText(issue)}</p>
-                      </div>
-                      <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where</p>
-                        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
-                      </div>
-                    </div>
-                    {issue.selector && <p className="mt-3 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>}
+                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} />)}
                   </div>
                 ))}
+
+                {touchIssues.length > 0 && (
+                  <div className="rounded-xl border border-black/[0.08] bg-[#fafafa]">
+                    <button
+                      onClick={() => setShowTouch(s => !s)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                    >
+                      <span>
+                        <span className="block text-[12px] font-semibold text-[#17171c]">
+                          Touch warnings ({touchIssues.length})
+                        </span>
+                        <span className="mt-0.5 block text-[11px] text-[#71717a]">
+                          Tap-size usability notes. These do not break the layout.
+                        </span>
+                      </span>
+                      <ChevronDown
+                        size={15}
+                        className={`shrink-0 text-[#71717a] transition-transform ${showTouch ? "rotate-180" : ""}`}
+                      />
+                    </button>
+                    {showTouch && (
+                      <div className="space-y-2 px-3 pb-3">
+                        {touchIssues.map(issue => <IssueCard key={issue.id} issue={issue} />)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -503,8 +588,8 @@ export default function ResponsiveAgentPage() {
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{counts.total}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">{result?.mode === "static_fallback" ? "HTML hints" : "Issues"}</p>
+                <p className="text-[22px] font-semibold leading-none">{counts.layout}</p>
+                <p className="mt-1 text-[11px] text-[#71717a]">{result?.mode === "static_fallback" ? "HTML hints" : "Layout issues"}</p>
               </div>
               <div className="rounded-lg bg-white p-3">
                 <p className="text-[22px] font-semibold leading-none">{counts.high}</p>
@@ -515,8 +600,8 @@ export default function ResponsiveAgentPage() {
                 <p className="mt-1 text-[11px] text-[#71717a]">Medium</p>
               </div>
               <div className="rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{counts.low}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">Low</p>
+                <p className="text-[22px] font-semibold leading-none">{counts.touch}</p>
+                <p className="mt-1 text-[11px] text-[#71717a]">Touch warnings</p>
               </div>
             </div>
             <div className="mt-4 border-t border-black/[0.06] pt-3">

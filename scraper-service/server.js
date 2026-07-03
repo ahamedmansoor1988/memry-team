@@ -287,10 +287,30 @@ async function inspectResponsive(page, viewport) {
     const body = document.body;
     const scrollWidth = Math.max(doc.scrollWidth, body?.scrollWidth || 0);
     if (scrollWidth > window.innerWidth + 2) {
-      add("horizontal_overflow", "high", null, "Document is wider than the viewport.", {
+      // Name the widest offending element instead of just "document".
+      // Document order puts parents first, so >= lets the deepest element with
+      // the same right edge win — the actual content, not its wrappers.
+      let culprit = null;
+      let culpritRect = null;
+      for (const el of document.body.querySelectorAll("*")) {
+        if (isAssistiveOnly(el) || isUtilityShell(el) || !isVisible(el)) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.right <= window.innerWidth + 2 && rect.left >= -2) continue;
+        if (!culpritRect || rect.right >= culpritRect.right) {
+          culprit = el;
+          culpritRect = rect;
+        }
+      }
+      add("horizontal_overflow", "high", culprit, "Page is wider than the viewport.", {
         viewportWidth: window.innerWidth,
         scrollWidth,
         overflowPx: scrollWidth - window.innerWidth,
+        ...(culpritRect ? {
+          width: Math.round(culpritRect.width),
+          expectedMaxWidth: window.innerWidth,
+          x: Math.round(culpritRect.left),
+          y: Math.round(culpritRect.top),
+        } : {}),
       });
     }
 
@@ -517,6 +537,6 @@ app.post("/responsive", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "responsive-v1" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "responsive-v2" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
