@@ -7,7 +7,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = headers().get("x-pathname") ?? "";
-  const isPublicAgent = pathname === "/agents/responsive";
+  const isPublicAgent = pathname === "/agents/responsive" || pathname === "/agents/accessibility";
   if (!user && !isPublicAgent) redirect("/login");
 
   return (

@@ -538,7 +538,342 @@ app.post("/responsive", async (req, res) => {
   }
 });
 
+async function inspectAccessibility(page) {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+    await document.fonts?.ready?.catch?.(() => {});
+    await new Promise(r => setTimeout(r, 600));
+  });
+
+  return page.evaluate(() => {
+    const VALID_ROLES = new Set(["alert","alertdialog","application","article","banner","button","cell","checkbox","columnheader","combobox","complementary","contentinfo","definition","dialog","directory","document","feed","figure","form","grid","gridcell","group","heading","img","link","list","listbox","listitem","log","main","marquee","math","menu","menubar","menuitem","menuitemcheckbox","menuitemradio","navigation","none","note","option","presentation","progressbar","radio","radiogroup","region","row","rowgroup","rowheader","scrollbar","search","searchbox","separator","slider","spinbutton","status","switch","tab","table","tablist","tabpanel","term","textbox","timer","toolbar","tooltip","tree","treegrid","treeitem"]);
+
+    function isVisible(el) {
+      const cs = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0" &&
+        rect.width > 0 && rect.height > 0;
+    }
+
+    function isAssistiveHidden(el) {
+      if (el.closest("[aria-hidden='true'], [hidden], template")) return true;
+      const className = String(el.className || "").toLowerCase();
+      return className.includes("screen-reader-text") || className.includes("sr-only") ||
+        className.includes("visually-hidden") || className.includes("skip-link");
+    }
+
+    function labelFor(el) {
+      const aria = el.getAttribute("aria-label");
+      if (aria) return aria.slice(0, 80);
+      const text = (el.innerText || el.textContent || "").trim().replace(/\s+/g, " ");
+      if (text) return text.slice(0, 80);
+      const src = el.getAttribute("src");
+      if (src) return src.split("/").pop()?.slice(0, 80) || el.tagName.toLowerCase();
+      return el.id ? `#${el.id}` : el.className ? `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).slice(0, 2).join(".")}` : el.tagName.toLowerCase();
+    }
+
+    function selectorFor(el) {
+      if (el.id) return `#${CSS.escape(el.id)}`;
+      const parts = [];
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE && parts.length < 4) {
+        const tag = cur.tagName.toLowerCase();
+        const cls = String(cur.className || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).map(c => `.${CSS.escape(c)}`).join("");
+        parts.unshift(`${tag}${cls}`);
+        cur = cur.parentElement;
+      }
+      return parts.join(" > ");
+    }
+
+    const issues = [];
+    const seen = new Set();
+    const perType = {};
+    const PER_TYPE_CAP = 12;
+    function add(type, severity, el, details, metrics = {}) {
+      const selector = el ? selectorFor(el) : "document";
+      const key = `${type}:${selector}`;
+      if (seen.has(key)) return;
+      if ((perType[type] || 0) >= PER_TYPE_CAP) { perType[type] = (perType[type] || 0) + 1; return; }
+      seen.add(key);
+      perType[type] = (perType[type] || 0) + 1;
+      const rect = el ? el.getBoundingClientRect() : null;
+      issues.push({
+        id: `a11y-${issues.length + 1}`,
+        type,
+        severity,
+        element: el ? labelFor(el) : "document",
+        selector,
+        details,
+        metrics: {
+          ...(rect ? { x: Math.round(rect.left + window.scrollX), y: Math.round(rect.top + window.scrollY) } : {}),
+          ...metrics,
+        },
+      });
+    }
+
+    // ---- Contrast helpers ----
+    function parseColor(str) {
+      const m = String(str).match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
+      if (!m) return null;
+      return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
+    }
+    function blend(fg, bg) {
+      const a = fg.a;
+      return { r: fg.r * a + bg.r * (1 - a), g: fg.g * a + bg.g * (1 - a), b: fg.b * a + bg.b * (1 - a), a: 1 };
+    }
+    function luminance(c) {
+      const f = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+    }
+    function contrastRatio(a, b) {
+      const l1 = luminance(a), l2 = luminance(b);
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    }
+    // Walk up for a solid background; bail (null) if a background image intervenes.
+    function effectiveBackground(el) {
+      let cur = el;
+      while (cur && cur !== document.documentElement) {
+        const cs = window.getComputedStyle(cur);
+        if (cs.backgroundImage && cs.backgroundImage !== "none") return null;
+        const bg = parseColor(cs.backgroundColor);
+        if (bg && bg.a >= 0.99) return bg;
+        cur = cur.parentElement;
+      }
+      return { r: 255, g: 255, b: 255, a: 1 };
+    }
+
+    // ---- 1. Low contrast text ----
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const contrastChecked = new Set();
+    let node;
+    let textNodesChecked = 0;
+    while ((node = walker.nextNode()) && textNodesChecked < 1500) {
+      const text = node.textContent.trim();
+      if (text.length < 3) continue;
+      const el = node.parentElement;
+      if (!el || contrastChecked.has(el)) continue;
+      contrastChecked.add(el);
+      if (!isVisible(el) || isAssistiveHidden(el)) continue;
+      textNodesChecked++;
+      const cs = window.getComputedStyle(el);
+      let color = parseColor(cs.color);
+      if (!color) continue;
+      const bg = effectiveBackground(el);
+      if (!bg) continue; // background image — cannot judge
+      if (color.a < 1) color = blend(color, bg);
+      const ratio = contrastRatio(color, bg);
+      const size = parseFloat(cs.fontSize);
+      const weight = parseInt(cs.fontWeight, 10) || 400;
+      const isLarge = size >= 24 || (size >= 18.66 && weight >= 700);
+      const required = isLarge ? 3 : 4.5;
+      if (ratio < required) {
+        add("low_contrast", ratio < 3 ? "high" : "medium", el, "Text contrast is below the WCAG AA minimum.", {
+          contrastRatio: Math.round(ratio * 100) / 100,
+          requiredRatio: required,
+          fontSize: `${size}px`,
+          textColor: cs.color,
+          sampleText: text.slice(0, 50),
+        });
+      }
+    }
+
+    // ---- 2. Images without alt ----
+    for (const img of document.querySelectorAll("img")) {
+      if (!isVisible(img) || isAssistiveHidden(img)) continue;
+      if (!img.hasAttribute("alt") && img.getAttribute("role") !== "presentation") {
+        add("missing_alt", "medium", img, "Image has no alt attribute, so screen readers announce the file name or nothing.", {
+          expected: "alt text (or alt=\"\" if decorative)",
+          measured: "no alt attribute",
+        });
+      }
+    }
+
+    // ---- 3. Buttons / links without an accessible name ----
+    for (const el of document.querySelectorAll("a[href], button, [role='button'], [role='link']")) {
+      if (!isVisible(el) || isAssistiveHidden(el)) continue;
+      const name = (el.innerText || "").trim() ||
+        el.getAttribute("aria-label") ||
+        el.getAttribute("title") ||
+        (el.getAttribute("aria-labelledby") && document.getElementById(el.getAttribute("aria-labelledby"))?.textContent?.trim()) ||
+        el.querySelector("img[alt]:not([alt=''])")?.getAttribute("alt") ||
+        el.querySelector("svg title")?.textContent?.trim();
+      if (!name) {
+        add("unlabeled_control", "high", el, "Interactive element has no accessible name — screen readers announce nothing useful.", {
+          expected: "visible text, aria-label, or labelled image",
+          measured: "no accessible name",
+        });
+      }
+    }
+
+    // ---- 4. Form inputs without labels ----
+    for (const input of document.querySelectorAll("input, select, textarea")) {
+      const type = (input.getAttribute("type") || "text").toLowerCase();
+      if (["hidden", "submit", "button", "image", "reset"].includes(type)) continue;
+      if (!isVisible(input) || isAssistiveHidden(input)) continue;
+      const hasLabel = (input.id && document.querySelector(`label[for="${CSS.escape(input.id)}"]`)) ||
+        input.closest("label") ||
+        input.getAttribute("aria-label") ||
+        input.getAttribute("aria-labelledby") ||
+        input.getAttribute("title");
+      if (!hasLabel) {
+        const placeholderOnly = Boolean(input.getAttribute("placeholder"));
+        add("input_missing_label", "high", input, placeholderOnly
+          ? "Input relies on placeholder text only — placeholders disappear on typing and are not reliable labels."
+          : "Form input has no label of any kind.", {
+          expected: "label element, aria-label, or aria-labelledby",
+          measured: placeholderOnly ? "placeholder only" : "no label",
+        });
+      }
+    }
+
+    // ---- 5. H1 usage + heading order ----
+    const headings = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6"))
+      .filter(h => isVisible(h) && !isAssistiveHidden(h));
+    const h1s = headings.filter(h => h.tagName === "H1");
+    if (h1s.length === 0) {
+      add("missing_h1", "medium", null, "Page has no visible H1 — screen reader users lose the main landmark for what the page is about.", {
+        expected: "exactly one H1",
+        measured: "no H1",
+      });
+    } else if (h1s.length > 1) {
+      add("multiple_h1", "low", h1s[1], "Page has more than one H1, which muddies the document outline.", {
+        expected: "exactly one H1",
+        measured: `${h1s.length} H1 elements`,
+      });
+    }
+    let prevLevel = 0;
+    for (const h of headings) {
+      const level = +h.tagName[1];
+      if (prevLevel > 0 && level > prevLevel + 1) {
+        add("heading_order_skip", "low", h, `Heading level jumps from H${prevLevel} to H${level}, skipping levels in the outline.`, {
+          expected: `H${prevLevel + 1} or lower`,
+          measured: `H${level} after H${prevLevel}`,
+        });
+      }
+      prevLevel = level;
+    }
+
+    // ---- 6. Small tap targets (WCAG 2.5.8 — 24px minimum) ----
+    for (const el of document.querySelectorAll("a[href], button, input, select, [role='button']")) {
+      if (!isVisible(el) || isAssistiveHidden(el)) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0 && (rect.width < 24 || rect.height < 24)) {
+        add("small_tap_target", "low", el, "Interactive target is below the WCAG 24px minimum size.", {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          expectedMinWidth: 24,
+          expectedMinHeight: 24,
+        });
+      }
+    }
+
+    // ---- 7. Missing focus styles (focus a sample and compare) ----
+    const focusables = Array.from(document.querySelectorAll("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])"))
+      .filter(el => isVisible(el) && !isAssistiveHidden(el))
+      .slice(0, 60);
+    const prevActive = document.activeElement;
+    for (const el of focusables) {
+      const before = window.getComputedStyle(el);
+      const beforeSnapshot = `${before.outlineStyle}|${before.outlineWidth}|${before.boxShadow}|${before.backgroundColor}|${before.borderColor}|${before.textDecorationLine}`;
+      try { el.focus({ preventScroll: true }); } catch { continue; }
+      if (document.activeElement !== el) continue;
+      const after = window.getComputedStyle(el);
+      const afterSnapshot = `${after.outlineStyle}|${after.outlineWidth}|${after.boxShadow}|${after.backgroundColor}|${after.borderColor}|${after.textDecorationLine}`;
+      const outlineGone = after.outlineStyle === "none" || parseFloat(after.outlineWidth) === 0;
+      if (outlineGone && beforeSnapshot === afterSnapshot) {
+        add("missing_focus_style", "medium", el, "Element shows no visible change when focused — keyboard users cannot see where they are.", {
+          expected: "visible outline, ring, or style change on focus",
+          measured: "no visual focus indicator",
+        });
+      }
+    }
+    try { prevActive?.focus?.({ preventScroll: true }); } catch {}
+    if (document.activeElement && document.activeElement !== prevActive) document.activeElement.blur?.();
+
+    // ---- 8. ARIA misuse ----
+    for (const el of document.querySelectorAll("[role]")) {
+      const role = el.getAttribute("role").trim().split(/\s+/)[0].toLowerCase();
+      if (role && !VALID_ROLES.has(role)) {
+        add("invalid_role", "medium", el, `role="${role}" is not a valid ARIA role, so assistive tech ignores it.`, {
+          expected: "a valid ARIA role",
+          measured: `role="${role}"`,
+        });
+      }
+    }
+    for (const el of document.querySelectorAll("[aria-hidden='true']")) {
+      const focusable = el.matches("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])")
+        ? el
+        : el.querySelector("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])");
+      if (focusable && isVisible(focusable)) {
+        add("aria_hidden_focusable", "medium", focusable, "Element is focusable but inside aria-hidden — keyboard reaches it while screen readers cannot.", {
+          expected: "aria-hidden content should not contain focusable elements",
+          measured: "focusable element inside aria-hidden='true'",
+        });
+      }
+    }
+    for (const el of document.querySelectorAll("[aria-labelledby]")) {
+      const ids = el.getAttribute("aria-labelledby").trim().split(/\s+/);
+      const missing = ids.filter(id => !document.getElementById(id));
+      if (missing.length > 0 && isVisible(el)) {
+        add("broken_labelledby", "medium", el, "aria-labelledby points at an id that does not exist, so the element has no name.", {
+          expected: "aria-labelledby referencing existing element ids",
+          measured: `missing id: ${missing.join(", ")}`,
+        });
+      }
+    }
+
+    const truncatedTypes = Object.entries(perType)
+      .filter(([, count]) => count > PER_TYPE_CAP)
+      .map(([type, count]) => ({ type, total: count, shown: PER_TYPE_CAP }));
+
+    return {
+      issueCount: issues.length,
+      issues,
+      truncatedTypes,
+      stats: {
+        textElementsChecked: textNodesChecked,
+        focusablesSampled: focusables.length,
+        headings: headings.length,
+      },
+    };
+  });
+}
+
+// POST /accessibility — WCAG-style checks on the rendered page
+app.post("/accessibility", async (req, res) => {
+  const { url } = req.body ?? {};
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "url is required" });
+  }
+
+  let page;
+  try {
+    const b = await getBrowser();
+    page = await b.newPage();
+    await page.route("**/*", route => {
+      const type = route.request().resourceType();
+      if (type === "media") return route.abort();
+      return route.continue();
+    });
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+
+    const result = await inspectAccessibility(page);
+    res.json({
+      url,
+      checkedAt: new Date().toISOString(),
+      mode: "browser",
+      ...result,
+    });
+  } catch (err) {
+    console.error("[accessibility] error:", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (page) await page.close().catch(() => {});
+  }
+});
+
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "responsive-v3" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "a11y-v1" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));

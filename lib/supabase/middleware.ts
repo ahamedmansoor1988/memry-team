@@ -40,7 +40,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/pricing") ||
     pathname.startsWith("/terms") ||
     pathname.startsWith("/privacy") ||
-    pathname === "/agents/responsive";
+    pathname === "/agents/responsive" ||
+    pathname === "/agents/accessibility";
   const isApiRoute = pathname.startsWith("/api/");
 
   if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
