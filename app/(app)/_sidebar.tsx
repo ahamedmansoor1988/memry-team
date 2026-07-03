@@ -3,13 +3,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings, MonitorCheck, Accessibility } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings, MonitorCheck, Accessibility, GitCompareArrows } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch },
   { id: "responsive",    label: "Responsive",    icon: MonitorCheck },
   { id: "accessibility", label: "Accessibility", icon: Accessibility },
+  { id: "screenshot-diff", label: "Screenshot Diff", icon: GitCompareArrows },
   { id: "history",       label: "History",        icon: History    },
 ];
 

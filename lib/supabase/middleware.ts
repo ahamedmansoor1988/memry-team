@@ -41,7 +41,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/terms") ||
     pathname.startsWith("/privacy") ||
     pathname === "/agents/responsive" ||
-    pathname === "/agents/accessibility";
+    pathname === "/agents/accessibility" ||
+    pathname === "/agents/screenshot-diff";
   const isApiRoute = pathname.startsWith("/api/");
 
   if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
