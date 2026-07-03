@@ -288,14 +288,16 @@ async function inspectResponsive(page, viewport) {
     const scrollWidth = Math.max(doc.scrollWidth, body?.scrollWidth || 0);
     if (scrollWidth > window.innerWidth + 2) {
       // Name the widest offending element instead of just "document".
+      // No visibility filtering here: hidden off-canvas panels and utility
+      // overlays still widen the scroll area, and they are the usual culprits.
       // Document order puts parents first, so >= lets the deepest element with
       // the same right edge win — the actual content, not its wrappers.
       let culprit = null;
       let culpritRect = null;
       for (const el of document.body.querySelectorAll("*")) {
-        if (isAssistiveOnly(el) || isUtilityShell(el) || !isVisible(el)) continue;
         const rect = el.getBoundingClientRect();
-        if (rect.right <= window.innerWidth + 2 && rect.left >= -2) continue;
+        if (rect.width === 0 || rect.height === 0) continue;
+        if (rect.right <= window.innerWidth + 2) continue;
         if (!culpritRect || rect.right >= culpritRect.right) {
           culprit = el;
           culpritRect = rect;
@@ -537,6 +539,6 @@ app.post("/responsive", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "responsive-v2" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "responsive-v3" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
