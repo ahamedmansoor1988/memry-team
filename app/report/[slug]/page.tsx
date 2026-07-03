@@ -45,8 +45,10 @@ const SEVERITY_CLASS = {
   low: "border-blue-200 bg-blue-50 text-blue-600",
 };
 
-export default function ReportPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = use(params);
+export default function ReportPage({ params }: { params: { slug: string } | Promise<{ slug: string }> }) {
+  // This Next version passes params as a plain object to client pages;
+  // newer versions pass a Promise. use() is only legal on the latter.
+  const { slug } = params instanceof Promise ? use(params) : params;
   const [data, setData] = useState<ReportPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
