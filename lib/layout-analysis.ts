@@ -38,6 +38,26 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
 
   // Overflow-family issues — find the property that pushes the element out.
   if (["horizontal_overflow", "element_wider_than_viewport", "element_outside_viewport"].includes(type)) {
+    // Carousels intentionally position slides outside the viewport — that's
+    // only a real bug if the track's container isn't clipping it. Checked
+    // first because the slide's own CSS (a modest fixed width) otherwise
+    // looks like any other minor overflow and produces a vague explanation.
+    if (metrics?.isCarouselSlide) {
+      if (metrics?.carouselClipped === false) {
+        return {
+          rootCause: `This element is a slide in a carousel/slider track. Carousel slides are normally positioned outside the visible frame until active, but the carousel's container has no overflow clipping, so the off-screen slides widen the page instead of staying hidden.`,
+          fix: `Add overflow-x: hidden (or overflow: hidden) to the carousel's outer container (e.g. .swiper, .owl-carousel, .slick-list) so slides outside the active frame don't affect page width.`,
+          confidence: 90,
+          cssHighlights: pick(css, "overflow-x", "position", "transform", "width"),
+        };
+      }
+      return {
+        rootCause: `This element is a carousel/slider slide. Its container does clip overflow, so this is likely the carousel behaving normally rather than a layout bug — but it was still measured as extending past the viewport, so double-check the active slide at this breakpoint.`,
+        fix: `If this is a false positive, no change is needed. If the active slide itself is oversized, constrain its width to 100% of the carousel container.`,
+        confidence: 55,
+        cssHighlights: pick(css, "overflow-x", "width"),
+      };
+    }
     if (width !== null && viewportWidth !== null && width > viewportWidth) {
       return {
         rootCause: `The element has a fixed width of ${Math.round(width)}px, wider than the ${viewportWidth}px viewport. Fixed pixel widths cannot adapt to smaller screens.`,

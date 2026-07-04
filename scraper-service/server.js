@@ -259,6 +259,55 @@ async function inspectResponsive(page, viewport) {
         className.includes("elementskit-menu-offcanvas-elements");
     }
 
+    // Page-builder / CSS-in-JS tooling generates classes with no human
+    // meaning ("elementor-element-db467a5", "css-a1b2c3"). Filtering these
+    // out (plus a denylist of builder base classes present on every element)
+    // is what keeps element names readable instead of raw selector soup.
+    const GENERATED_CLASS_DENYLIST = new Set([
+      "elementor-element", "elementor-widget", "elementor-widget-container",
+      "e-con", "e-con-inner", "wp-block", "et_pb_module",
+    ]);
+    function isGeneratedClassToken(token) {
+      if (GENERATED_CLASS_DENYLIST.has(token)) return true;
+      if (/^elementor-element-[0-9a-z]+$/i.test(token)) return true;
+      if (/-[0-9a-f]{5,}$/i.test(token)) return true;
+      if (/^(css|sc|jsx|emotion|styled)-[a-z0-9]+$/i.test(token)) return true;
+      return false;
+    }
+    function meaningfulClassLabel(el) {
+      const tokens = String(el.className || "").trim().split(/\s+/).filter(Boolean).filter(t => !isGeneratedClassToken(t));
+      return tokens.length > 0 ? `${el.tagName.toLowerCase()}.${tokens.slice(0, 2).join(".")}` : null;
+    }
+
+    const CAROUSEL_SLIDE_RE = /swiper-slide|slick-slide|owl-item|glide__slide|splide__slide|flickity-slide/i;
+    const CAROUSEL_CONTAINER_RE = /swiper(?!-slide)|slick-(track|list|slider)|owl-carousel|owl-stage|glide__track|splide__track|flickity-viewport|carousel(?!-item)/i;
+
+    // Walks up from a finding's element to see whether it sits inside a
+    // known carousel/slider track, and whether that track's container
+    // actually clips overflow. Off-screen slides are normal carousel
+    // behavior — they only become a real bug when nothing clips them.
+    function carouselContext(el) {
+      let cur = el;
+      let sawCarousel = false;
+      while (cur && cur !== document.body) {
+        const cls = String(cur.className || "");
+        if (CAROUSEL_SLIDE_RE.test(cls) || CAROUSEL_CONTAINER_RE.test(cls)) {
+          sawCarousel = true;
+          let clipper = cur.parentElement;
+          while (clipper && clipper !== document.body) {
+            const cs = window.getComputedStyle(clipper);
+            if (["hidden", "clip", "auto", "scroll"].includes(cs.overflowX)) {
+              return { isCarouselSlide: true, carouselClipped: true };
+            }
+            clipper = clipper.parentElement;
+          }
+          return { isCarouselSlide: true, carouselClipped: false };
+        }
+        cur = cur.parentElement;
+      }
+      return { isCarouselSlide: sawCarousel, carouselClipped: false };
+    }
+
     function labelFor(el) {
       const aria = el.getAttribute("aria-label");
       if (aria) return aria.slice(0, 80);
@@ -266,7 +315,11 @@ async function inspectResponsive(page, viewport) {
       if (text) return text.slice(0, 80);
       const src = el.getAttribute("src");
       if (src) return src.split("/").pop()?.slice(0, 80) || el.tagName.toLowerCase();
-      return el.id ? `#${el.id}` : el.className ? `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).slice(0, 2).join(".")}` : el.tagName.toLowerCase();
+      if (CAROUSEL_SLIDE_RE.test(String(el.className || ""))) return "Carousel slide";
+      const classLabel = meaningfulClassLabel(el);
+      if (classLabel) return classLabel;
+      if (el.id && !isGeneratedClassToken(el.id)) return `#${el.id}`;
+      return `Unlabeled <${el.tagName.toLowerCase()}> element`;
     }
 
     function selectorFor(el) {
@@ -329,11 +382,9 @@ async function inspectResponsive(page, viewport) {
         else if (tag === "header") name = "Header";
         else if (tag === "footer") name = "Footer";
         else if (tag === "main") name = "Main content";
-        else if (cur.id) name = `${tag}#${cur.id}`;
-        else {
-          const cls = String(cur.className || "").trim().split(/\s+/).filter(Boolean)[0];
-          name = cls ? `${tag}.${cls.slice(0, 30)}` : tag;
-        }
+        else if (CAROUSEL_SLIDE_RE.test(String(cur.className || ""))) name = "Carousel slide";
+        else if (cur.id && !isGeneratedClassToken(cur.id)) name = `${tag}#${cur.id}`;
+        else name = meaningfulClassLabel(cur) ?? tag;
         parts.unshift(name);
         cur = cur.parentElement;
       }
@@ -412,6 +463,7 @@ async function inspectResponsive(page, viewport) {
           x: Math.round(culpritRect.left),
           y: Math.round(culpritRect.top),
         } : {}),
+        ...(culprit ? carouselContext(culprit) : {}),
       });
     }
 
@@ -432,6 +484,7 @@ async function inspectResponsive(page, viewport) {
           expectedMaxWidth: window.innerWidth,
           x: Math.round(rect.left),
           y: Math.round(rect.top),
+          ...carouselContext(el),
         });
       }
 
@@ -443,6 +496,7 @@ async function inspectResponsive(page, viewport) {
           expectedRightMax: window.innerWidth,
           x: Math.round(rect.left),
           y: Math.round(rect.top),
+          ...carouselContext(el),
         });
       }
 
