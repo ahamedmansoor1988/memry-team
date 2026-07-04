@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { checkDailyLimit, clientIp } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
+
+const FREE_SCANS_PER_DAY = 10;
 
 type ViewportName = "mobile" | "tablet" | "desktop";
 
@@ -163,6 +166,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null) as { url?: string; viewports?: ViewportName[] } | null;
   const url = body?.url ? normalizeUrl(body.url) : null;
   if (!url) return NextResponse.json({ error: "A valid http(s) URL is required." }, { status: 400 });
+
+  const limit = await checkDailyLimit(`ip:${clientIp(req)}`, "scan", FREE_SCANS_PER_DAY);
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: `Daily free scan limit reached (${FREE_SCANS_PER_DAY}/day). Come back tomorrow.` },
+      { status: 429 }
+    );
+  }
 
   const requested = new Set(body?.viewports ?? DEFAULT_VIEWPORTS.map(v => v.name));
   const viewports = DEFAULT_VIEWPORTS.filter(v => requested.has(v.name));

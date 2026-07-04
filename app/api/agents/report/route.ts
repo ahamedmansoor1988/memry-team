@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "crypto";
+import { createClient as createAuthClient } from "@/lib/supabase/server";
+import { checkDailyLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const BUCKET = "qa-reports";
-const MAX_PAYLOAD_BYTES = 12 * 1024 * 1024;
+const MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
+const SHARES_PER_DAY = 10;
 
 function supabaseAdmin() {
   return createClient(
@@ -21,6 +24,20 @@ async function ensureBucket(admin: ReturnType<typeof supabaseAdmin>) {
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createAuthClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Sign in to share reports.", requiresAuth: true }, { status: 401 });
+  }
+
+  const shareLimit = await checkDailyLimit(`user:${user.id}`, "share", SHARES_PER_DAY);
+  if (!shareLimit.allowed) {
+    return NextResponse.json(
+      { error: `Daily share limit reached (${SHARES_PER_DAY}/day). Come back tomorrow.` },
+      { status: 429 }
+    );
+  }
+
   const body = await req.text();
   if (body.length > MAX_PAYLOAD_BYTES) {
     return NextResponse.json({ error: "Report too large to share." }, { status: 413 });

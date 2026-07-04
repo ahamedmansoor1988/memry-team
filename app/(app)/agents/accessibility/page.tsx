@@ -246,6 +246,13 @@ export default function AccessibilityAgentPage() {
   );
 
   const [shareState, setShareState] = useState<"idle" | "saving" | "copied" | "error">("idle");
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    import("@/lib/supabase/client").then(({ createClient }) =>
+      createClient().auth.getUser().then(({ data }) => setSignedIn(Boolean(data.user)))
+    ).catch(() => setSignedIn(false));
+  }, []);
 
   function num(metrics: A11yIssue["metrics"], key: string): number | undefined {
     const v = metrics?.[key];
@@ -483,15 +490,28 @@ export default function AccessibilityAgentPage() {
             {score !== null && result && (
               <div className="mb-4 space-y-2">
                 <ScoreBadge score={score} label="Accessibility QA score" />
-                <button
-                  onClick={shareReport}
-                  disabled={shareState === "saving"}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {shareState === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
-                  {shareState === "copied" ? "Link copied!" : shareState === "error" ? "Share failed — retry" : "Share report"}
-                </button>
-                <p className="text-[10px] leading-relaxed text-[#a1a1aa]">Creates a public link with the annotated screenshot anyone can open.</p>
+                {signedIn === false ? (
+                  <a
+                    href="/login"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#1f1f23]"
+                  >
+                    <Share2 size={12} /> Sign in to share report
+                  </a>
+                ) : (
+                  <button
+                    onClick={shareReport}
+                    disabled={shareState === "saving" || signedIn === null}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {shareState === "saving" ? <Loader2 size={12} className="animate-spin" /> : <Share2 size={12} />}
+                    {shareState === "copied" ? "Link copied!" : shareState === "error" ? "Share failed — retry" : "Share report"}
+                  </button>
+                )}
+                <p className="text-[10px] leading-relaxed text-[#a1a1aa]">
+                  {signedIn === false
+                    ? "Sharing is free — sign in with Google to create a public report link."
+                    : "Creates a public link with the annotated screenshot anyone can open."}
+                </p>
               </div>
             )}
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>

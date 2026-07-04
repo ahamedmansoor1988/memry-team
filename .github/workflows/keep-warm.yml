@@ -1,0 +1,17 @@
+name: Keep scraper warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping scraper health endpoint
+        run: |
+          curl -sf --max-time 30 https://memry-team.onrender.com/health || echo "scraper ping failed"
+      - name: Ping app
+        run: |
+          curl -sf -o /dev/null --max-time 30 https://getloupe.vercel.app/agents/responsive || echo "app ping failed"
