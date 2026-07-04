@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch },
-  { id: "responsive",    label: "Responsive",    icon: MonitorCheck },
+  { id: "responsive",    label: "Layout QA",    icon: MonitorCheck },
   { id: "accessibility", label: "Accessibility", icon: Accessibility },
   { id: "screenshot-diff", label: "Screenshot Diff", icon: GitCompareArrows },
   { id: "history",       label: "History",        icon: History    },

@@ -27,6 +27,62 @@ const BOX_COLORS = {
   low: "#2563eb",
 };
 
+/**
+ * A viewport-sized crop of the stitched page screenshot, scrolled so the
+ * finding is centered, with the offending element outlined and numbered.
+ * Uses translateY(%) (relative to the image's own height) so the crop is
+ * responsive without measuring the rendered size.
+ */
+export function FocusedIssueView({ screenshot, finding, cropHeight = 520 }: {
+  screenshot: Screenshot;
+  finding: AnnotatedFinding;
+  cropHeight?: number;
+}) {
+  const y = finding.y ?? 0;
+  const boxH = Math.max(finding.height ?? 32, 18);
+  const boxW = Math.max(finding.width ?? 32, 18);
+  const crop = Math.min(cropHeight, screenshot.height);
+  // Center the finding in the crop window, clamped to the image bounds.
+  const offsetY = Math.max(0, Math.min(y + boxH / 2 - crop / 2, screenshot.height - crop));
+  const color = BOX_COLORS[finding.severity];
+
+  if (typeof finding.y !== "number" || finding.y >= screenshot.height) return null;
+
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-lg border border-black/[0.08]"
+      style={{ paddingTop: `${(crop / screenshot.width) * 100}%` }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={screenshot.dataUrl}
+        alt={`Issue ${finding.index} in context`}
+        className="absolute left-0 top-0 w-full"
+        style={{ transform: `translateY(-${(offsetY / screenshot.height) * 100}%)` }}
+      />
+      <div
+        className="absolute rounded-sm"
+        style={{
+          left: `${((finding.x ?? 0) / screenshot.width) * 100}%`,
+          top: `${((y - offsetY) / crop) * 100}%`,
+          width: `${Math.min((boxW / screenshot.width) * 100, 100)}%`,
+          height: `${(boxH / crop) * 100}%`,
+          border: `2px solid ${color}`,
+          background: `${color}1a`,
+          boxShadow: "0 0 0 1px #ffffffaa",
+        }}
+      >
+        <span
+          className="absolute -left-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
+          style={{ background: color }}
+        >
+          {finding.index}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 export function ScoreBadge({ score, label }: { score: number; label: string }) {
   const tone = scoreTone(score);
   return (
@@ -50,10 +106,11 @@ export function ScoreBadge({ score, label }: { score: number; label: string }) {
  * Coordinates are scaled from captured-pixel space to the rendered size
  * using percentages, so the overlay survives responsive resizing.
  */
-export function AnnotatedScreenshot({ screenshot, findings, caption }: {
+export function AnnotatedScreenshot({ screenshot, findings, caption, onBoxClick }: {
   screenshot: Screenshot;
   findings: AnnotatedFinding[];
   caption?: string;
+  onBoxClick?: (id: string) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const placeable = findings.filter(f =>
@@ -75,7 +132,9 @@ export function AnnotatedScreenshot({ screenshot, findings, caption }: {
               key={f.id}
               onMouseEnter={() => setActiveId(f.id)}
               onMouseLeave={() => setActiveId(null)}
-              className="absolute rounded-sm"
+              onClick={() => onBoxClick?.(f.id)}
+              title={onBoxClick ? `Jump to issue ${f.index}` : undefined}
+              className={`absolute rounded-sm ${onBoxClick ? "cursor-pointer" : ""}`}
               style={{
                 left: `${(f.x! / screenshot.width) * 100}%`,
                 top: `${(f.y! / screenshot.height) * 100}%`,

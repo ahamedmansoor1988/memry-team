@@ -194,7 +194,7 @@ async function extractStyles(page) {
 
 // Page screenshot as a data URL — clipped so huge pages don't blow up the
 // response payload (Vercel proxies it and caps bodies around 4.5MB).
-const SCREENSHOT_MAX_HEIGHT = 3500;
+const SCREENSHOT_MAX_HEIGHT = 8000;
 async function captureScreenshot(page, width) {
   const scrollHeight = await page.evaluate(() =>
     Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight || 0)
@@ -282,6 +282,77 @@ async function inspectResponsive(page, viewport) {
       return parts.join(" > ");
     }
 
+    // Human-readable page section for a finding — landmark ancestors first,
+    // then the nearest preceding heading, then rough page position.
+    function sectionNameFor(el) {
+      let cur = el;
+      while (cur && cur !== document.body) {
+        const aria = cur.getAttribute?.("aria-label");
+        const tag = cur.tagName;
+        if (tag === "NAV") return aria ? `${aria} navigation` : "Navigation";
+        if (tag === "HEADER") return "Page header";
+        if (tag === "FOOTER") return "Footer";
+        if (tag === "ASIDE") return aria || "Sidebar";
+        if (tag === "SECTION" || tag === "ARTICLE") {
+          const h = cur.querySelector("h1, h2, h3");
+          const label = aria || h?.innerText?.trim()?.replace(/\s+/g, " ").slice(0, 50);
+          if (label) return `${label} section`;
+        }
+        if (cur.matches?.("[role='dialog'], dialog, [class*='modal']")) return "Modal / dialog";
+        if (cur.matches?.("[class*='megamenu'], [class*='mega-menu'], [class*='dropdown']")) return "Mega menu / dropdown";
+        cur = cur.parentElement;
+      }
+      let nearest = null;
+      for (const h of document.querySelectorAll("h1, h2, h3")) {
+        if (h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) nearest = h;
+      }
+      const heading = nearest?.innerText?.trim()?.replace(/\s+/g, " ").slice(0, 50);
+      if (heading) return `${heading} section`;
+      const pageY = el.getBoundingClientRect().top + window.scrollY;
+      const rel = pageY / Math.max(document.documentElement.scrollHeight, 1);
+      return rel < 0.15 ? "Top of page" : rel > 0.85 ? "Bottom of page" : "Middle of page";
+    }
+
+    // Readable ancestor chain for the report's Element tree.
+    function domPathFor(el) {
+      const parts = [];
+      let cur = el;
+      while (cur && cur !== document.documentElement && parts.length < 5) {
+        const aria = cur.getAttribute?.("aria-label");
+        const tag = cur.tagName.toLowerCase();
+        let name;
+        if (aria) name = aria.slice(0, 40);
+        else if (tag === "nav") name = "Navigation";
+        else if (tag === "header") name = "Header";
+        else if (tag === "footer") name = "Footer";
+        else if (tag === "main") name = "Main content";
+        else if (cur.id) name = `${tag}#${cur.id}`;
+        else {
+          const cls = String(cur.className || "").trim().split(/\s+/).filter(Boolean)[0];
+          name = cls ? `${tag}.${cls.slice(0, 30)}` : tag;
+        }
+        parts.unshift(name);
+        cur = cur.parentElement;
+      }
+      if (parts[0] !== "body") parts.unshift("body");
+      return parts;
+    }
+
+    // Only the computed CSS that can contribute to layout failures.
+    function relevantCss(el) {
+      const cs = window.getComputedStyle(el);
+      const out = {};
+      const DEFAULTS = { width: null, "min-width": "0px", "max-width": "none", position: "static", left: "auto", right: "auto", transform: "none", "white-space": "normal", "margin-left": "0px", "margin-right": "0px", display: null };
+      for (const prop of Object.keys(DEFAULTS)) {
+        const v = cs.getPropertyValue(prop);
+        if (v && v !== DEFAULTS[prop]) out[prop] = v;
+      }
+      out["overflow-x"] = cs.overflowX;
+      if (out.width && !/px/.test(out.width)) delete out.width;
+      if (out.display === "block" || out.display === "inline") delete out.display;
+      return out;
+    }
+
     const issues = [];
     const seen = new Set();
     function add(type, severity, el, details, metrics = {}) {
@@ -297,6 +368,9 @@ async function inspectResponsive(page, viewport) {
         element: el ? labelFor(el) : "document",
         selector,
         details,
+        section: el ? sectionNameFor(el) : "Whole page",
+        domPath: el ? domPathFor(el) : ["document"],
+        css: el ? relevantCss(el) : undefined,
         metrics: {
           viewportWidth: window.innerWidth,
           viewportHeight: window.innerHeight,
@@ -900,6 +974,6 @@ app.post("/accessibility", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "report-v1" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "layout-v1" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));

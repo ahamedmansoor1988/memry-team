@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ExternalLink, Loader2 } from "lucide-react";
-import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
+import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
 
 export interface DisplayFinding {
   id: string;
@@ -17,6 +17,13 @@ export interface DisplayFinding {
   selector?: string;
   expected?: string;
   measured?: string;
+  viewport?: string;
+  section?: string;
+  domPath?: string[];
+  rootCause?: string;
+  fix?: string;
+  confidence?: number;
+  cssHighlights?: Record<string, string>;
   x?: number;
   y?: number;
   width?: number;
@@ -119,36 +126,85 @@ export default function ReportPage({ params }: { params: { slug: string } | Prom
                 : `${section.findings.length} finding${section.findings.length === 1 ? "" : "s"} — numbered boxes on the screenshot match the list below.`}
             </p>
             {section.screenshot && (
-              <AnnotatedScreenshot screenshot={section.screenshot} findings={section.findings} />
+              <AnnotatedScreenshot
+                screenshot={section.screenshot}
+                findings={section.findings}
+                onBoxClick={id => document.getElementById(`finding-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              />
             )}
             {section.findings.length > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 space-y-3">
                 {section.findings.map(f => (
-                  <div key={f.id} className="rounded-xl border border-black/[0.06] bg-[#fafafa] p-4">
+                  <div key={f.id} id={`finding-${f.id}`} className="scroll-mt-6 rounded-xl border border-black/[0.06] bg-[#fafafa] p-4">
                     <div className="mb-1.5 flex flex-wrap items-center gap-2">
                       <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{f.index}</span>
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[f.severity]}`}>{f.severity}</span>
+                      {f.viewport && (
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium capitalize text-[#4b5563]">{f.viewport}</span>
+                      )}
                       <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{f.typeLabel}</span>
+                      {typeof f.confidence === "number" && (
+                        <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-[#4b5563]" title="How confident Loupe is in the root-cause analysis">
+                          {f.confidence}% confidence
+                        </span>
+                      )}
                     </div>
+
                     <p className="text-[13px] font-semibold text-[#17171c]">{f.headline}</p>
-                    {f.why && <p className="mt-0.5 text-[12px] leading-relaxed text-[#71717a]">{f.why}</p>}
-                    <p className="mt-0.5 text-[12px] text-[#4b5563]">Element: <span className="font-medium text-[#17171c]">{f.element}</span></p>
-                    {(f.expected || f.measured) && (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {f.expected && (
-                          <div className="rounded-lg bg-white px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
-                            <p className="mt-0.5 text-[11px] text-[#17171c]">{f.expected}</p>
-                          </div>
+                    {f.measured && (
+                      <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">
+                        {f.measured}.{f.expected ? ` Expected: ${f.expected.toLowerCase()}.` : ""}
+                      </p>
+                    )}
+                    {f.why && (
+                      <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">
+                        <span className="font-medium text-[#4b5563]">Impact:</span> {f.why}
+                      </p>
+                    )}
+
+                    {section.screenshot && typeof f.y === "number" && f.y < section.screenshot.height && (
+                      <div className="mt-3">
+                        <FocusedIssueView screenshot={section.screenshot} finding={f} />
+                      </div>
+                    )}
+
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg bg-white px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Location</p>
+                        <p className="mt-0.5 text-[11px] text-[#17171c]">{f.section ?? "Whole page"}</p>
+                        <p className="mt-0.5 text-[11px] text-[#71717a]">{f.element}</p>
+                      </div>
+                      <div className="rounded-lg bg-white px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Element</p>
+                        {f.domPath && f.domPath.length > 1 ? (
+                          <pre className="mt-0.5 overflow-x-auto font-mono text-[10px] leading-relaxed text-[#4b5563]">
+                            {f.domPath.map((part, i) => (i === 0 ? part : `${"    ".repeat(i - 1)}└── ${part}`)).join("\n")}
+                          </pre>
+                        ) : (
+                          <p className="mt-0.5 truncate font-mono text-[10px] text-[#4b5563]">{f.selector ?? f.element}</p>
                         )}
-                        {f.measured && (
-                          <div className="rounded-lg bg-white px-3 py-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
-                            <p className="mt-0.5 text-[11px] text-[#17171c]">{f.measured}</p>
-                          </div>
+                      </div>
+                    </div>
+
+                    {f.rootCause && (
+                      <div className="mt-2 rounded-lg bg-white px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Root cause</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-[#17171c]">{f.rootCause}</p>
+                        {f.cssHighlights && Object.keys(f.cssHighlights).length > 0 && (
+                          <pre className="mt-2 overflow-x-auto rounded-md bg-[#fafafa] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#4b5563]">
+                            {Object.entries(f.cssHighlights).map(([prop, val]) => `${prop}: ${val};`).join("\n")}
+                          </pre>
                         )}
                       </div>
                     )}
+
+                    {f.fix && (
+                      <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Suggested fix</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-900">{f.fix}</p>
+                      </div>
+                    )}
+
                     {f.selector && f.selector !== "document" && (
                       <p className="mt-2 truncate font-mono text-[10px] text-[#a1a1aa]">{f.selector}</p>
                     )}

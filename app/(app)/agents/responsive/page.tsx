@@ -20,6 +20,7 @@ import {
   TextCursorInput,
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
+import { analyzeLayoutIssue } from "@/lib/layout-analysis";
 import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
 
 type ViewportName = "mobile" | "tablet" | "desktop";
@@ -32,6 +33,9 @@ interface ResponsiveIssue {
   element: string;
   selector?: string;
   details: string;
+  section?: string;
+  domPath?: string[];
+  css?: Record<string, string>;
   metrics?: Record<string, number | string | boolean | null>;
 }
 
@@ -66,31 +70,40 @@ const VIEWPORT_META: Record<ViewportName, { label: string; size: string }> = {
 const CHECK_GROUPS = [
   {
     icon: Ruler,
-    title: "Fit",
-    text: "Page width, oversized sections, and elements drifting outside the viewport.",
+    title: "Layout",
+    text: "Horizontal overflow, elements outside the viewport, fixed-width sections, broken containers, overflowing grids.",
   },
   {
     icon: TextCursorInput,
-    title: "Text",
-    text: "Clipped labels, long URLs, and copy that cannot wrap cleanly.",
+    title: "Typography",
+    text: "Clipped text, truncated labels, long unbreakable strings, text overflow.",
   },
   {
     icon: PanelTop,
-    title: "Overlays",
-    text: "Sticky headers, drawers, and modals that cover or exceed the screen.",
+    title: "Navigation",
+    text: "Sticky headers, mega menus, drawers, modals, and floating elements that cover or exceed the screen.",
   },
   {
     icon: MousePointerClick,
-    title: "Touch",
-    text: "Small tap targets, reported separately so they never bury layout issues.",
+    title: "Mobile UX",
+    text: "Touch targets, floating widgets, and overlapping UI — reported separately so they never bury layout issues.",
   },
 ];
 
 const SCAN_STEPS = [
-  "Open URL",
-  "Resize viewports",
-  "Measure elements",
-  "Report issues",
+  "Crawl page",
+  "Test every viewport",
+  "Detect layout failures",
+  "Explain root cause & fixes",
+];
+
+const REPORT_INCLUDES = [
+  "Annotated screenshots",
+  "Exact offending element",
+  "Root cause analysis",
+  "Suggested CSS fixes",
+  "Severity",
+  "Affected viewport",
 ];
 
 const TYPE_LABELS: Record<string, string> = {
@@ -255,10 +268,16 @@ function actualText(issue: ResponsiveIssue) {
 }
 
 function locationText(issue: ResponsiveIssue) {
-  const x = value(issue.metrics, "x");
-  const y = value(issue.metrics, "y");
-  if (typeof x === "number" && typeof y === "number") return `Around x:${x}px, y:${y}px`;
-  return issue.selector ? "Selector" : "Document";
+  if (issue.section) return issue.section;
+  return issue.selector && issue.selector !== "document" ? "See selector below" : "Whole page";
+}
+
+function DomPathTree({ path }: { path: string[] }) {
+  return (
+    <pre className="overflow-x-auto font-mono text-[10px] leading-relaxed text-[#4b5563]">
+      {path.map((part, i) => (i === 0 ? part : `${"    ".repeat(i - 1)}└── ${part}`)).join("\n")}
+    </pre>
+  );
 }
 
 function groupHeading(viewport: string) {
@@ -268,6 +287,8 @@ function groupHeading(viewport: string) {
 }
 
 function IssueCard({ issue, index }: { issue: ResponsiveIssue; index?: number }) {
+  const analysis = analyzeLayoutIssue(issue.type, issue.css, issue.metrics);
+  const cssEntries = Object.entries(analysis.cssHighlights);
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -281,29 +302,53 @@ function IssueCard({ issue, index }: { issue: ResponsiveIssue; index?: number })
           {viewportText(issue)}
         </span>
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
+        <span className="ml-auto rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium text-[#4b5563]" title="How confident Loupe is in the root-cause analysis">
+          {analysis.confidence}% confidence
+        </span>
       </div>
+
       <p className="text-[13px] font-semibold text-[#17171c]">{issueHeadline(issue)}</p>
+      <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">{actualText(issue)}. Expected: {expectedText(issue).toLowerCase()}.</p>
       {WHY_COPY[issue.type] && (
-        <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">{WHY_COPY[issue.type]}</p>
+        <p className="mt-1.5 text-[12px] leading-relaxed text-[#71717a]">
+          <span className="font-medium text-[#4b5563]">Impact:</span> {WHY_COPY[issue.type]}
+        </p>
       )}
-      <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">
-        Element: <span className="font-medium text-[#17171c]">{issue.element}</span>
-      </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
-          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
-        </div>
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
-          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{actualText(issue)}</p>
-        </div>
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Location</p>
           <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{issue.element}</p>
+        </div>
+        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Element</p>
+          {issue.domPath && issue.domPath.length > 1 ? (
+            <div className="mt-1"><DomPathTree path={issue.domPath} /></div>
+          ) : (
+            <p className="mt-1 truncate font-mono text-[10px] text-[#4b5563]">{issue.selector}</p>
+          )}
         </div>
       </div>
-      {issue.selector && <p className="mt-3 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>}
+
+      <div className="mt-2 rounded-lg bg-[#fafafa] px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Root cause</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-[#17171c]">{analysis.rootCause}</p>
+        {cssEntries.length > 0 && (
+          <pre className="mt-2 overflow-x-auto rounded-md bg-white px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#4b5563]">
+            {cssEntries.map(([prop, val]) => `${prop}: ${val};`).join("\n")}
+          </pre>
+        )}
+      </div>
+
+      <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Suggested fix</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-emerald-900">{analysis.fix}</p>
+      </div>
+
+      {issue.selector && issue.selector !== "document" && (
+        <p className="mt-3 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>
+      )}
     </div>
   );
 }
@@ -372,6 +417,7 @@ export default function ResponsiveAgentPage() {
   }
 
   function displayFinding(issue: ResponsiveIssue) {
+    const analysis = analyzeLayoutIssue(issue.type, issue.css, issue.metrics);
     return {
       id: issue.id,
       index: issueIndex.get(issue.id) ?? 0,
@@ -383,6 +429,13 @@ export default function ResponsiveAgentPage() {
       selector: issue.selector,
       expected: expectedText(issue),
       measured: actualText(issue),
+      viewport: issue.viewport,
+      section: issue.section,
+      domPath: issue.domPath,
+      rootCause: analysis.rootCause,
+      fix: analysis.fix,
+      confidence: analysis.confidence,
+      cssHighlights: analysis.cssHighlights,
       x: num(issue.metrics, "x"),
       y: num(issue.metrics, "y"),
       width: num(issue.metrics, "width"),
@@ -418,7 +471,7 @@ export default function ResponsiveAgentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           kind: "responsive",
-          report: { kind: "responsive", url: result.url, checkedAt: result.checkedAt, score, scoreLabel: "Responsive QA", sections },
+          report: { kind: "responsive", url: result.url, checkedAt: result.checkedAt, score, scoreLabel: "Layout QA", sections },
         }),
       });
       const data = await res.json();
@@ -492,8 +545,8 @@ export default function ResponsiveAgentPage() {
               <MonitorCheck size={17} strokeWidth={1.8} />
             </div>
             <div>
-              <h1 className="text-[17px] font-semibold">Responsive Layout Check</h1>
-              <p className="mt-0.5 text-[12px] text-[#71717a]">Preview whether a live page survives mobile, tablet, and desktop widths.</p>
+              <h1 className="text-[17px] font-semibold">Layout QA</h1>
+              <p className="mt-0.5 text-[12px] text-[#71717a]">Automatically inspect your website for layout issues across mobile, tablet, and desktop viewports.</p>
             </div>
           </div>
           {result?.url && (
@@ -505,7 +558,7 @@ export default function ResponsiveAgentPage() {
 
         <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Scan flow</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How Layout QA works</p>
             <div className="grid grid-cols-4 gap-2">
               {SCAN_STEPS.map((step, index) => (
                 <div key={step} className="relative rounded-lg bg-white px-3 py-3">
@@ -533,6 +586,16 @@ export default function ResponsiveAgentPage() {
                   </div>
                 );
               })}
+            </div>
+            <div className="mt-3 border-t border-black/[0.06] pt-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Report includes</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {REPORT_INCLUDES.map(item => (
+                  <p key={item} className="flex items-center gap-1.5 text-[11px] text-[#4b5563]">
+                    <Check size={11} className="shrink-0 text-[#0f0f0f]" /> {item}
+                  </p>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -698,7 +761,7 @@ export default function ResponsiveAgentPage() {
           <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
             {score !== null && result && (
               <div className="mb-4 space-y-2">
-                <ScoreBadge score={score} label="Responsive QA score" />
+                <ScoreBadge score={score} label="Layout QA score" />
                 {signedIn === false ? (
                   <a
                     href="/login"
