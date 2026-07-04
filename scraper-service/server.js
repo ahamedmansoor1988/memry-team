@@ -318,7 +318,10 @@ async function inspectResponsive(page, viewport) {
       const parts = [];
       let cur = el;
       while (cur && cur !== document.documentElement && parts.length < 5) {
-        const aria = cur.getAttribute?.("aria-label");
+        // Reject aria-labels that are carousel/slide counters ("2 / 6") or
+        // otherwise too short to identify the element meaningfully.
+        const ariaRaw = cur.getAttribute?.("aria-label")?.trim();
+        const aria = ariaRaw && ariaRaw.length >= 4 && !/^\d+\s*\/\s*\d+$/.test(ariaRaw) ? ariaRaw : null;
         const tag = cur.tagName.toLowerCase();
         let name;
         if (aria) name = aria.slice(0, 40);

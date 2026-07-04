@@ -427,7 +427,7 @@ function IssueCard({ issue, index, aiEnabled, pageUrl }: { issue: ResponsiveIssu
 
 export default function ResponsiveAgentPage() {
   const [url, setUrl] = useState("");
-  const [selected, setSelected] = useState<Set<ViewportName>>(new Set<ViewportName>(["mobile", "tablet", "desktop"]));
+  const ALL_VIEWPORTS: ViewportName[] = ["mobile", "tablet", "desktop"];
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ResponsiveResult | null>(null);
@@ -435,7 +435,7 @@ export default function ResponsiveAgentPage() {
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
   const [showTouch, setShowTouch] = useState(false);
 
-  const canRun = url.trim().startsWith("http") && selected.size > 0 && !running;
+  const canRun = url.trim().startsWith("http") && !running;
 
   const { layoutIssues, touchIssues, layoutByViewport } = useMemo(() => {
     const issues = result?.issues ?? [];
@@ -578,14 +578,6 @@ export default function ResponsiveAgentPage() {
     return Array.from(grouped.entries()).sort((a, b) => b[1] - a[1]);
   }, [result]);
 
-  function toggleViewport(id: ViewportName) {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
 
   async function run() {
     if (!canRun) return;
@@ -596,7 +588,7 @@ export default function ResponsiveAgentPage() {
       const res = await fetch("/api/agents/responsive", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim(), viewports: Array.from(selected) }),
+        body: JSON.stringify({ url: url.trim(), viewports: ALL_VIEWPORTS }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
@@ -703,38 +695,24 @@ export default function ResponsiveAgentPage() {
             )}
 
             <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Viewports to simulate</p>
-                <p className="text-[11px] text-[#a1a1aa]">{selected.size}/3 selected</p>
-              </div>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Viewports tested</p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {VIEWPORTS.map(v => {
                   const Icon = v.icon;
-                  const active = selected.has(v.id);
                   return (
-                    <button
-                      key={v.id}
-                      onClick={() => toggleViewport(v.id)}
-                      className={`flex min-h-[76px] flex-col items-start justify-between rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                        active
-                          ? "border-[#0f0f0f] bg-[#0f0f0f] text-white"
-                          : "border-black/[0.1] text-[#4b5563] hover:border-black/40 hover:text-[#0f0f0f]"
-                      }`}
-                    >
-                      <span className="flex w-full items-center justify-between">
-                        <Icon size={15} />
-                        {active && <Check size={13} />}
-                      </span>
+                    <div key={v.id} className="flex min-h-[76px] flex-col items-start justify-between rounded-lg border border-black/[0.1] px-3 py-2.5 text-[#4b5563]">
+                      <Icon size={15} />
                       <span>
-                        <span className="block text-[13px] font-semibold">{v.label}</span>
-                        <span className={`block text-[11px] ${active ? "text-white/70" : "text-[#a1a1aa]"}`}>
+                        <span className="block text-[13px] font-semibold text-[#17171c]">{v.label}</span>
+                        <span className="block text-[11px] text-[#a1a1aa]">
                           {v.id === "mobile" ? "390px wide" : v.id === "tablet" ? "768px wide" : "1440px wide"}
                         </span>
                       </span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
+              <p className="mt-2 text-[11px] text-[#a1a1aa]">Every scan automatically checks all three.</p>
             </div>
 
             {error && (
@@ -750,7 +728,7 @@ export default function ResponsiveAgentPage() {
                 <div>
                   <p className="text-[13px] font-medium text-emerald-800">No layout issues found.</p>
                   <p className="mt-0.5 text-[12px] text-emerald-700">
-                    Checked {Array.from(selected).join(", ")} using {modeLabel(result.mode)}.
+                    Checked mobile, tablet, and desktop using {modeLabel(result.mode)}.
                     {counts.touch > 0 && ` ${counts.touch} touch warning${counts.touch === 1 ? "" : "s"} listed below.`}
                   </p>
                 </div>
