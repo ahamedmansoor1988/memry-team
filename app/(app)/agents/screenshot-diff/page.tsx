@@ -10,6 +10,7 @@ import {
   Play,
   X,
 } from "lucide-react";
+import { BetaTag } from "@/app/(app)/_sidebar";
 
 interface DiffRegion {
   x: number;
@@ -38,6 +39,24 @@ const SCAN_STEPS = ["Upload baseline", "Upload new", "Compare pixels", "Review r
 // Tolerates compression noise and font antialiasing without missing real edits.
 const PIXEL_THRESHOLD = 48;
 const REGION_CELL = 24;
+
+function OnboardingPanels() {
+  return (
+    <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How it works</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {SCAN_STEPS.map((step, index) => (
+          <div key={step} className="rounded-lg bg-white px-3 py-3">
+            <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
+              {index + 1}
+            </div>
+            <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -274,28 +293,17 @@ export default function ScreenshotDiffAgentPage() {
             <GitCompareArrows size={17} strokeWidth={1.8} />
           </div>
           <div>
-            <h1 className="text-[17px] font-semibold">Screenshot Diff</h1>
+            <h1 className="flex items-center gap-2 text-[17px] font-semibold">Screenshot Diff <BetaTag /></h1>
             <p className="mt-0.5 text-[12px] text-[#71717a]">Compare two screenshots pixel by pixel. Everything runs in your browser — images never leave your machine.</p>
           </div>
         </div>
 
-        <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How it works</p>
-          <div className="grid grid-cols-4 gap-2">
-            {SCAN_STEPS.map((step, index) => (
-              <div key={step} className="rounded-lg bg-white px-3 py-3">
-                <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
-                  {index + 1}
-                </div>
-                <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        {!result && <OnboardingPanels />}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+              <div className="grid gap-3 sm:grid-cols-2">
               <UploadSlot
                 label="Baseline screenshot"
                 file={baseline}
@@ -310,16 +318,21 @@ export default function ScreenshotDiffAgentPage() {
                 onFile={f => setFile("current", f)}
                 onClear={() => { setCurrent(null); if (currentUrl) URL.revokeObjectURL(currentUrl); setCurrentUrl(null); setResult(null); }}
               />
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[11px] text-[#71717a]">
+                  Images stay local. Loupe highlights changed pixels and groups nearby edits.
+                </p>
+                <button
+                  onClick={run}
+                  disabled={!canRun}
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                  Compare screenshots
+                </button>
+              </div>
             </div>
-
-            <button
-              onClick={run}
-              disabled={!canRun}
-              className="inline-flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-              Compare screenshots
-            </button>
 
             {error && (
               <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
@@ -340,9 +353,12 @@ export default function ScreenshotDiffAgentPage() {
                   </div>
                 )}
 
-                <div className="rounded-xl border border-black/[0.08] bg-white p-4">
+                <div className="rounded-xl border border-black/[0.08] bg-white p-4 shadow-sm">
                   <div className="mb-3 flex items-center justify-between gap-3">
-                    <p className="text-[12px] font-semibold text-[#17171c]">Diff image</p>
+                    <div>
+                      <p className="text-[13px] font-semibold text-[#17171c]">Visual diff</p>
+                      <p className="mt-0.5 text-[11px] text-[#71717a]">Pink pixels changed. Dashed boxes mark the largest changed regions.</p>
+                    </div>
                     <a
                       href={result.diffDataUrl}
                       download="loupe-screenshot-diff.png"
@@ -351,14 +367,14 @@ export default function ScreenshotDiffAgentPage() {
                       <Download size={12} /> Download
                     </a>
                   </div>
-                  <p className="mb-3 text-[11px] text-[#71717a]">Changed pixels in pink, top regions outlined. Unchanged content dimmed.</p>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={result.diffDataUrl} alt="Visual diff" className="w-full rounded-lg border border-black/[0.08]" />
                 </div>
 
                 {result.regions.length > 0 && (
-                  <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-                    <p className="mb-3 text-[12px] font-semibold text-[#17171c]">Changed regions ({result.regions.length})</p>
+                  <div className="rounded-xl border border-black/[0.08] bg-white p-4 shadow-sm">
+                    <p className="mb-1 text-[13px] font-semibold text-[#17171c]">Where to inspect</p>
+                    <p className="mb-3 text-[11px] text-[#71717a]">Start with the largest regions first; they contain the most changed pixels.</p>
                     <div className="space-y-1.5">
                       {result.regions.map((region, index) => (
                         <div key={index} className="flex items-center justify-between gap-3 rounded-lg bg-[#fafafa] px-3 py-2 text-[11px]">

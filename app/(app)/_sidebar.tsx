@@ -7,12 +7,20 @@ import { ScanSearch, LogOut, History, Settings, MonitorCheck, Accessibility, Git
 import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
-  { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch },
-  { id: "responsive",    label: "Layout QA",    icon: MonitorCheck },
-  { id: "accessibility", label: "Accessibility", icon: Accessibility },
-  { id: "screenshot-diff", label: "Screenshot Diff", icon: GitCompareArrows },
-  { id: "history",       label: "History",        icon: History    },
+  { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
+  { id: "responsive",    label: "Layout QA",    icon: MonitorCheck, beta: true },
+  { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
+  { id: "screenshot-diff", label: "Screenshot Diff", icon: GitCompareArrows, beta: true },
+  { id: "history",       label: "History",        icon: History, beta: true },
 ];
+
+export function BetaTag({ className = "" }: { className?: string }) {
+  return (
+    <span className={`rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-700 ${className}`}>
+      Beta
+    </span>
+  );
+}
 
 interface Props { userEmail: string; }
 
@@ -49,7 +57,8 @@ export function Sidebar({ userEmail }: Props) {
                 }`}
               >
                 <Icon size={14} strokeWidth={1.75} />
-                <span className="text-[13px] font-medium">{item.label}</span>
+                <span className="flex-1 text-[13px] font-medium">{item.label}</span>
+                {item.beta && <BetaTag />}
               </Link>
             );
           })}

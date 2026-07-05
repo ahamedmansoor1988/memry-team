@@ -23,6 +23,7 @@ import {
 import { qaScore } from "@/lib/qa-score";
 import { analyzeLayoutIssue } from "@/lib/layout-analysis";
 import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
+import { BetaTag } from "@/app/(app)/_sidebar";
 
 type ViewportName = "mobile" | "tablet" | "desktop";
 
@@ -172,6 +173,12 @@ const SEVERITY_CLASS = {
   low: "border-blue-200 bg-blue-50 text-blue-600",
 };
 
+const SEVERITY_ACCENT = {
+  high: "border-l-red-500",
+  medium: "border-l-amber-500",
+  low: "border-l-blue-500",
+};
+
 function formatType(type: string) {
   return TYPE_LABELS[type] ?? type.replace(/_/g, " ");
 }
@@ -281,6 +288,12 @@ function DomPathTree({ path }: { path: string[] }) {
   );
 }
 
+function fixSnippetFor(snippet: string | undefined, selector: string | undefined) {
+  if (!snippet) return null;
+  const target = selector && selector !== "document" ? selector : "selector";
+  return snippet.replace(/^selector/gm, target);
+}
+
 function groupHeading(viewport: string) {
   if (viewport === "static") return "HTML preview";
   const meta = VIEWPORT_META[viewport as ViewportName];
@@ -298,6 +311,7 @@ interface AiAnalysisResult {
 function IssueCard({ issue, index, aiEnabled, pageUrl }: { issue: ResponsiveIssue; index?: number; aiEnabled?: boolean; pageUrl?: string }) {
   const analysis = analyzeLayoutIssue(issue.type, issue.css, issue.metrics);
   const cssEntries = Object.entries(analysis.cssHighlights);
+  const fixSnippet = fixSnippetFor(analysis.fixSnippet, issue.selector);
   const [ai, setAi] = useState<AiAnalysisResult | null>(null);
   const [aiState, setAiState] = useState<"idle" | "loading" | "error">("idle");
   const [aiError, setAiError] = useState<string | null>(null);
@@ -334,60 +348,74 @@ function IssueCard({ issue, index, aiEnabled, pageUrl }: { issue: ResponsiveIssu
     }
   }
   return (
-    <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        {typeof index === "number" && (
-          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
-        )}
-        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
-          {issue.severity}
-        </span>
-        <span className="rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium capitalize text-[#4b5563]">
-          {viewportText(issue)}
-        </span>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
-        <span className="ml-auto rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium text-[#4b5563]" title="How confident Loupe is in the root-cause analysis">
+    <div className={`rounded-xl border border-l-4 border-black/[0.08] bg-white p-4 shadow-sm ${SEVERITY_ACCENT[issue.severity]}`}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {typeof index === "number" && (
+              <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
+            )}
+            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
+              {issue.severity}
+            </span>
+            <span className="rounded-full bg-[#f5f5f7] px-2 py-0.5 text-[10px] font-medium capitalize text-[#4b5563]">
+              {viewportText(issue)}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
+          </div>
+          <p className="text-[14px] font-semibold text-[#17171c]">{issueHeadline(issue)}</p>
+          {WHY_COPY[issue.type] && <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">{WHY_COPY[issue.type]}</p>}
+        </div>
+        <span className="rounded-full bg-[#f5f5f7] px-2 py-1 text-[10px] font-medium text-[#4b5563]" title="How confident Loupe is in the root-cause analysis">
           {analysis.confidence}% confidence
         </span>
       </div>
 
-      <p className="text-[13px] font-semibold text-[#17171c]">{issueHeadline(issue)}</p>
-      <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">{actualText(issue)}. Expected: {expectedText(issue).toLowerCase()}.</p>
-      {WHY_COPY[issue.type] && (
-        <p className="mt-1.5 text-[12px] leading-relaxed text-[#71717a]">
-          <span className="font-medium text-[#4b5563]">Impact:</span> {WHY_COPY[issue.type]}
-        </p>
-      )}
-
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Location</p>
-          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{issue.element}</p>
+        <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
+          <p className="mt-1 text-[12px] leading-snug text-[#17171c]">{actualText(issue)}</p>
         </div>
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Element</p>
-          {issue.domPath && issue.domPath.length > 1 ? (
-            <div className="mt-1"><DomPathTree path={issue.domPath} /></div>
-          ) : (
-            <p className="mt-1 truncate font-mono text-[10px] text-[#4b5563]">{issue.selector}</p>
-          )}
+        <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
+          <p className="mt-1 text-[12px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
         </div>
       </div>
 
-      <div className="mt-2 rounded-lg bg-[#fafafa] px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Root cause</p>
-        <p className="mt-1 text-[11px] leading-relaxed text-[#17171c]">{analysis.rootCause}</p>
-        {cssEntries.length > 0 && (
-          <pre className="mt-2 overflow-x-auto rounded-md bg-white px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#4b5563]">
-            {cssEntries.map(([prop, val]) => `${prop}: ${val};`).join("\n")}
+      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+          <CheckCircle2 size={11} /> What to change
+        </p>
+        <p className="mt-1 text-[12px] leading-relaxed text-emerald-950">{analysis.fix}</p>
+        {fixSnippet && (
+          <pre className="mt-2 overflow-x-auto rounded-md border border-emerald-100 bg-white px-2.5 py-2 font-mono text-[10px] leading-relaxed text-emerald-950">
+            {fixSnippet}
           </pre>
         )}
       </div>
 
-      <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Suggested fix</p>
-        <p className="mt-1 text-[11px] leading-relaxed text-emerald-900">{analysis.fix}</p>
+      <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2">
+          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+            <AlertCircle size={11} /> Why this failed
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-[#17171c]">{analysis.rootCause}</p>
+          {cssEntries.length > 0 && (
+            <pre className="mt-2 overflow-x-auto rounded-md bg-white px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#4b5563]">
+              {cssEntries.map(([prop, val]) => `${prop}: ${val};`).join("\n")}
+            </pre>
+          )}
+        </div>
+        <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where to inspect</p>
+          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{issue.element}</p>
+          {issue.domPath && issue.domPath.length > 1 ? (
+            <div className="mt-2"><DomPathTree path={issue.domPath} /></div>
+          ) : (
+            <p className="mt-2 truncate font-mono text-[10px] text-[#4b5563]">{issue.selector}</p>
+          )}
+        </div>
       </div>
 
       {ai ? (
@@ -506,6 +534,7 @@ export default function ResponsiveAgentPage() {
       domPath: issue.domPath,
       rootCause: analysis.rootCause,
       fix: analysis.fix,
+      fixSnippet: fixSnippetFor(analysis.fixSnippet, issue.selector),
       confidence: analysis.confidence,
       cssHighlights: analysis.cssHighlights,
       x: num(issue.metrics, "x"),
@@ -609,7 +638,7 @@ export default function ResponsiveAgentPage() {
               <MonitorCheck size={17} strokeWidth={1.8} />
             </div>
             <div>
-              <h1 className="text-[17px] font-semibold">Layout QA</h1>
+              <h1 className="flex items-center gap-2 text-[17px] font-semibold">Layout QA <BetaTag /></h1>
               <p className="mt-0.5 text-[12px] text-[#71717a]">Automatically inspect your website for layout issues across mobile, tablet, and desktop viewports.</p>
             </div>
           </div>
@@ -620,6 +649,41 @@ export default function ResponsiveAgentPage() {
           )}
         </div>
 
+        <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Page to test</label>
+              <input
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && canRun && run()}
+                placeholder="https://example.com"
+                className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
+              />
+            </div>
+            <button
+              onClick={run}
+              disabled={!canRun}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+              {browserScannerConnected ? "Run browser scan" : "Preview HTML"}
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[#71717a]">
+            <span className="rounded-full bg-white px-2 py-1 font-medium text-[#4b5563]">{browserScannerConnected ? "Browser scanner ready" : "HTML preview mode"}</span>
+            {VIEWPORTS.map(v => {
+              const Icon = v.icon;
+              return (
+                <span key={v.id} className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1">
+                  <Icon size={12} /> {v.label} {v.id === "mobile" ? "390" : v.id === "tablet" ? "768" : "1440"}px
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {!result && (
         <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How Layout QA works</p>
@@ -663,57 +727,16 @@ export default function ResponsiveAgentPage() {
             </div>
           </div>
         </div>
+        )}
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="space-y-4">
-            <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Live URL</label>
-              <div className="flex gap-2">
-                <input
-                  value={url}
-                  onChange={e => setUrl(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && canRun && run()}
-                  placeholder="https://example.com"
-                  className="min-w-0 flex-1 rounded-lg border border-black/[0.12] px-3 py-2 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
-                />
-                <button
-                  onClick={run}
-                  disabled={!canRun}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                  {browserScannerConnected ? "Run browser scan" : "Preview HTML"}
-                </button>
-              </div>
-            </div>
-
             {browserScannerConnected === false && !result && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-[12px] font-medium text-amber-800">{scannerStatusCopy(scannerStatus).title}</p>
                 <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">{scannerStatusCopy(scannerStatus).text}</p>
               </div>
             )}
-
-            <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Viewports tested</p>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {VIEWPORTS.map(v => {
-                  const Icon = v.icon;
-                  return (
-                    <div key={v.id} className="flex min-h-[76px] flex-col items-start justify-between rounded-lg border border-black/[0.1] px-3 py-2.5 text-[#4b5563]">
-                      <Icon size={15} />
-                      <span>
-                        <span className="block text-[13px] font-semibold text-[#17171c]">{v.label}</span>
-                        <span className="block text-[11px] text-[#a1a1aa]">
-                          {v.id === "mobile" ? "390px wide" : v.id === "tablet" ? "768px wide" : "1440px wide"}
-                        </span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="mt-2 text-[11px] text-[#a1a1aa]">Every scan automatically checks all three.</p>
-            </div>
 
             {error && (
               <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
@@ -814,7 +837,7 @@ export default function ResponsiveAgentPage() {
                 <ScoreBadge score={score} label="Layout QA score" />
                 {signedIn === false ? (
                   <a
-                    href="/login"
+                    href="/login?redirect=/agents/responsive"
                     className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-3 py-2 text-[12px] font-medium text-white transition-colors hover:bg-[#1f1f23]"
                   >
                     <Share2 size={12} /> Sign in to share report

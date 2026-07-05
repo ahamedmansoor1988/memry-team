@@ -8,6 +8,7 @@
 export interface LayoutAnalysis {
   rootCause: string;
   fix: string;
+  fixSnippet?: string;
   confidence: number;
   cssHighlights: Record<string, string>;
 }
@@ -47,13 +48,14 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
         return {
           rootCause: `This element is a slide in a carousel/slider track. Carousel slides are normally positioned outside the visible frame until active, but the carousel's container has no overflow clipping, so the off-screen slides widen the page instead of staying hidden.`,
           fix: `Add overflow-x: hidden (or overflow: hidden) to the carousel's outer container (e.g. .swiper, .owl-carousel, .slick-list) so slides outside the active frame don't affect page width.`,
+          fixSnippet: `.swiper,\n.owl-carousel,\n.slick-list {\n  overflow-x: hidden;\n}`,
           confidence: 90,
           cssHighlights: pick(css, "overflow-x", "position", "transform", "width"),
         };
       }
       return {
-        rootCause: `This element is a carousel/slider slide. Its container does clip overflow, so this is likely the carousel behaving normally rather than a layout bug — but it was still measured as extending past the viewport, so double-check the active slide at this breakpoint.`,
-        fix: `If this is a false positive, no change is needed. If the active slide itself is oversized, constrain its width to 100% of the carousel container.`,
+        rootCause: `This is a carousel slide that sits outside the visible frame, and its carousel container already clips overflow. That means this slide is not the element causing page-level horizontal scrolling; Loupe should inspect another overflowing element instead.`,
+        fix: `No CSS change is needed for this carousel slide. Re-run the scan with clipped carousel slides ignored as overflow culprits, then fix the next non-carousel element that widens the page.`,
         confidence: 55,
         cssHighlights: pick(css, "overflow-x", "width"),
       };
@@ -62,6 +64,7 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
       return {
         rootCause: `The element has a fixed width of ${Math.round(width)}px, wider than the ${viewportWidth}px viewport. Fixed pixel widths cannot adapt to smaller screens.`,
         fix: `Replace the fixed width with max-width: 100% (or width: 100%), and let content define the size.`,
+        fixSnippet: `selector {\n  width: 100%;\n  max-width: 100%;\n}`,
         confidence: 95,
         cssHighlights: pick(css, "width", "max-width", "overflow-x"),
       };
@@ -70,6 +73,7 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
       return {
         rootCause: `min-width: ${Math.round(minWidth)}px forces the element to stay wider than the ${viewportWidth}px viewport.`,
         fix: `Remove the min-width at this breakpoint, or lower it below the smallest supported viewport.`,
+        fixSnippet: `selector {\n  min-width: 0;\n  max-width: 100%;\n}`,
         confidence: 95,
         cssHighlights: pick(css, "min-width", "overflow-x"),
       };
@@ -78,6 +82,7 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
       return {
         rootCause: `A CSS transform (${transform.length > 60 ? "translate/matrix" : transform}) shifts the element horizontally out of the viewport. Transforms move the box without affecting layout, so nothing stops it at the edge.`,
         fix: `Remove or constrain the horizontal translate at this breakpoint, or clip it with overflow-x: hidden on the containing section.`,
+        fixSnippet: `selector {\n  transform: none;\n}\n\n/* Or clip the containing section */\nsection {\n  overflow-x: hidden;\n}`,
         confidence: 90,
         cssHighlights: pick(css, "transform", "position", "overflow-x"),
       };
@@ -86,6 +91,7 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
       return {
         rootCause: `position: ${position} takes the element out of normal flow, and its left/right offset places part of it outside the viewport.`,
         fix: `Keep offsets within the viewport (e.g. left: 0 / right: 0 with max-width: 100%), or clip the parent with overflow: hidden.`,
+        fixSnippet: `selector {\n  left: 0;\n  right: 0;\n  max-width: 100%;\n}`,
         confidence: 85,
         cssHighlights: pick(css, "position", "left", "right", "overflow-x"),
       };
@@ -94,6 +100,7 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
       return {
         rootCause: `A negative horizontal margin pulls the element outside its container, extending the scrollable area.`,
         fix: `Remove the negative margin at this breakpoint, or compensate with matching padding on the parent.`,
+        fixSnippet: `selector {\n  margin-left: 0;\n  margin-right: 0;\n}`,
         confidence: 85,
         cssHighlights: pick(css, "margin-left", "margin-right", "overflow-x"),
       };
@@ -103,6 +110,7 @@ export function analyzeLayoutIssue(type: string, css: Css, metrics: Metrics): La
         ? `A descendant element is wider than the viewport and no ancestor clips it (overflow-x is ${css?.["overflow-x"] ?? "visible"}), so the whole page scrolls sideways.`
         : `The element's rendered box extends past the viewport edge and nothing clips it.`,
       fix: `Constrain the element with max-width: 100%. As a stopgap, overflow-x: hidden on the page container hides the scroll but does not fix the layout.`,
+      fixSnippet: `selector {\n  max-width: 100%;\n  overflow-x: hidden;\n}`,
       confidence: 65,
       cssHighlights: pick(css, "width", "position", "transform", "overflow-x"),
     };

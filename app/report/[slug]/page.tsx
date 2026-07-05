@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
 
 export interface DisplayFinding {
@@ -22,6 +22,7 @@ export interface DisplayFinding {
   domPath?: string[];
   rootCause?: string;
   fix?: string;
+  fixSnippet?: string;
   confidence?: number;
   cssHighlights?: Record<string, string>;
   x?: number;
@@ -187,11 +188,13 @@ export default function ReportPage({ params }: { params: { slug: string } | Prom
                     </div>
 
                     {f.rootCause && (
-                      <div className="mt-2 rounded-lg bg-white px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Root cause</p>
+                      <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50/40 px-3 py-2">
+                        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                          <AlertCircle size={11} /> Why this failed
+                        </p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-[#17171c]">{f.rootCause}</p>
                         {f.cssHighlights && Object.keys(f.cssHighlights).length > 0 && (
-                          <pre className="mt-2 overflow-x-auto rounded-md bg-[#fafafa] px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#4b5563]">
+                          <pre className="mt-2 overflow-x-auto rounded-md bg-white px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[#4b5563]">
                             {Object.entries(f.cssHighlights).map(([prop, val]) => `${prop}: ${val};`).join("\n")}
                           </pre>
                         )}
@@ -199,9 +202,16 @@ export default function ReportPage({ params }: { params: { slug: string } | Prom
                     )}
 
                     {f.fix && (
-                      <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">Suggested fix</p>
+                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                        <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-800">
+                          <CheckCircle2 size={11} /> What to change
+                        </p>
                         <p className="mt-0.5 text-[11px] leading-relaxed text-emerald-900">{f.fix}</p>
+                        {f.fixSnippet && (
+                          <pre className="mt-2 overflow-x-auto rounded-md border border-emerald-100 bg-white px-2.5 py-2 font-mono text-[10px] leading-relaxed text-emerald-950">
+                            {f.fixSnippet}
+                          </pre>
+                        )}
                       </div>
                     )}
 

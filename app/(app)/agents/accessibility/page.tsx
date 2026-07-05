@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
 import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
+import { BetaTag } from "@/app/(app)/_sidebar";
 
 interface A11yIssue {
   id: string;
@@ -82,6 +83,12 @@ const SEVERITY_CLASS = {
   high: "border-red-200 bg-red-50 text-red-600",
   medium: "border-amber-200 bg-amber-50 text-amber-700",
   low: "border-blue-200 bg-blue-50 text-blue-600",
+};
+
+const SEVERITY_ACCENT = {
+  high: "border-l-red-500",
+  medium: "border-l-amber-500",
+  low: "border-l-blue-500",
 };
 
 const SCAN_STEPS = ["Open URL", "Render page", "Run WCAG checks", "Report issues"];
@@ -154,40 +161,95 @@ function locationText(issue: A11yIssue) {
 
 function IssueCard({ issue, index }: { issue: A11yIssue; index?: number }) {
   return (
-    <div className="rounded-xl border border-black/[0.08] bg-white p-4">
+    <div className={`rounded-xl border border-l-4 border-black/[0.08] bg-white p-4 shadow-sm ${SEVERITY_ACCENT[issue.severity]}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         {typeof index === "number" && (
-          <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
+          <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
         )}
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[issue.severity]}`}>
           {issue.severity}
         </span>
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{formatType(issue.type)}</span>
       </div>
-      <p className="text-[13px] font-semibold text-[#17171c]">{issue.details}</p>
+      <p className="text-[14px] font-semibold text-[#17171c]">{issue.details}</p>
       {WHY_COPY[issue.type] && (
         <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">{WHY_COPY[issue.type]}</p>
       )}
-      <p className="mt-1 text-[12px] leading-relaxed text-[#4b5563]">
-        Element: <span className="font-medium text-[#17171c]">{issue.element}</span>
-      </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
-          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
-        </div>
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>
-          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{actualText(issue)}</p>
+          <p className="mt-1 text-[12px] leading-snug text-[#17171c]">{actualText(issue)}</p>
         </div>
-        <div className="rounded-lg bg-[#fafafa] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where</p>
-          <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
+        <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Expected</p>
+          <p className="mt-1 text-[12px] leading-snug text-[#17171c]">{expectedText(issue)}</p>
         </div>
       </div>
-      {issue.selector && issue.selector !== "document" && (
-        <p className="mt-3 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>
-      )}
+      <div className="mt-2 rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where to inspect</p>
+        <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{issue.element}</p>
+        {issue.selector && issue.selector !== "document" && (
+          <p className="mt-2 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ScannerPill({ connected }: { connected: boolean | null }) {
+  return (
+    <span className="rounded-full bg-white px-2 py-1 font-medium text-[#4b5563]">
+      {connected ? "Browser scanner ready" : "HTML preview mode"}
+    </span>
+  );
+}
+
+function CategoryChip({ cat }: { cat: typeof CATEGORIES[number] }) {
+  const Icon = cat.icon;
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1">
+      <Icon size={12} /> {cat.label}
+    </span>
+  );
+}
+
+function OnboardingPanels() {
+  return (
+    <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
+      <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Scan flow</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {SCAN_STEPS.map((step, index) => (
+            <div key={step} className="relative rounded-lg bg-white px-3 py-3">
+              <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
+                {index + 1}
+              </div>
+              <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-black/[0.08] bg-white p-4">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What gets checked</p>
+        <div className="grid grid-cols-2 gap-2">
+          {CATEGORIES.slice(0, 4).map(cat => {
+            const Icon = cat.icon;
+            return (
+              <div key={cat.id} className="rounded-lg border border-black/[0.06] px-3 py-2.5">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <Icon size={13} className="text-[#4b5563]" />
+                  <p className="text-[12px] font-semibold text-[#17171c]">{cat.label}</p>
+                </div>
+                <p className="text-[11px] leading-snug text-[#71717a]">
+                  {cat.types.map(t => formatType(t)).join(", ")}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -344,7 +406,7 @@ export default function AccessibilityAgentPage() {
               <Accessibility size={17} strokeWidth={1.8} />
             </div>
             <div>
-              <h1 className="text-[17px] font-semibold">Accessibility QA</h1>
+              <h1 className="flex items-center gap-2 text-[17px] font-semibold">Accessibility QA <BetaTag /></h1>
               <p className="mt-0.5 text-[12px] text-[#71717a]">WCAG checks for contrast, labels, headings, focus, ARIA, and tap targets on a live page.</p>
             </div>
           </div>
@@ -355,65 +417,37 @@ export default function AccessibilityAgentPage() {
           )}
         </div>
 
-        <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Scan flow</p>
-            <div className="grid grid-cols-4 gap-2">
-              {SCAN_STEPS.map((step, index) => (
-                <div key={step} className="relative rounded-lg bg-white px-3 py-3">
-                  <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
-                    {index + 1}
-                  </div>
-                  <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
-                </div>
-              ))}
+        <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Page to test</label>
+              <input
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && canRun && run()}
+                placeholder="https://example.com"
+                className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
+              />
             </div>
+            <button
+              onClick={run}
+              disabled={!canRun}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+              {browserScannerConnected ? "Run accessibility scan" : "Preview HTML"}
+            </button>
           </div>
-
-          <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What gets checked</p>
-            <div className="grid grid-cols-2 gap-2">
-              {CATEGORIES.slice(0, 4).map(cat => {
-                const Icon = cat.icon;
-                return (
-                  <div key={cat.id} className="rounded-lg border border-black/[0.06] px-3 py-2.5">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <Icon size={13} className="text-[#4b5563]" />
-                      <p className="text-[12px] font-semibold text-[#17171c]">{cat.label}</p>
-                    </div>
-                    <p className="text-[11px] leading-snug text-[#71717a]">
-                      {cat.types.map(t => formatType(t)).join(", ")}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[#71717a]">
+            <ScannerPill connected={browserScannerConnected} />
+            {CATEGORIES.slice(0, 5).map(cat => <CategoryChip key={cat.id} cat={cat} />)}
           </div>
         </div>
 
+        {!result && <OnboardingPanels />}
+
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="space-y-4">
-            <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Live URL</label>
-              <div className="flex gap-2">
-                <input
-                  value={url}
-                  onChange={e => setUrl(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && canRun && run()}
-                  placeholder="https://example.com"
-                  className="min-w-0 flex-1 rounded-lg border border-black/[0.12] px-3 py-2 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
-                />
-                <button
-                  onClick={run}
-                  disabled={!canRun}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-                  {browserScannerConnected ? "Run accessibility scan" : "Preview HTML"}
-                </button>
-              </div>
-            </div>
-
             {browserScannerConnected === false && !result && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                 <p className="text-[12px] font-medium text-amber-800">{scannerStatusCopy(scannerStatus).title}</p>

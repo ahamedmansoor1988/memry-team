@@ -448,6 +448,8 @@ async function inspectResponsive(page, viewport) {
         const rect = el.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) continue;
         if (rect.right <= window.innerWidth + 2) continue;
+        const carousel = carouselContext(el);
+        if (carousel.isCarouselSlide && carousel.carouselClipped) continue;
         if (!culpritRect || rect.right >= culpritRect.right) {
           culprit = el;
           culpritRect = rect;
