@@ -8,10 +8,10 @@ import { createClient } from "@/lib/supabase/client";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
+  { id: "history",       label: "History",        icon: History, beta: false },
   { id: "responsive",    label: "Layout QA",    icon: MonitorCheck, beta: true },
   { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
   { id: "screenshot-diff", label: "Screenshot Diff", icon: GitCompareArrows, beta: true },
-  { id: "history",       label: "History",        icon: History, beta: true },
 ];
 
 export function BetaTag({ className = "" }: { className?: string }) {
@@ -45,21 +45,24 @@ export function Sidebar({ userEmail }: Props) {
       <div className="px-3 pt-4 flex-1">
         <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-[#71717a]">Agents</p>
         <nav className="space-y-0.5">
-          {NAV.map((item) => {
+          {NAV.map((item, index) => {
             const Icon   = item.icon;
             const active = pathname.startsWith(`/agents/${item.id}`);
+            const startsBeta = item.beta && !NAV[index - 1]?.beta;
             return (
-              <Link
-                key={item.id}
-                href={`/agents/${item.id}`}
-                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
-                  active ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
-                }`}
-              >
-                <Icon size={14} strokeWidth={1.75} />
-                <span className="flex-1 text-[13px] font-medium">{item.label}</span>
-                {item.beta && <BetaTag />}
-              </Link>
+              <div key={item.id}>
+                {startsBeta && <div className="my-2 border-t border-black/[0.06]" />}
+                <Link
+                  href={`/agents/${item.id}`}
+                  className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
+                    active ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+                  }`}
+                >
+                  <Icon size={14} strokeWidth={1.75} />
+                  <span className="flex-1 text-[13px] font-medium">{item.label}</span>
+                  {item.beta && <BetaTag />}
+                </Link>
+              </div>
             );
           })}
         </nav>
