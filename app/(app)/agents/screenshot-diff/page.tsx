@@ -19,6 +19,9 @@ interface DiffRegion {
   width: number;
   height: number;
   changedPixels: number;
+  outOfBoundsPixels: number;
+  baselineCrop: string;
+  currentCrop: string;
 }
 
 interface DiffResult {
@@ -27,6 +30,8 @@ interface DiffResult {
   totalPixels: number;
   changedPixels: number;
   changedPercent: number;
+  outOfBoundsPixels: number;
+  outOfBoundsPercent: number;
   regions: DiffRegion[];
   diffDataUrl: string;
   sizeMismatch: boolean;
@@ -157,8 +162,10 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
   const cellsX = Math.ceil(width / REGION_CELL);
   const cellsY = Math.ceil(height / REGION_CELL);
   const cellChanged = new Uint32Array(cellsX * cellsY);
+  const cellOutOfBounds = new Uint8Array(cellsX * cellsY);
 
   let changedPixels = 0;
+  let outOfBoundsPixels = 0;
   for (let y = 0; y < height; y++) {
     const by = y + (shiftDy ?? 0);
     for (let x = 0; x < width; x++) {
@@ -166,9 +173,10 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
       const inA = x < baseline.naturalWidth && y < baseline.naturalHeight;
       const byInCanvas = by >= 0 && by < height;
       const inB = byInCanvas && x < current.naturalWidth && by < current.naturalHeight;
+      const onlyInOne = inA !== inB;
       let changed;
-      if (inA !== inB) {
-        changed = true; // area exists in only one screenshot
+      if (onlyInOne) {
+        changed = true;
       } else {
         const bi = (by * width + x) * 4;
         const delta = Math.abs(a[i] - b[bi]) + Math.abs(a[i + 1] - b[bi + 1]) + Math.abs(a[i + 2] - b[bi + 2]) +
@@ -177,11 +185,24 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
       }
       if (changed) {
         changedPixels++;
-        cellChanged[Math.floor(y / REGION_CELL) * cellsX + Math.floor(x / REGION_CELL)]++;
-        out.data[i] = 236;
-        out.data[i + 1] = 34;
-        out.data[i + 2] = 118;
-        out.data[i + 3] = 255;
+        const cell = Math.floor(y / REGION_CELL) * cellsX + Math.floor(x / REGION_CELL);
+        cellChanged[cell]++;
+        if (onlyInOne) {
+          outOfBoundsPixels++;
+          cellOutOfBounds[cell] = 1;
+          // Muted amber for "only in one screenshot" — a size/crop mismatch,
+          // not a visual regression. Keeps it visually distinct from pink
+          // (real pixel-level changes) so the two causes aren't confused.
+          out.data[i] = 217;
+          out.data[i + 1] = 119;
+          out.data[i + 2] = 6;
+          out.data[i + 3] = 255;
+        } else {
+          out.data[i] = 236;
+          out.data[i + 1] = 34;
+          out.data[i + 2] = 118;
+          out.data[i + 3] = 255;
+        }
       } else {
         // dimmed grayscale baseline so changes stand out
         const gray = (a[i] * 0.299 + a[i + 1] * 0.587 + a[i + 2] * 0.114) * 0.35 + 160;
@@ -202,13 +223,14 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
     for (let cx = 0; cx < cellsX; cx++) {
       const start = cy * cellsX + cx;
       if (visited[start] || cellChanged[start] === 0) continue;
-      let minX = cx, maxX = cx, minY = cy, maxY = cy, pixels = 0;
+      let minX = cx, maxX = cx, minY = cy, maxY = cy, pixels = 0, oob = 0;
       const queue = [start];
       visited[start] = 1;
       while (queue.length) {
         const cell = queue.pop()!;
         const x = cell % cellsX, y = Math.floor(cell / cellsX);
         pixels += cellChanged[cell];
+        if (cellOutOfBounds[cell]) oob += cellChanged[cell];
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -226,6 +248,9 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
         width: Math.min((maxX - minX + 1) * REGION_CELL, width - minX * REGION_CELL),
         height: Math.min((maxY - minY + 1) * REGION_CELL, height - minY * REGION_CELL),
         changedPixels: pixels,
+        outOfBoundsPixels: oob,
+        baselineCrop: "",
+        currentCrop: "",
       });
     }
   }
@@ -239,6 +264,35 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
     diffCtx.strokeRect(region.x + 1, region.y + 1, region.width - 2, region.height - 2);
   }
 
+  // Crop a small before/after preview per top region so a finding can be
+  // understood at a glance, instead of hunting for it in one huge diff image.
+  const CROP_PAD = 16;
+  const TOP_REGIONS_WITH_CROPS = 10;
+  function cropOf(img: HTMLImageElement, rx: number, ry: number, rw: number, rh: number) {
+    const sx = Math.max(0, rx - CROP_PAD);
+    const sy = Math.max(0, ry - CROP_PAD);
+    const sw = Math.min(width, rx + rw + CROP_PAD) - sx;
+    const sh = Math.min(height, ry + rh + CROP_PAD) - sy;
+    const canvas = document.createElement("canvas");
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, sw, sh);
+    const srcSx = Math.min(sx, img.naturalWidth);
+    const srcSw = Math.max(0, Math.min(sw, img.naturalWidth - srcSx));
+    const srcSy = Math.min(sy, img.naturalHeight);
+    const srcSh = Math.max(0, Math.min(sh, img.naturalHeight - srcSy));
+    if (srcSw > 0 && srcSh > 0) {
+      ctx.drawImage(img, srcSx, srcSy, srcSw, srcSh, srcSx - sx, srcSy - sy, srcSw, srcSh);
+    }
+    return canvas.toDataURL("image/png");
+  }
+  for (const region of regions.slice(0, TOP_REGIONS_WITH_CROPS)) {
+    region.baselineCrop = cropOf(baseline, region.x, region.y, region.width, region.height);
+    region.currentCrop = cropOf(current, region.x, region.y + (shiftDy ?? 0), region.width, region.height);
+  }
+
   const totalPixels = width * height;
   return {
     width,
@@ -246,6 +300,8 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
     totalPixels,
     changedPixels,
     changedPercent: Math.round((changedPixels / totalPixels) * 10000) / 100,
+    outOfBoundsPixels,
+    outOfBoundsPercent: Math.round((outOfBoundsPixels / totalPixels) * 10000) / 100,
     regions: regions.slice(0, 20),
     diffDataUrl: diffCanvas.toDataURL("image/png"),
     sizeMismatch,
@@ -418,7 +474,16 @@ export default function ScreenshotDiffAgentPage() {
                     <p className="text-[12px] font-medium text-amber-800">Screenshot sizes differ</p>
                     <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">
                       Baseline is {result.baselineSize.width} x {result.baselineSize.height}px, new is {result.currentSize.width} x {result.currentSize.height}px.
-                      Areas covered by only one screenshot are counted as changed.
+                      Areas covered by only one screenshot are shown in amber below and counted separately from real pixel changes.
+                    </p>
+                  </div>
+                )}
+
+                {result.outOfBoundsPercent > result.changedPercent / 2 && result.outOfBoundsPercent > 3 && (
+                  <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3.5">
+                    <p className="text-[13px] font-semibold text-amber-900">Most of this diff is a size mismatch, not a real content change</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-amber-800">
+                      {result.outOfBoundsPercent}% of the {result.changedPercent}% marked "changed" only exists in one screenshot (amber areas below). For an accurate comparison, capture both screenshots at the same size, or crop them to match before uploading.
                     </p>
                   </div>
                 )}
@@ -438,7 +503,11 @@ export default function ScreenshotDiffAgentPage() {
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[13px] font-semibold text-[#17171c]">Visual diff</p>
-                      <p className="mt-0.5 text-[11px] text-[#71717a]">Pink pixels changed. Dashed boxes mark the largest changed regions.</p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[#71717a]">
+                        <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: "#ec2276" }} /> Real pixel change</span>
+                        <span className="inline-flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: "#d97706" }} /> Only in one screenshot</span>
+                        <span>Dashed boxes mark the largest regions.</span>
+                      </p>
                     </div>
                     <a
                       href={result.diffDataUrl}
@@ -455,18 +524,42 @@ export default function ScreenshotDiffAgentPage() {
                 {result.regions.length > 0 && (
                   <div className="rounded-xl border border-black/[0.08] bg-white p-4 shadow-sm">
                     <p className="mb-1 text-[13px] font-semibold text-[#17171c]">Where to inspect</p>
-                    <p className="mb-3 text-[11px] text-[#71717a]">Start with the largest regions first; they contain the most changed pixels.</p>
-                    <div className="space-y-1.5">
-                      {result.regions.map((region, index) => (
-                        <div key={index} className="flex items-center justify-between gap-3 rounded-lg bg-[#fafafa] px-3 py-2 text-[11px]">
-                          <span className="text-[#4b5563]">
-                            Region {index + 1} — at x:{region.x}, y:{region.y}, {region.width} x {region.height}px
-                          </span>
-                          <span className="shrink-0 rounded-full bg-white px-2 py-0.5 font-medium text-[#17171c]">
-                            {region.changedPixels.toLocaleString()} px
-                          </span>
-                        </div>
-                      ))}
+                    <p className="mb-3 text-[11px] text-[#71717a]">Largest regions first, with a before/after crop so you can see the change without hunting through the full diff.</p>
+                    <div className="space-y-2">
+                      {result.regions.map((region, index) => {
+                        const mostlyOutOfBounds = region.outOfBoundsPixels > region.changedPixels * 0.6;
+                        return (
+                          <div key={index} className="rounded-lg bg-[#fafafa] p-3">
+                            <div className="mb-2 flex items-center justify-between gap-3 text-[11px]">
+                              <span className="font-medium text-[#17171c]">
+                                Region {index + 1}
+                                {mostlyOutOfBounds && (
+                                  <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Size mismatch</span>
+                                )}
+                              </span>
+                              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 font-medium text-[#4b5563]">
+                                {region.changedPixels.toLocaleString()} px changed
+                              </span>
+                            </div>
+                            {region.baselineCrop && region.currentCrop ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#a1a1aa]">Before</p>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={region.baselineCrop} alt={`Region ${index + 1} before`} className="w-full rounded border border-black/[0.08]" />
+                                </div>
+                                <div>
+                                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#a1a1aa]">After</p>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={region.currentCrop} alt={`Region ${index + 1} after`} className="w-full rounded border border-black/[0.08]" />
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-[#71717a]">at x:{region.x}, y:{region.y}, {region.width} x {region.height}px</p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
