@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { BetaTag } from "@/app/(app)/_sidebar";
+import { ScanHelpToggle } from "@/components/scan-help-toggle";
 
 interface DiffRegion {
   x: number;
@@ -365,7 +366,9 @@ export default function ScreenshotDiffAgentPage() {
           </div>
         </div>
 
-        {!result && <OnboardingPanels />}
+        <ScanHelpToggle>
+          <OnboardingPanels />
+        </ScanHelpToggle>
 
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="space-y-4">

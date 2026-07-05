@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
 import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
+import { ScanHelpToggle } from "@/components/scan-help-toggle";
 import { BetaTag } from "@/app/(app)/_sidebar";
 
 interface A11yIssue {
@@ -444,7 +445,9 @@ export default function AccessibilityAgentPage() {
           </div>
         </div>
 
-        {!result && <OnboardingPanels />}
+        <ScanHelpToggle>
+          <OnboardingPanels />
+        </ScanHelpToggle>
 
         {result && result.mode === "static_fallback" && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3.5">
@@ -492,30 +495,12 @@ export default function AccessibilityAgentPage() {
               </div>
             )}
 
-            {result && counts.total === 0 && result.mode === "static_fallback" && (
-              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-[13px] font-medium text-amber-800">{scannerStatusCopy(result.scannerStatus ?? scannerStatus).title}</p>
-                  <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">{scannerStatusCopy(result.scannerStatus ?? scannerStatus).text}</p>
-                </div>
-              </div>
-            )}
-
             {result && counts.total > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[12px] font-semibold text-[#17171c]">Findings</p>
                   <p className="text-[11px] text-[#71717a]">{modeLabel(result.mode)}</p>
                 </div>
-                {result.mode === "static_fallback" && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <p className="text-[12px] font-medium text-amber-800">{scannerStatusCopy(result.scannerStatus ?? scannerStatus).title}</p>
-                    <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">
-                      Showing HTML preview hints only. {scannerStatusCopy(result.scannerStatus ?? scannerStatus).text}
-                    </p>
-                  </div>
-                )}
                 {result.screenshot && (
                   <AnnotatedScreenshot
                     screenshot={result.screenshot}

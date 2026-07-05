@@ -70,7 +70,7 @@ async function staticFallback(url: string, scannerStatus: ScannerStatus = "not_c
       severity: "medium",
       element: "img",
       details: `${imgsWithoutAlt} image tag(s) in the HTML have no alt attribute.`,
-      metrics: { count: imgsWithoutAlt },
+      metrics: { expected: "alt text (or alt=\"\" if decorative)", measured: `${imgsWithoutAlt} image tag(s) with no alt attribute`, count: imgsWithoutAlt },
     });
   }
 
@@ -82,6 +82,7 @@ async function staticFallback(url: string, scannerStatus: ScannerStatus = "not_c
       severity: "medium",
       element: "document",
       details: "No H1 tag found in the HTML.",
+      metrics: { expected: "exactly one H1", measured: "no H1 tag found in the HTML" },
     });
   } else if (h1Count > 1) {
     issues.push({
@@ -90,7 +91,7 @@ async function staticFallback(url: string, scannerStatus: ScannerStatus = "not_c
       severity: "low",
       element: "document",
       details: `${h1Count} H1 tags found in the HTML.`,
-      metrics: { count: h1Count },
+      metrics: { expected: "exactly one H1", measured: `${h1Count} H1 tags found in the HTML`, count: h1Count },
     });
   }
 

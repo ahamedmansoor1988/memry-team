@@ -24,6 +24,7 @@ import { qaScore } from "@/lib/qa-score";
 import { analyzeLayoutIssue } from "@/lib/layout-analysis";
 import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
 import { BetaTag } from "@/app/(app)/_sidebar";
+import { ScanHelpToggle } from "@/components/scan-help-toggle";
 
 type ViewportName = "mobile" | "tablet" | "desktop";
 
@@ -683,7 +684,7 @@ export default function ResponsiveAgentPage() {
           </div>
         </div>
 
-        {!result && (
+        <ScanHelpToggle>
         <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
           <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How Layout QA works</p>
@@ -727,7 +728,7 @@ export default function ResponsiveAgentPage() {
             </div>
           </div>
         </div>
-        )}
+        </ScanHelpToggle>
 
         {result && result.mode === "static_fallback" && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3.5">
@@ -778,30 +779,12 @@ export default function ResponsiveAgentPage() {
               </div>
             )}
 
-            {result && counts.total === 0 && result.mode === "static_fallback" && (
-              <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-600" />
-                <div>
-                  <p className="text-[13px] font-medium text-amber-800">{scannerStatusCopy(result.scannerStatus ?? scannerStatus).title}</p>
-                  <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">{scannerStatusCopy(result.scannerStatus ?? scannerStatus).text}</p>
-                </div>
-              </div>
-            )}
-
             {result && counts.total > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[12px] font-semibold text-[#17171c]">Findings</p>
                   <p className="text-[11px] text-[#71717a]">{modeLabel(result.mode)}</p>
                 </div>
-                {result.mode === "static_fallback" && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-                    <p className="text-[12px] font-medium text-amber-800">{scannerStatusCopy(result.scannerStatus ?? scannerStatus).title}</p>
-                    <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">
-                      Showing HTML preview hints only. {scannerStatusCopy(result.scannerStatus ?? scannerStatus).text}
-                    </p>
-                  </div>
-                )}
                 {layoutByViewport.map(([viewport, issues]) => {
                   const shot = screenshotFor(viewport);
                   return (
