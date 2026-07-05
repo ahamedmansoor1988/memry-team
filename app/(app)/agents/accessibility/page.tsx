@@ -446,6 +446,26 @@ export default function AccessibilityAgentPage() {
 
         {!result && <OnboardingPanels />}
 
+        {result && result.mode === "static_fallback" && (
+          <div className="mb-5 flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3.5">
+            <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
+            <div className="flex-1">
+              <p className="text-[13px] font-semibold text-amber-900">Scan did not complete — this is not a clean result</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-amber-800">
+                {scannerStatusCopy(result.scannerStatus ?? scannerStatus).text} Any counts below reflect a much weaker HTML-only check, not a real scan — they are not evidence the page is accessible.
+              </p>
+            </div>
+            <button
+              onClick={run}
+              disabled={running}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-[12px] font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {running ? <Loader2 size={12} className="animate-spin" /> : null}
+              Retry scan
+            </button>
+          </div>
+        )}
+
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="space-y-4">
             {browserScannerConnected === false && !result && (
@@ -549,24 +569,31 @@ export default function AccessibilityAgentPage() {
               </div>
             )}
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{counts.total}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">{result?.mode === "static_fallback" ? "HTML hints" : "Issues"}</p>
+            {result?.mode === "static_fallback" ? (
+              <div className="rounded-lg border border-amber-200 bg-white p-3">
+                <p className="text-[22px] font-semibold leading-none text-amber-600">—</p>
+                <p className="mt-1 text-[11px] text-amber-700">Not scanned — scanner unreachable, see warning above</p>
               </div>
-              <div className="rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{counts.high}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">High</p>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-white p-3">
+                  <p className="text-[22px] font-semibold leading-none">{counts.total}</p>
+                  <p className="mt-1 text-[11px] text-[#71717a]">Issues</p>
+                </div>
+                <div className="rounded-lg bg-white p-3">
+                  <p className="text-[22px] font-semibold leading-none">{counts.high}</p>
+                  <p className="mt-1 text-[11px] text-[#71717a]">High</p>
+                </div>
+                <div className="rounded-lg bg-white p-3">
+                  <p className="text-[22px] font-semibold leading-none">{counts.medium}</p>
+                  <p className="mt-1 text-[11px] text-[#71717a]">Medium</p>
+                </div>
+                <div className="rounded-lg bg-white p-3">
+                  <p className="text-[22px] font-semibold leading-none">{counts.low}</p>
+                  <p className="mt-1 text-[11px] text-[#71717a]">Low</p>
+                </div>
               </div>
-              <div className="rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{counts.medium}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">Medium</p>
-              </div>
-              <div className="rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{counts.low}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">Low</p>
-              </div>
-            </div>
+            )}
             <div className="mt-4 border-t border-black/[0.06] pt-3">
               <p className="text-[11px] text-[#71717a]">
                 {result

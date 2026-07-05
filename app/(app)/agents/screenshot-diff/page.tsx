@@ -31,6 +31,7 @@ interface DiffResult {
   sizeMismatch: boolean;
   baselineSize: { width: number; height: number };
   currentSize: { width: number; height: number };
+  shiftDetectedPx: number | null;
 }
 
 const SCAN_STEPS = ["Upload baseline", "Upload new", "Compare pixels", "Review regions"];
@@ -68,9 +69,70 @@ function loadImageFromFile(file: File): Promise<HTMLImageElement> {
   });
 }
 
+const MAX_SHIFT_PX = 160;
+const SHIFT_SAMPLE_GRID = 48;
+
+/**
+ * Detects a uniform vertical shift between two same-size screenshots — the
+ * signature of a cookie banner, promo bar, or ad changing height. Naive
+ * pixel-index diffing reads this as a huge change even though the actual
+ * content is identical, just moved. Only reports a shift when aligning at
+ * that offset makes the images look nearly identical (a real content edit
+ * would not align cleanly at any single offset).
+ */
+function detectVerticalShift(a: Uint8ClampedArray, b: Uint8ClampedArray, width: number, height: number) {
+  const maxShift = Math.min(MAX_SHIFT_PX, Math.floor(height / 3));
+  if (maxShift < 4) return null;
+
+  const bandStart = maxShift;
+  const bandEnd = height - maxShift;
+  if (bandEnd <= bandStart) return null;
+
+  const rows: number[] = [];
+  const cols: number[] = [];
+  for (let i = 0; i < SHIFT_SAMPLE_GRID; i++) {
+    rows.push(bandStart + Math.floor((i + 0.5) * (bandEnd - bandStart) / SHIFT_SAMPLE_GRID));
+    cols.push(Math.floor((i + 0.5) * width / SHIFT_SAMPLE_GRID));
+  }
+
+  function scoreAt(dy: number) {
+    let total = 0;
+    for (const y of rows) {
+      const by = y + dy;
+      const rowBase = y * width;
+      const bRowBase = by * width;
+      for (const x of cols) {
+        const ai = (rowBase + x) * 4;
+        const bi = (bRowBase + x) * 4;
+        total += Math.abs(a[ai] - b[bi]) + Math.abs(a[ai + 1] - b[bi + 1]) + Math.abs(a[ai + 2] - b[bi + 2]);
+      }
+    }
+    return total;
+  }
+
+  const zeroScore = scoreAt(0);
+  let bestDy = 0;
+  let bestScore = zeroScore;
+  for (let dy = -maxShift; dy <= maxShift; dy++) {
+    if (dy === 0) continue;
+    const s = scoreAt(dy);
+    if (s < bestScore) { bestScore = s; bestDy = dy; }
+  }
+
+  const sampleCount = rows.length * cols.length;
+  const maxPossible = sampleCount * 255 * 3;
+  const bestRatio = bestScore / maxPossible;
+  // Require both a large improvement over "no shift" and a genuinely close
+  // alignment — a real edit might coincidentally score a little better at
+  // some offset, but won't look this clean.
+  const improvedEnough = bestDy !== 0 && bestScore < zeroScore * 0.35 && bestRatio < 0.08;
+  return improvedEnough ? bestDy : null;
+}
+
 function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): DiffResult {
   const width = Math.max(baseline.naturalWidth, current.naturalWidth);
   const height = Math.max(baseline.naturalHeight, current.naturalHeight);
+  const sizeMismatch = baseline.naturalWidth !== current.naturalWidth || baseline.naturalHeight !== current.naturalHeight;
 
   function pixelsOf(img: HTMLImageElement) {
     const canvas = document.createElement("canvas");
@@ -83,6 +145,7 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
 
   const a = pixelsOf(baseline);
   const b = pixelsOf(current);
+  const shiftDy = sizeMismatch ? null : detectVerticalShift(a, b, width, height);
 
   const diffCanvas = document.createElement("canvas");
   diffCanvas.width = width;
@@ -96,16 +159,19 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
 
   let changedPixels = 0;
   for (let y = 0; y < height; y++) {
+    const by = y + (shiftDy ?? 0);
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
       const inA = x < baseline.naturalWidth && y < baseline.naturalHeight;
-      const inB = x < current.naturalWidth && y < current.naturalHeight;
+      const byInCanvas = by >= 0 && by < height;
+      const inB = byInCanvas && x < current.naturalWidth && by < current.naturalHeight;
       let changed;
       if (inA !== inB) {
         changed = true; // area exists in only one screenshot
       } else {
-        const delta = Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) +
-          Math.abs(a[i + 3] - b[i + 3]);
+        const bi = (by * width + x) * 4;
+        const delta = Math.abs(a[i] - b[bi]) + Math.abs(a[i + 1] - b[bi + 1]) + Math.abs(a[i + 2] - b[bi + 2]) +
+          Math.abs(a[i + 3] - b[bi + 3]);
         changed = delta > PIXEL_THRESHOLD;
       }
       if (changed) {
@@ -181,9 +247,10 @@ function computeDiff(baseline: HTMLImageElement, current: HTMLImageElement): Dif
     changedPercent: Math.round((changedPixels / totalPixels) * 10000) / 100,
     regions: regions.slice(0, 20),
     diffDataUrl: diffCanvas.toDataURL("image/png"),
-    sizeMismatch: baseline.naturalWidth !== current.naturalWidth || baseline.naturalHeight !== current.naturalHeight,
+    sizeMismatch,
     baselineSize: { width: baseline.naturalWidth, height: baseline.naturalHeight },
     currentSize: { width: current.naturalWidth, height: current.naturalHeight },
+    shiftDetectedPx: shiftDy,
   };
 }
 
@@ -349,6 +416,17 @@ export default function ScreenshotDiffAgentPage() {
                     <p className="mt-0.5 text-[12px] leading-relaxed text-amber-700">
                       Baseline is {result.baselineSize.width} x {result.baselineSize.height}px, new is {result.currentSize.width} x {result.currentSize.height}px.
                       Areas covered by only one screenshot are counted as changed.
+                    </p>
+                  </div>
+                )}
+
+                {result.shiftDetectedPx !== null && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                    <p className="text-[12px] font-medium text-blue-800">
+                      Content shifted {result.shiftDetectedPx > 0 ? "down" : "up"} by {Math.abs(result.shiftDetectedPx)}px
+                    </p>
+                    <p className="mt-0.5 text-[12px] leading-relaxed text-blue-700">
+                      Likely a banner, ad, or dynamic content area changing height — not necessarily a bug. The comparison below is aligned to account for this shift, so the shift itself is not counted as a change.
                     </p>
                   </div>
                 )}
