@@ -16,7 +16,7 @@ import {
   Tags,
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
-import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
+import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
 import { BetaTag } from "@/app/(app)/_sidebar";
 
@@ -125,6 +125,11 @@ function scannerStatusCopy(status: ScannerStatus | null) {
   };
 }
 
+function num(metrics: A11yIssue["metrics"] | undefined, key: string): number | undefined {
+  const v = metrics?.[key];
+  return typeof v === "number" ? v : undefined;
+}
+
 function value(metrics: A11yIssue["metrics"] | undefined, key: string) {
   return metrics?.[key];
 }
@@ -160,7 +165,7 @@ function locationText(issue: A11yIssue) {
   return issue.selector && issue.selector !== "document" ? "Selector" : "Document";
 }
 
-function IssueCard({ issue, index }: { issue: A11yIssue; index?: number }) {
+function IssueCard({ issue, index, screenshot }: { issue: A11yIssue; index?: number; screenshot?: Screenshot }) {
   return (
     <div className={`rounded-xl border border-l-4 border-black/[0.08] bg-white p-4 shadow-sm ${SEVERITY_ACCENT[issue.severity]}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -175,6 +180,23 @@ function IssueCard({ issue, index }: { issue: A11yIssue; index?: number }) {
       <p className="text-[14px] font-semibold text-[#17171c]">{issue.details}</p>
       {WHY_COPY[issue.type] && (
         <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">{WHY_COPY[issue.type]}</p>
+      )}
+      {screenshot && (
+        <div className="mt-3">
+          <FocusedIssueView
+            screenshot={screenshot}
+            finding={{
+              id: issue.id,
+              index: index ?? 0,
+              severity: issue.severity,
+              x: num(issue.metrics, "x"),
+              y: num(issue.metrics, "y"),
+              width: num(issue.metrics, "width"),
+              height: num(issue.metrics, "height"),
+            }}
+            cropHeight={340}
+          />
+        </div>
       )}
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
@@ -317,10 +339,6 @@ export default function AccessibilityAgentPage() {
     ).catch(() => setSignedIn(false));
   }, []);
 
-  function num(metrics: A11yIssue["metrics"], key: string): number | undefined {
-    const v = metrics?.[key];
-    return typeof v === "number" ? v : undefined;
-  }
 
   function displayFinding(issue: A11yIssue) {
     return {
@@ -513,7 +531,7 @@ export default function AccessibilityAgentPage() {
                     <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                       {cat.label} · {issues.length} issue{issues.length === 1 ? "" : "s"}
                     </p>
-                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} />)}
+                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} screenshot={result.screenshot} />)}
                   </div>
                 ))}
                 {result.truncatedTypes && result.truncatedTypes.length > 0 && (

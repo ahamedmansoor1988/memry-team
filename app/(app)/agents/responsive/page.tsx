@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
 import { analyzeLayoutIssue } from "@/lib/layout-analysis";
-import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
+import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
 import { BetaTag } from "@/app/(app)/_sidebar";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
 
@@ -196,6 +196,11 @@ function value(metrics: ResponsiveIssue["metrics"] | undefined, key: string) {
   return metrics?.[key];
 }
 
+function num(metrics: ResponsiveIssue["metrics"] | undefined, key: string): number | undefined {
+  const v = metrics?.[key];
+  return typeof v === "number" ? v : undefined;
+}
+
 function viewportText(issue: ResponsiveIssue) {
   if (issue.viewport === "static") return "HTML preview";
   const meta = VIEWPORT_META[issue.viewport];
@@ -309,7 +314,7 @@ interface AiAnalysisResult {
   cached?: boolean;
 }
 
-function IssueCard({ issue, index, aiEnabled, pageUrl }: { issue: ResponsiveIssue; index?: number; aiEnabled?: boolean; pageUrl?: string }) {
+function IssueCard({ issue, index, aiEnabled, pageUrl, screenshot }: { issue: ResponsiveIssue; index?: number; aiEnabled?: boolean; pageUrl?: string; screenshot?: Screenshot }) {
   const analysis = analyzeLayoutIssue(issue.type, issue.css, issue.metrics);
   const cssEntries = Object.entries(analysis.cssHighlights);
   const fixSnippet = fixSnippetFor(analysis.fixSnippet, issue.selector);
@@ -371,6 +376,24 @@ function IssueCard({ issue, index, aiEnabled, pageUrl }: { issue: ResponsiveIssu
           {analysis.confidence}% confidence
         </span>
       </div>
+
+      {screenshot && (
+        <div className="mt-3">
+          <FocusedIssueView
+            screenshot={screenshot}
+            finding={{
+              id: issue.id,
+              index: index ?? 0,
+              severity: issue.severity,
+              x: num(issue.metrics, "x"),
+              y: num(issue.metrics, "y"),
+              width: num(issue.metrics, "width"),
+              height: num(issue.metrics, "height"),
+            }}
+            cropHeight={340}
+          />
+        </div>
+      )}
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
@@ -512,10 +535,6 @@ export default function ResponsiveAgentPage() {
     ).catch(() => setSignedIn(false));
   }, []);
 
-  function num(metrics: ResponsiveIssue["metrics"], key: string): number | undefined {
-    const v = metrics?.[key];
-    return typeof v === "number" ? v : undefined;
-  }
 
   function displayFinding(issue: ResponsiveIssue) {
     const analysis = analyzeLayoutIssue(issue.type, issue.css, issue.metrics);
@@ -799,7 +818,7 @@ export default function ResponsiveAgentPage() {
                           caption={`${groupHeading(viewport)} — numbered boxes match the findings below.`}
                         />
                       )}
-                      {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} aiEnabled={signedIn === true} pageUrl={result?.url} />)}
+                      {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} aiEnabled={signedIn === true} pageUrl={result?.url} screenshot={shot} />)}
                     </div>
                   );
                 })}
@@ -825,7 +844,7 @@ export default function ResponsiveAgentPage() {
                     </button>
                     {showTouch && (
                       <div className="space-y-2 px-3 pb-3">
-                        {touchIssues.map(issue => <IssueCard key={issue.id} issue={issue} aiEnabled={signedIn === true} pageUrl={result?.url} />)}
+                        {touchIssues.map(issue => <IssueCard key={issue.id} issue={issue} aiEnabled={signedIn === true} pageUrl={result?.url} screenshot={screenshotFor(issue.viewport)} />)}
                       </div>
                     )}
                   </div>
