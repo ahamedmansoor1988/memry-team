@@ -487,7 +487,7 @@ export default function AccessibilityAgentPage() {
           </div>
         )}
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <section className="space-y-4">
             {browserScannerConnected === false && !result && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
