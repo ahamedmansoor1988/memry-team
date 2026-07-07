@@ -5,6 +5,7 @@ import {
   Accessibility,
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Contrast,
   ExternalLink,
   Heading1,
@@ -334,6 +335,7 @@ export default function AccessibilityAgentPage() {
   );
 
   const [shareState, setShareState] = useState<"idle" | "saving" | "copied" | "error">("idle");
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -539,14 +541,36 @@ export default function AccessibilityAgentPage() {
                     caption="Desktop (1440px) — numbered boxes match the findings below."
                   />
                 )}
-                {issuesByCategory.map(({ cat, issues }) => (
-                  <div key={cat.id} className="space-y-2">
-                    <p className="pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
-                      {cat.label} · {issues.length} issue{issues.length === 1 ? "" : "s"}
-                    </p>
-                    {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} screenshot={result.screenshot} />)}
-                  </div>
-                ))}
+                {issuesByCategory.map(({ cat, issues }, groupIndex) => {
+                  const Icon = cat.icon;
+                  const open = openSections[cat.id] ?? groupIndex === 0;
+                  const high = issues.filter(i => i.severity === "high").length;
+                  const medium = issues.filter(i => i.severity === "medium").length;
+                  return (
+                    <div key={cat.id} className="rounded-xl border border-black/[0.08] bg-white shadow-sm">
+                      <button
+                        onClick={() => setOpenSections(s => ({ ...s, [cat.id]: !open }))}
+                        className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
+                      >
+                        <Icon size={14} className="shrink-0 text-[#4b5563]" />
+                        <span className="text-[13px] font-semibold text-[#17171c]">{cat.label}</span>
+                        <span className="text-[11px] text-[#71717a]">
+                          {issues.length} issue{issues.length === 1 ? "" : "s"}
+                        </span>
+                        <span className="ml-auto flex items-center gap-1.5">
+                          {high > 0 && <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-600">{high} high</span>}
+                          {medium > 0 && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">{medium} medium</span>}
+                          <ChevronDown size={14} className={`text-[#71717a] transition-transform ${open ? "rotate-180" : ""}`} />
+                        </span>
+                      </button>
+                      {open && (
+                        <div className="space-y-2 border-t border-black/[0.06] p-3">
+                          {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} screenshot={result.screenshot} />)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {result.truncatedTypes && result.truncatedTypes.length > 0 && (
                   <p className="px-1 text-[11px] text-[#71717a]">
                     {result.truncatedTypes.map(t => `${formatType(t.type)}: showing ${t.shown} of ${t.total}`).join(" · ")}
