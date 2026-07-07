@@ -19,6 +19,9 @@ import { qaScore } from "@/lib/qa-score";
 import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
 import { BetaTag } from "@/app/(app)/_sidebar";
+import { loadCachedScan, saveCachedScan } from "@/lib/scan-cache";
+
+const SCAN_CACHE_KEY = "loupe.accessibility.last-scan";
 
 interface A11yIssue {
   id: string;
@@ -395,6 +398,15 @@ export default function AccessibilityAgentPage() {
     }
   }
 
+  // Restore the previous scan when the user navigates back to this page.
+  useEffect(() => {
+    const cached = loadCachedScan<A11yResult>(SCAN_CACHE_KEY);
+    if (cached) {
+      setUrl(cached.url);
+      setResult(cached.result);
+    }
+  }, []);
+
   async function run() {
     if (!canRun) return;
     setRunning(true);
@@ -409,6 +421,7 @@ export default function AccessibilityAgentPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
       setResult(data);
+      saveCachedScan(SCAN_CACHE_KEY, url.trim(), data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

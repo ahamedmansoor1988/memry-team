@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings, MonitorCheck, Accessibility, GitCompareArrows } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings, MonitorCheck, Accessibility, GitCompareArrows, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
@@ -26,6 +28,12 @@ interface Props { userEmail: string; }
 
 export function Sidebar({ userEmail }: Props) {
   const pathname = usePathname();
+  const [patWarning, setPatWarning] = useState<PatExpiryStatus | null>(null);
+
+  useEffect(() => {
+    const status = storedPatExpiryStatus();
+    if (status.state === "expiring" || status.state === "expired") setPatWarning(status);
+  }, [pathname]);
 
   async function signOut() {
     const supabase = createClient();
@@ -70,6 +78,21 @@ export function Sidebar({ userEmail }: Props) {
 
       {/* Footer */}
       <div className="border-t border-black/[0.06] px-3 py-3 space-y-0.5">
+        {patWarning && (
+          <Link
+            href="/agents/settings"
+            className={`mb-2 flex items-start gap-2 rounded-lg border px-2.5 py-2 transition-colors ${
+              patWarning.state === "expired"
+                ? "border-red-200 bg-red-50 hover:bg-red-100"
+                : "border-amber-200 bg-amber-50 hover:bg-amber-100"
+            }`}
+          >
+            <AlertTriangle size={12} className={`mt-0.5 shrink-0 ${patWarning.state === "expired" ? "text-red-600" : "text-amber-600"}`} />
+            <span className={`text-[11px] leading-snug ${patWarning.state === "expired" ? "text-red-700" : "text-amber-700"}`}>
+              {patWarning.message} Update it in Settings.
+            </span>
+          </Link>
+        )}
         <Link
           href="/agents/settings"
           className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${

@@ -1,19 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User } from "lucide-react";
+import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User, Loader2, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { patExpiryStatus } from "@/lib/pat-expiry";
 
 export default function SettingsPage() {
   const [pat, setPat] = useState("");
   const [showPat, setShowPat] = useState(false);
   const [patSaved, setPatSaved] = useState(false);
+  const [patExpiry, setPatExpiry] = useState("");
+  const [tokenCheck, setTokenCheck] = useState<"idle" | "checking" | "valid" | "invalid" | "unknown">("idle");
+  const [tokenCheckDetail, setTokenCheckDetail] = useState("");
   const [email, setEmail] = useState("");
 
   useEffect(() => {
     // Load PAT from localStorage
     const saved = localStorage.getItem("loupe_pat") ?? "";
     setPat(saved);
+    setPatExpiry(localStorage.getItem("loupe_pat_expiry") ?? "");
     // Load user email
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
@@ -23,9 +28,38 @@ export default function SettingsPage() {
 
   function savePat() {
     localStorage.setItem("loupe_pat", pat.trim());
+    if (patExpiry) localStorage.setItem("loupe_pat_expiry", patExpiry);
+    else localStorage.removeItem("loupe_pat_expiry");
     setPatSaved(true);
     setTimeout(() => setPatSaved(false), 2000);
   }
+
+  // Figma's API has no endpoint that reveals a token's expiry date, so the
+  // best live signal is whether the token still authenticates at all. Runs
+  // from the browser — the token never touches Loupe's servers.
+  async function testToken() {
+    if (!pat.trim()) return;
+    setTokenCheck("checking");
+    setTokenCheckDetail("");
+    try {
+      const res = await fetch("https://api.figma.com/v1/me", {
+        headers: { "X-Figma-Token": pat.trim() },
+      });
+      if (res.ok) {
+        const me = await res.json();
+        setTokenCheck("valid");
+        setTokenCheckDetail(me.email ? `Authenticated as ${me.email}` : "Token works.");
+      } else {
+        setTokenCheck("invalid");
+        setTokenCheckDetail(res.status === 403 ? "Figma rejected the token — it is expired or revoked." : `Figma returned ${res.status}.`);
+      }
+    } catch {
+      setTokenCheck("unknown");
+      setTokenCheckDetail("Could not reach the Figma API from this browser.");
+    }
+  }
+
+  const expiry = patExpiryStatus(patExpiry || null);
 
   return (
     <div className="h-full overflow-y-auto"><div className="max-w-2xl mx-auto px-6 py-10">
@@ -83,16 +117,48 @@ export default function SettingsPage() {
               {showPat ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
-          <button
-            onClick={savePat}
-            className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
-              patSaved
-                ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
-                : "bg-[#0f0f0f] text-white hover:bg-[#1a1a1a]"
-            }`}
-          >
-            {patSaved ? <><Check size={13} /> Saved</> : "Save token"}
-          </button>
+          <div className="mb-4">
+            <label className="mb-1 block text-[12px] font-medium text-[#3f3f46]">Token expiry date <span className="font-normal text-[#a1a1aa]">(optional — shown by Figma when you create the token)</span></label>
+            <input
+              type="date"
+              value={patExpiry}
+              onChange={e => setPatExpiry(e.target.value)}
+              className="rounded-xl border border-[#e8e8ec] px-4 py-2 text-[13px] text-[#0f0f0f] transition-colors focus:border-[#0f0f0f] focus:outline-none"
+            />
+            {expiry.state !== "none" && (
+              <p className={`mt-1.5 flex items-center gap-1.5 text-[12px] ${
+                expiry.state === "expired" ? "text-red-600" : expiry.state === "expiring" ? "text-amber-600" : "text-emerald-600"
+              }`}>
+                {expiry.state !== "ok" && <AlertTriangle size={12} />}
+                {expiry.message}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={savePat}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-medium transition-all ${
+                patSaved
+                  ? "bg-emerald-50 text-emerald-600 border border-emerald-200"
+                  : "bg-[#0f0f0f] text-white hover:bg-[#1a1a1a]"
+              }`}
+            >
+              {patSaved ? <><Check size={13} /> Saved</> : "Save token"}
+            </button>
+            <button
+              onClick={testToken}
+              disabled={!pat.trim() || tokenCheck === "checking"}
+              className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-4 py-2 text-[13px] font-medium text-[#0f0f0f] transition-colors hover:border-[#0f0f0f] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {tokenCheck === "checking" ? <Loader2 size={13} className="animate-spin" /> : null}
+              Test token
+            </button>
+            {tokenCheck !== "idle" && tokenCheck !== "checking" && (
+              <p className={`text-[12px] ${tokenCheck === "valid" ? "text-emerald-600" : tokenCheck === "invalid" ? "text-red-600" : "text-amber-600"}`}>
+                {tokenCheckDetail}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Chrome Extension */}

@@ -25,6 +25,9 @@ import { analyzeLayoutIssue } from "@/lib/layout-analysis";
 import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
 import { BetaTag } from "@/app/(app)/_sidebar";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
+import { loadCachedScan, saveCachedScan } from "@/lib/scan-cache";
+
+const SCAN_CACHE_KEY = "loupe.layout-qa.last-scan";
 
 type ViewportName = "mobile" | "tablet" | "desktop";
 
@@ -628,6 +631,15 @@ export default function ResponsiveAgentPage() {
   }, [result]);
 
 
+  // Restore the previous scan when the user navigates back to this page.
+  useEffect(() => {
+    const cached = loadCachedScan<ResponsiveResult>(SCAN_CACHE_KEY);
+    if (cached) {
+      setUrl(cached.url);
+      setResult(cached.result);
+    }
+  }, []);
+
   async function run() {
     if (!canRun) return;
     setRunning(true);
@@ -642,6 +654,7 @@ export default function ResponsiveAgentPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
       setResult(data);
+      saveCachedScan(SCAN_CACHE_KEY, url.trim(), data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
