@@ -380,24 +380,6 @@ function IssueCard({ issue, index, aiEnabled, pageUrl, screenshot }: { issue: Re
         </span>
       </div>
 
-      {screenshot && (
-        <div className="mt-3">
-          <FocusedIssueView
-            screenshot={screenshot}
-            finding={{
-              id: issue.id,
-              index: index ?? 0,
-              severity: issue.severity,
-              x: num(issue.metrics, "x"),
-              y: num(issue.metrics, "y"),
-              width: num(issue.metrics, "width"),
-              height: num(issue.metrics, "height"),
-            }}
-            cropHeight={340}
-          />
-        </div>
-      )}
-
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div className="rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Measured</p>

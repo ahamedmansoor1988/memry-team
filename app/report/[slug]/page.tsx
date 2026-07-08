@@ -163,12 +163,6 @@ export default function ReportPage({ params }: { params: { slug: string } | Prom
                       </p>
                     )}
 
-                    {section.screenshot && typeof f.y === "number" && f.y < section.screenshot.height && (
-                      <div className="mt-3">
-                        <FocusedIssueView screenshot={section.screenshot} finding={f} />
-                      </div>
-                    )}
-
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       <div className="rounded-lg bg-white px-3 py-2">
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Location</p>
