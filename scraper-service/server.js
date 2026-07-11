@@ -1060,6 +1060,41 @@ async function inspectBrand(page) {
       return `${el.tagName.toLowerCase()}${id}${cls ? "." + cls : ""}`;
     }
 
+    // Human-readable page section for a finding — landmark ancestors first,
+    // then the nearest preceding heading, then rough page position.
+    function sectionNameFor(el) {
+      let cur = el;
+      while (cur && cur !== document.body) {
+        const aria = cur.getAttribute?.("aria-label");
+        const tag = cur.tagName;
+        if (tag === "NAV") return aria ? `${aria} navigation` : "Navigation";
+        if (tag === "HEADER") return "Page header";
+        if (tag === "FOOTER") return "Footer";
+        if (tag === "ASIDE") return aria || "Sidebar";
+        if (tag === "SECTION" || tag === "ARTICLE") {
+          const h = cur.querySelector("h1, h2, h3");
+          const label = aria || h?.innerText?.trim()?.replace(/\s+/g, " ").slice(0, 50);
+          if (label) return `${label} section`;
+        }
+        if (cur.matches?.("[role='dialog'], dialog, [class*='modal']")) return "Modal / dialog";
+        cur = cur.parentElement;
+      }
+      let nearest = null;
+      for (const h of document.querySelectorAll("h1, h2, h3")) {
+        if (h.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) nearest = h;
+      }
+      const heading = nearest?.innerText?.trim()?.replace(/\s+/g, " ").slice(0, 50);
+      if (heading) return `${heading} section`;
+      const pageY = el.getBoundingClientRect().top + window.scrollY;
+      const rel = pageY / Math.max(document.documentElement.scrollHeight, 1);
+      return rel < 0.15 ? "Top of page" : rel > 0.85 ? "Bottom of page" : "Middle of page";
+    }
+
+    function boundsOf(el) {
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY), width: Math.round(r.width), height: Math.round(r.height) };
+    }
+
     const text_nodes = [];
     const color_nodes = [];
     const seenColorEls = new Set();
@@ -1081,7 +1116,8 @@ async function inspectBrand(page) {
         font_style: cs.fontStyle === "italic" ? "italic" : "normal",
         letter_spacing: 0, line_height_px: 0, text_align: cs.textAlign || "left",
         fill_color: rgbToHex(cs.color) || "#000000",
-        style_id: null, fill_style_id: null, bounds: null,
+        style_id: null, fill_style_id: null,
+        bounds: boundsOf(el), section: sectionNameFor(el),
       });
     }
 
@@ -1097,7 +1133,7 @@ async function inspectBrand(page) {
         fill_color_hex: bg, fill_opacity: bg ? 1 : null,
         stroke_color_hex: border, stroke_width: border ? parseFloat(cs.borderTopWidth) : null,
         border_radius: parseFloat(cs.borderTopLeftRadius) || null, shadow: null,
-        bounds: null,
+        bounds: boundsOf(el), section: sectionNameFor(el),
       });
       if (color_nodes.length >= 1500) break;
     }
@@ -1152,7 +1188,7 @@ async function inspectBrand(page) {
       const gaps = siblings.map(s => boxGap(rect, s.getBoundingClientRect()));
       logo_nodes.push({
         node_id: "", node_name: labelFor(el),
-        bounds: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+        bounds: { x: Math.round(rect.left + window.scrollX), y: Math.round(rect.top + window.scrollY), width: Math.round(rect.width), height: Math.round(rect.height) },
         fill_color_hex: rgbToHex(cs.backgroundColor) || rgbToHex(cs.color),
         min_sibling_gap_px: gaps.length > 0 ? Math.round(Math.min(...gaps)) : null,
       });
@@ -1187,7 +1223,8 @@ app.post("/brand-scan", async (req, res) => {
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
 
     const snapshot = await inspectBrand(page);
-    res.json({ url, checkedAt: new Date().toISOString(), snapshot });
+    const screenshot = await captureScreenshot(page, 1440);
+    res.json({ url, checkedAt: new Date().toISOString(), snapshot, screenshot });
   } catch (err) {
     console.error("[brand-scan] error:", err.message);
     res.status(500).json({ error: err.message });
@@ -1197,6 +1234,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v2" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v3" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));

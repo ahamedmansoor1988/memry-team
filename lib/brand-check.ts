@@ -10,6 +10,19 @@ export interface BrandFinding {
   distance: number | null;
   count: number;
   examples: string[];
+  // First-occurrence location — only populated for live-URL scans (Figma
+  // findings have no rendered screenshot to place a marker on).
+  section?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
+interface Location { section?: string; x?: number; y?: number; width?: number; height?: number; }
+function locationOf(bounds: { x: number; y: number; width: number; height: number } | null | undefined, section: string | undefined): Location {
+  if (!bounds) return { section };
+  return { section, x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -39,19 +52,19 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
   const findings: BrandFinding[] = [];
 
   if (brand.colors.length > 0) {
-    const colorUsage = new Map<string, { count: number; examples: string[] }>();
-    const record = (hex: string | null | undefined, name: string) => {
+    const colorUsage = new Map<string, { count: number; examples: string[]; loc: Location }>();
+    const record = (hex: string | null | undefined, name: string, bounds: { x: number; y: number; width: number; height: number } | null | undefined, section: string | undefined) => {
       if (!hex || !/^#[0-9A-F]{6}$/i.test(hex)) return;
       const key = hex.toUpperCase();
-      const entry = colorUsage.get(key) ?? { count: 0, examples: [] };
+      const entry = colorUsage.get(key) ?? { count: 0, examples: [], loc: locationOf(bounds, section) };
       entry.count++;
       if (entry.examples.length < 4 && !entry.examples.includes(name)) entry.examples.push(name);
       colorUsage.set(key, entry);
     };
-    for (const t of snapshot.text_nodes) record(t.fill_color, t.node_name || "text");
+    for (const t of snapshot.text_nodes) record(t.fill_color, t.node_name || "text", t.bounds, t.section);
     for (const c of snapshot.color_nodes) {
-      record(c.fill_color_hex, c.node_name || c.node_type);
-      record(c.stroke_color_hex, c.node_name || c.node_type);
+      record(c.fill_color_hex, c.node_name || c.node_type, c.bounds, c.section);
+      record(c.stroke_color_hex, c.node_name || c.node_type, c.bounds, c.section);
     }
 
     const approved = new Set(brand.colors.map(c => c.toUpperCase()));
@@ -67,15 +80,16 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
         distance: near?.distance ?? null,
         count: usage.count,
         examples: usage.examples,
+        ...usage.loc,
       });
     }
   }
 
   if (brand.fonts.length > 0) {
-    const fontUsage = new Map<string, { count: number; examples: string[] }>();
+    const fontUsage = new Map<string, { count: number; examples: string[]; loc: Location }>();
     for (const t of snapshot.text_nodes) {
       if (!t.font_family) continue;
-      const entry = fontUsage.get(t.font_family) ?? { count: 0, examples: [] };
+      const entry = fontUsage.get(t.font_family) ?? { count: 0, examples: [], loc: locationOf(t.bounds, t.section) };
       entry.count++;
       const name = t.node_name || t.content.slice(0, 30) || "text";
       if (entry.examples.length < 4 && !entry.examples.includes(name)) entry.examples.push(name);
@@ -94,6 +108,7 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
         distance: null,
         count: usage.count,
         examples: usage.examples,
+        ...usage.loc,
       });
     }
   }
@@ -138,6 +153,7 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
     const rules = brand.logo;
     for (const logo of snapshot.logo_nodes) {
       const label = logo.node_name || "Logo";
+      const loc = locationOf(logo.bounds, "Logo");
 
       if (rules.minSizePx !== null && logo.bounds) {
         const smallestSide = Math.min(logo.bounds.width, logo.bounds.height);
@@ -151,6 +167,7 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
             distance: Math.round(rules.minSizePx - smallestSide),
             count: 1,
             examples: [label],
+            ...loc,
           });
         }
       }
@@ -165,6 +182,7 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
           distance: Math.round(rules.minClearSpacePx - logo.min_sibling_gap_px),
           count: 1,
           examples: [label],
+          ...loc,
         });
       }
 
@@ -181,6 +199,7 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
             distance: near?.distance ?? null,
             count: 1,
             examples: [label],
+            ...loc,
           });
         }
       }

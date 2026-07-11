@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
 
   let snapshot: NormalizedSnapshot;
   let frameName = "Whole file";
+  let screenshot: unknown = null;
 
   if (source === "url") {
     const normalized = normalizeUrl(url!);
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
       const data = await res.json();
       snapshot = data.snapshot as NormalizedSnapshot;
       frameName = data.url ?? normalized;
+      screenshot = data.screenshot ?? null;
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : "Could not reach the scanner." }, { status: 503 });
     }
@@ -124,6 +126,7 @@ export async function POST(req: NextRequest) {
     textNodesChecked: snapshot.text_nodes.length,
     spacingNodesChecked: snapshot.spacing_nodes.length,
     logoNodesFound: snapshot.logo_nodes.length,
+    screenshot,
     findings,
   });
 }

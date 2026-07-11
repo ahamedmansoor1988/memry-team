@@ -17,6 +17,8 @@ export interface NormalizedTextNode {
   style_id:       string | null;
   fill_style_id:  string | null;
   bounds:         { x: number; y: number; width: number; height: number } | null;
+  // Only set by the live-URL brand scan — Figma-sourced nodes leave this undefined.
+  section?:       string;
 }
 
 export interface NormalizedColorNode {
@@ -30,6 +32,7 @@ export interface NormalizedColorNode {
   border_radius:    number | null;
   shadow:           string | null;
   bounds:           { x: number; y: number; width: number; height: number } | null;
+  section?:         string;
 }
 
 export interface NormalizedSpacingNode {

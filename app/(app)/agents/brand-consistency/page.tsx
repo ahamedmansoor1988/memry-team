@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { BetaTag } from "@/app/(app)/_sidebar";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
+import { AnnotatedScreenshot, type Screenshot } from "@/components/qa-report";
 
 interface BrandFinding {
   id: string;
@@ -24,6 +25,11 @@ interface BrandFinding {
   distance: number | null;
   count: number;
   examples: string[];
+  section?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
 }
 
 interface CheckResult {
@@ -38,6 +44,7 @@ interface CheckResult {
   textNodesChecked: number;
   spacingNodesChecked: number;
   logoNodesFound: number;
+  screenshot?: Screenshot | null;
   findings: BrandFinding[];
 }
 
@@ -182,9 +189,16 @@ function FindingCard({ finding, index }: { finding: BrandFinding; index: number 
         </div>
       )}
 
+      {finding.section && (
+        <div className="mt-3 rounded-lg bg-[#fafafa] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where to inspect</p>
+          <p className="mt-0.5 text-[11px] text-[#17171c]">{finding.section}</p>
+        </div>
+      )}
+
       {finding.examples.length > 0 && (
-        <p className="mt-3 truncate text-[11px] text-[#71717a]">
-          Found in: {finding.examples.join(", ")}
+        <p className="mt-2 truncate text-[11px] text-[#a1a1aa]">
+          {finding.section ? "Elements: " : "Found in: "}{finding.examples.join(", ")}
         </p>
       )}
     </div>
@@ -242,6 +256,11 @@ export default function BrandConsistencyPage() {
   const fontFindings = result?.findings.filter(f => f.kind === "font") ?? [];
   const spacingFindings = result?.findings.filter(f => f.kind === "spacing") ?? [];
   const logoFindings = result?.findings.filter(f => f.kind === "logo") ?? [];
+  const orderedFindings = [...colorFindings, ...fontFindings, ...spacingFindings, ...logoFindings];
+  const issueIndex = new Map(orderedFindings.map((f, i) => [f.id, i + 1]));
+  const markers = orderedFindings
+    .filter((f): f is BrandFinding & { x: number; y: number } => typeof f.x === "number" && typeof f.y === "number")
+    .map(f => ({ id: f.id, index: issueIndex.get(f.id) ?? 0, severity: f.severity, x: f.x, y: f.y, width: f.width, height: f.height }));
 
   return (
     <div className="h-full overflow-y-auto bg-white text-[#0f0f0f]">
@@ -362,12 +381,20 @@ export default function BrandConsistencyPage() {
               </div>
             )}
 
+            {result && result.screenshot && markers.length > 0 && (
+              <div className="rounded-xl border border-black/[0.08] bg-white p-4 shadow-sm">
+                <p className="mb-1 text-[13px] font-semibold text-[#17171c]">Page screenshot</p>
+                <p className="mb-3 text-[11px] text-[#71717a]">Numbered boxes match the findings below.</p>
+                <AnnotatedScreenshot screenshot={result.screenshot} findings={markers} />
+              </div>
+            )}
+
             {colorFindings.length > 0 && (
               <div className="space-y-2">
                 <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                   <Palette size={12} /> Colors · {colorFindings.length} off-brand
                 </p>
-                {colorFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
+                {colorFindings.map(f => <FindingCard key={f.id} finding={f} index={issueIndex.get(f.id) ?? 0} />)}
               </div>
             )}
 
@@ -376,7 +403,7 @@ export default function BrandConsistencyPage() {
                 <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                   <Type size={12} /> Typography · {fontFindings.length} unapproved
                 </p>
-                {fontFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
+                {fontFindings.map(f => <FindingCard key={f.id} finding={f} index={issueIndex.get(f.id) ?? 0} />)}
               </div>
             )}
 
@@ -385,7 +412,7 @@ export default function BrandConsistencyPage() {
                 <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                   <Ruler size={12} /> Spacing · {spacingFindings.length} off-grid
                 </p>
-                {spacingFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
+                {spacingFindings.map(f => <FindingCard key={f.id} finding={f} index={issueIndex.get(f.id) ?? 0} />)}
               </div>
             )}
 
@@ -394,7 +421,7 @@ export default function BrandConsistencyPage() {
                 <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
                   <ShieldCheck size={12} /> Logo · {logoFindings.length} issue{logoFindings.length === 1 ? "" : "s"}
                 </p>
-                {logoFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
+                {logoFindings.map(f => <FindingCard key={f.id} finding={f} index={issueIndex.get(f.id) ?? 0} />)}
               </div>
             )}
           </section>
