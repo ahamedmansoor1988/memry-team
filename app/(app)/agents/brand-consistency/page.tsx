@@ -1,18 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle,
+  Check,
   ExternalLink,
-  FileText,
   Loader2,
   Palette,
   Play,
   Ruler,
   ShieldCheck,
   Type,
-  UploadCloud,
-  X,
 } from "lucide-react";
 import { BetaTag } from "@/app/(app)/_sidebar";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
@@ -200,22 +198,12 @@ export default function BrandConsistencyPage() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CheckResult | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setPat(localStorage.getItem("loupe_pat") ?? "");
+    setBrandGuideName(localStorage.getItem("loupe_brand_guide_name") ?? "");
+    setBrandGuideText(localStorage.getItem("loupe_brand_guide_text") ?? "");
   }, []);
-
-  function onPatChange(v: string) {
-    setPat(v);
-    localStorage.setItem("loupe_pat", v);
-  }
-
-  async function onFile(file: File) {
-    const text = await file.text();
-    setBrandGuideName(file.name);
-    setBrandGuideText(text);
-  }
 
   const parsed = parseFigmaUrl(figmaUrl);
   const canRun = Boolean(parsed && pat.trim() && brandGuideText.trim() && !running);
@@ -275,35 +263,31 @@ export default function BrandConsistencyPage() {
               />
               <p className="mt-1.5 text-[11px] text-[#71717a]">Paste a link to a specific frame, or the whole file to check everything.</p>
 
-              <label className="mb-1.5 mt-3 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Figma personal access token</label>
-              <input
-                type="password"
-                value={pat}
-                onChange={e => onPatChange(e.target.value)}
-                placeholder="figd_••••••••••••••••"
-                className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 font-mono text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
-              />
-              <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#71717a]">
-                Stored only in your browser. <a href="/agents/settings" className="inline-flex items-center gap-0.5 text-[#0f0f0f] underline underline-offset-2">Manage in Settings <ExternalLink size={10} /></a>
-              </p>
-
-              <label className="mb-1.5 mt-3 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Brand guide (.md)</label>
-              <input ref={fileInputRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ""; }} />
-              {brandGuideName ? (
-                <div className="flex items-center gap-2 rounded-lg border border-black/[0.12] bg-white px-3 py-2">
-                  <FileText size={14} className="shrink-0 text-[#4b5563]" />
-                  <span className="flex-1 truncate text-[13px] text-[#17171c]">{brandGuideName}</span>
-                  <button onClick={() => { setBrandGuideName(""); setBrandGuideText(""); }} className="text-[#a1a1aa] hover:text-[#0f0f0f]"><X size={14} /></button>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-lg border border-black/[0.1] bg-white px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Figma token</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[13px]">
+                    {pat ? (
+                      <span className="flex items-center gap-1 text-emerald-700"><Check size={13} /> Connected</span>
+                    ) : (
+                      <span className="text-amber-700">Not set</span>
+                    )}
+                  </p>
                 </div>
-              ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-black/[0.12] bg-white px-3 py-3 text-[13px] text-[#71717a] transition-colors hover:border-black/40 hover:text-[#0f0f0f]"
-                >
-                  <UploadCloud size={14} /> Click to upload a .md file
-                </button>
-              )}
+                <div className="rounded-lg border border-black/[0.1] bg-white px-3 py-2.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Brand guide</p>
+                  <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px]">
+                    {brandGuideName ? (
+                      <span className="flex items-center gap-1 truncate text-emerald-700"><Check size={13} className="shrink-0" /> {brandGuideName}</span>
+                    ) : (
+                      <span className="text-amber-700">Not uploaded</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-2 flex items-center gap-1 text-[11px] text-[#71717a]">
+                Shared for the whole org. <a href="/agents/settings" className="inline-flex items-center gap-0.5 text-[#0f0f0f] underline underline-offset-2">Manage in Settings <ExternalLink size={10} /></a>
+              </p>
 
               <button
                 onClick={run}

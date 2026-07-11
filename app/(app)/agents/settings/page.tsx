@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User, Loader2, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User, Loader2, AlertTriangle, Palette, FileText, UploadCloud, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { patExpiryStatus } from "@/lib/pat-expiry";
 
@@ -13,18 +13,41 @@ export default function SettingsPage() {
   const [tokenCheck, setTokenCheck] = useState<"idle" | "checking" | "valid" | "invalid" | "unknown">("idle");
   const [tokenCheckDetail, setTokenCheckDetail] = useState("");
   const [email, setEmail] = useState("");
+  const [brandGuideName, setBrandGuideName] = useState("");
+  const [brandGuideText, setBrandGuideText] = useState("");
+  const [brandGuideSaved, setBrandGuideSaved] = useState(false);
+  const brandFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Load PAT from localStorage
     const saved = localStorage.getItem("loupe_pat") ?? "";
     setPat(saved);
     setPatExpiry(localStorage.getItem("loupe_pat_expiry") ?? "");
+    setBrandGuideName(localStorage.getItem("loupe_brand_guide_name") ?? "");
+    setBrandGuideText(localStorage.getItem("loupe_brand_guide_text") ?? "");
     // Load user email
     const supabase = createClient();
     supabase.auth.getUser().then(({ data }) => {
       setEmail(data.user?.email ?? "");
     });
   }, []);
+
+  async function onBrandGuideFile(file: File) {
+    const text = await file.text();
+    setBrandGuideName(file.name);
+    setBrandGuideText(text);
+    localStorage.setItem("loupe_brand_guide_name", file.name);
+    localStorage.setItem("loupe_brand_guide_text", text);
+    setBrandGuideSaved(true);
+    setTimeout(() => setBrandGuideSaved(false), 2000);
+  }
+
+  function clearBrandGuide() {
+    setBrandGuideName("");
+    setBrandGuideText("");
+    localStorage.removeItem("loupe_brand_guide_name");
+    localStorage.removeItem("loupe_brand_guide_text");
+  }
 
   function savePat() {
     localStorage.setItem("loupe_pat", pat.trim());
@@ -159,6 +182,49 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
+        </div>
+
+        {/* Brand Guide */}
+        <div className="rounded-2xl border border-[#f0f0f0] bg-white p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Palette size={13} className="text-[#71717a]" />
+            <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-widest">Brand Guide</p>
+          </div>
+          <p className="text-[12px] text-[#71717a] mb-4 leading-relaxed">
+            Used by Brand Consistency to check Figma files. Shared across the whole org — one upload here covers everyone using this browser profile. Stored only in your browser, never on our servers.
+          </p>
+          <input
+            ref={brandFileInputRef}
+            type="file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) onBrandGuideFile(f); e.target.value = ""; }}
+          />
+          {brandGuideName ? (
+            <div className="flex items-center gap-2 rounded-xl border border-[#e8e8ec] px-4 py-2.5 mb-2">
+              <FileText size={14} className="shrink-0 text-[#3f3f46]" />
+              <span className="flex-1 truncate text-[13px] text-[#0f0f0f]">{brandGuideName}</span>
+              {brandGuideSaved && <Check size={14} className="text-emerald-600" />}
+              <button onClick={clearBrandGuide} className="text-[#a1a1aa] hover:text-[#0f0f0f]">
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => brandFileInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#e8e8ec] px-4 py-3 text-[13px] text-[#71717a] transition-colors hover:border-[#0f0f0f] hover:text-[#0f0f0f]"
+            >
+              <UploadCloud size={14} /> Upload brand guide (.md)
+            </button>
+          )}
+          {brandGuideName && (
+            <button
+              onClick={() => brandFileInputRef.current?.click()}
+              className="text-[12px] text-[#0f0f0f] underline underline-offset-2 hover:opacity-70"
+            >
+              Replace file
+            </button>
+          )}
         </div>
 
         {/* Chrome Extension */}
