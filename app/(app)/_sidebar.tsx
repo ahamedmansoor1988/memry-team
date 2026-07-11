@@ -12,7 +12,7 @@ const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
   { id: "history",       label: "History",        icon: History, beta: false },
   { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
-  { id: "brand-consistency", label: "Branding", icon: Palette, beta: true },
+  { id: "brand-consistency", label: "Brand Check", icon: Palette, beta: true },
 ];
 
 export function BetaTag({ className = "" }: { className?: string }) {
