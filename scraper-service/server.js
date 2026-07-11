@@ -1112,9 +1112,39 @@ async function inspectBrand(page) {
       if (hGap > 0 && vGap > 0) return Math.sqrt(hGap * hGap + vGap * vGap);
       return Math.max(hGap, vGap);
     }
+    function boxOverlapRatio(a, b) {
+      const left = Math.max(a.x, b.x), right = Math.min(a.x + a.width, b.x + b.width);
+      const top = Math.max(a.y, b.y), bottom = Math.min(a.y + a.height, b.y + b.height);
+      if (right <= left || bottom <= top) return 0;
+      const inter = (right - left) * (bottom - top);
+      const smaller = Math.min(a.width * a.height, b.width * b.height);
+      return smaller > 0 ? inter / smaller : 0;
+    }
+
+    // A real logo lockup is small — this also throws out accidental matches
+    // like a body/html class that merely contains the substring "logo".
+    const candidates = [];
     for (const el of logoEls) {
-      if (!isVisible(el) || logo_nodes.length >= 10) continue;
+      if (!isVisible(el)) continue;
       const rect = el.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8 || rect.width > 400 || rect.height > 200) continue;
+      candidates.push({ el, rect, area: rect.width * rect.height });
+    }
+    // Smallest first, so when a wrapper <a>/<div> and the <img> inside it
+    // both match, the innermost (most specific) element wins and the
+    // ancestor is dropped as a near-duplicate of the same visual logo.
+    candidates.sort((a, b) => a.area - b.area);
+    const accepted = [];
+    for (const c of candidates) {
+      if (accepted.length >= 10) break;
+      const isDuplicate = accepted.some(a => boxOverlapRatio(
+        { x: a.rect.left, y: a.rect.top, width: a.rect.width, height: a.rect.height },
+        { x: c.rect.left, y: c.rect.top, width: c.rect.width, height: c.rect.height }
+      ) > 0.6);
+      if (isDuplicate) continue;
+      accepted.push(c);
+    }
+    for (const { el, rect } of accepted) {
       const cs = window.getComputedStyle(el);
       const siblings = el.parentElement
         ? [...el.parentElement.children].filter(s => s !== el && isVisible(s))
@@ -1167,6 +1197,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v1" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v2" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
