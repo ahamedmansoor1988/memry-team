@@ -30,6 +30,27 @@ function hexToRgb(hex: string): [number, number, number] {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
+function colorTraits(hex: string) {
+  const [r, g, b] = hexToRgb(hex).map(v => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+  const saturation = max === min ? 0 : (max - min) / (1 - Math.abs(2 * lightness - 1));
+  return { lightness, saturation };
+}
+
+function colorSeverity(hex: string, distance: number | null, maxArea: number): BrandFinding["severity"] {
+  if (distance === null) return "high";
+  const { lightness, saturation } = colorTraits(hex);
+  const isNeutral = saturation < 0.08;
+  const isNearWhite = isNeutral && lightness > 0.9;
+  const isSmallRegion = maxArea > 0 && maxArea < 2500;
+
+  if (distance <= 16 || (isNearWhite && distance <= 32) || (isNeutral && distance <= 24) || isSmallRegion) return "low";
+  if (distance <= 70 || (isNeutral && distance <= 90)) return "medium";
+  return "high";
+}
+
 // Euclidean RGB distance, 0 (identical) to ~441 (black vs white).
 function colorDistance(a: string, b: string): number {
   const [r1, g1, b1] = hexToRgb(a);
@@ -52,12 +73,17 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
   const findings: BrandFinding[] = [];
 
   if (brand.colors.length > 0) {
-    const colorUsage = new Map<string, { count: number; examples: string[]; loc: Location }>();
+    const colorUsage = new Map<string, { count: number; examples: string[]; loc: Location; maxArea: number }>();
     const record = (hex: string | null | undefined, name: string, bounds: { x: number; y: number; width: number; height: number } | null | undefined, section: string | undefined) => {
       if (!hex || !/^#[0-9A-F]{6}$/i.test(hex)) return;
       const key = hex.toUpperCase();
-      const entry = colorUsage.get(key) ?? { count: 0, examples: [], loc: locationOf(bounds, section) };
+      const area = bounds ? Math.max(0, bounds.width * bounds.height) : 0;
+      const entry = colorUsage.get(key) ?? { count: 0, examples: [], loc: locationOf(bounds, section), maxArea: area };
       entry.count++;
+      if (area > entry.maxArea) {
+        entry.maxArea = area;
+        entry.loc = locationOf(bounds, section);
+      }
       if (entry.examples.length < 4 && !entry.examples.includes(name)) entry.examples.push(name);
       colorUsage.set(key, entry);
     };
@@ -74,7 +100,7 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
       findings.push({
         id: `color-${hex}`,
         kind: "color",
-        severity: near && near.distance <= 20 ? "low" : near && near.distance <= 60 ? "medium" : "high",
+        severity: colorSeverity(hex, near?.distance ?? null, usage.maxArea),
         value: hex,
         nearestMatch: near?.match ?? null,
         distance: near?.distance ?? null,

@@ -54,6 +54,12 @@ const SEVERITY_CLASS = {
   low: "border-blue-200 bg-blue-50 text-blue-600",
 };
 
+const SEVERITY_COPY = {
+  high: "Needs review",
+  medium: "Needs review",
+  low: "Minor drift",
+};
+
 const HOW_IT_WORKS = ["Upload brand guide", "Point at a Figma file", "Loupe reads every color & font", "Flags anything off-brand"];
 
 function parseFigmaUrl(url: string) {
@@ -113,11 +119,24 @@ function swatchStyle(hex: string) {
 }
 
 const KIND_LABEL: Record<BrandFinding["kind"], string> = {
-  color: "Off-brand color",
+  color: "Color candidate",
   font: "Unapproved font",
   spacing: "Off-grid spacing",
   logo: "Logo rule violation",
 };
+
+function colorHeadline(finding: BrandFinding) {
+  if (finding.severity === "low") return `${finding.value} is a minor palette drift`;
+  return `${finding.value} needs brand review`;
+}
+
+function colorFixCopy(finding: BrandFinding) {
+  if (!finding.nearestMatch) return "Decide whether this color should be added to the brand palette or replaced with an approved token.";
+  if (finding.severity === "low") {
+    return `Use ${finding.nearestMatch} for strict consistency, or add ${finding.value} as an approved neutral if this shade is intentional.`;
+  }
+  return `Replace with ${finding.nearestMatch}, or add ${finding.value} to the brand guide only if this is an intentional brand color.`;
+}
 
 function logoHeadline(finding: BrandFinding): string {
   if (finding.id.startsWith("logo-size-")) return `Logo renders at ${finding.value} — smaller than the minimum`;
@@ -130,7 +149,7 @@ function FindingCard({ finding, index }: { finding: BrandFinding; index: number 
     <div className="rounded-xl border border-black/[0.08] bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
-        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[finding.severity]}`}>{finding.severity}</span>
+        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${SEVERITY_CLASS[finding.severity]}`}>{SEVERITY_COPY[finding.severity]}</span>
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{KIND_LABEL[finding.kind]}</span>
         {finding.count > 1 && <span className="ml-auto text-[11px] text-[#a1a1aa]">{finding.count} uses</span>}
       </div>
@@ -139,7 +158,7 @@ function FindingCard({ finding, index }: { finding: BrandFinding; index: number 
         <div className="flex items-center gap-3">
           <span className="h-8 w-8 shrink-0 rounded-lg border border-black/[0.1]" style={swatchStyle(finding.value)} />
           <div>
-            <p className="text-[13px] font-semibold text-[#17171c]">{finding.value} is not in the brand palette</p>
+            <p className="text-[13px] font-semibold text-[#17171c]">{colorHeadline(finding)}</p>
             {finding.nearestMatch && (
               <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[#4b5563]">
                 Closest approved color:
@@ -150,6 +169,7 @@ function FindingCard({ finding, index }: { finding: BrandFinding; index: number 
                 {typeof finding.distance === "number" && <span className="text-[#a1a1aa]">({finding.distance} away)</span>}
               </p>
             )}
+            <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">{colorFixCopy(finding)}</p>
           </div>
         </div>
       )}
@@ -257,6 +277,8 @@ export default function BrandConsistencyPage() {
   const spacingFindings = result?.findings.filter(f => f.kind === "spacing") ?? [];
   const logoFindings = result?.findings.filter(f => f.kind === "logo") ?? [];
   const orderedFindings = [...colorFindings, ...fontFindings, ...spacingFindings, ...logoFindings];
+  const needsReviewFindings = orderedFindings.filter(f => f.severity !== "low");
+  const minorFindings = orderedFindings.filter(f => f.severity === "low");
   const issueIndex = new Map(orderedFindings.map((f, i) => [f.id, i + 1]));
   const markers = orderedFindings
     .filter((f): f is BrandFinding & { x: number; y: number } => typeof f.x === "number" && typeof f.y === "number")
@@ -392,7 +414,7 @@ export default function BrandConsistencyPage() {
             {colorFindings.length > 0 && (
               <div className="space-y-2">
                 <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
-                  <Palette size={12} /> Colors · {colorFindings.length} off-brand
+                  <Palette size={12} /> Color drift · {colorFindings.length} candidate{colorFindings.length === 1 ? "" : "s"}
                 </p>
                 {colorFindings.map(f => <FindingCard key={f.id} finding={f} index={issueIndex.get(f.id) ?? 0} />)}
               </div>
@@ -430,8 +452,11 @@ export default function BrandConsistencyPage() {
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2 rounded-lg bg-white p-3">
-                <p className="text-[22px] font-semibold leading-none">{result ? result.findings.length : "—"}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">Total off-brand</p>
+                <p className="text-[22px] font-semibold leading-none">{result ? needsReviewFindings.length : "—"}</p>
+                <p className="mt-1 text-[11px] text-[#71717a]">Needs review</p>
+                {result && minorFindings.length > 0 && (
+                  <p className="mt-1 text-[10px] text-[#a1a1aa]">{minorFindings.length} minor drift candidate{minorFindings.length === 1 ? "" : "s"}</p>
+                )}
               </div>
               <div className="rounded-lg bg-white p-3">
                 <p className="text-[22px] font-semibold leading-none">{result ? colorFindings.length : "—"}</p>
