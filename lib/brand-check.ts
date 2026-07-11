@@ -3,7 +3,7 @@ import type { BrandGuide } from "@/lib/brand-guide";
 
 export interface BrandFinding {
   id: string;
-  kind: "color" | "font";
+  kind: "color" | "font" | "spacing" | "logo";
   severity: "high" | "medium" | "low";
   value: string;
   nearestMatch: string | null;
@@ -95,6 +95,95 @@ export function checkBrandConsistency(snapshot: NormalizedSnapshot, brand: Brand
         count: usage.count,
         examples: usage.examples,
       });
+    }
+  }
+
+  if (brand.spacing.length > 0) {
+    const spacingUsage = new Map<number, { count: number; examples: string[] }>();
+    for (const s of snapshot.spacing_nodes) {
+      const values = [s.padding_left, s.padding_right, s.padding_top, s.padding_bottom, s.item_spacing];
+      for (const v of values) {
+        if (!v || v <= 0) continue; // 0 always means "no gap requested" — never a violation
+        const rounded = Math.round(v);
+        const entry = spacingUsage.get(rounded) ?? { count: 0, examples: [] };
+        entry.count++;
+        if (entry.examples.length < 4 && !entry.examples.includes(s.node_name)) entry.examples.push(s.node_name || s.layout_mode);
+        spacingUsage.set(rounded, entry);
+      }
+    }
+
+    const approved = new Set(brand.spacing);
+    for (const [px, usage] of spacingUsage) {
+      if (approved.has(px)) continue;
+      let nearestPx = brand.spacing[0];
+      let bestDist = Math.abs(px - nearestPx);
+      for (const a of brand.spacing.slice(1)) {
+        const d = Math.abs(px - a);
+        if (d < bestDist) { bestDist = d; nearestPx = a; }
+      }
+      findings.push({
+        id: `spacing-${px}`,
+        kind: "spacing",
+        severity: bestDist <= 2 ? "low" : bestDist <= 8 ? "medium" : "high",
+        value: `${px}px`,
+        nearestMatch: `${nearestPx}px`,
+        distance: bestDist,
+        count: usage.count,
+        examples: usage.examples,
+      });
+    }
+  }
+
+  if (brand.logo) {
+    const rules = brand.logo;
+    for (const logo of snapshot.logo_nodes) {
+      const label = logo.node_name || "Logo";
+
+      if (rules.minSizePx !== null && logo.bounds) {
+        const smallestSide = Math.min(logo.bounds.width, logo.bounds.height);
+        if (smallestSide < rules.minSizePx) {
+          findings.push({
+            id: `logo-size-${logo.node_id}`,
+            kind: "logo",
+            severity: smallestSide < rules.minSizePx * 0.5 ? "high" : "medium",
+            value: `${Math.round(smallestSide)}px`,
+            nearestMatch: `${rules.minSizePx}px minimum`,
+            distance: Math.round(rules.minSizePx - smallestSide),
+            count: 1,
+            examples: [label],
+          });
+        }
+      }
+
+      if (rules.minClearSpacePx !== null && logo.min_sibling_gap_px !== null && logo.min_sibling_gap_px < rules.minClearSpacePx) {
+        findings.push({
+          id: `logo-clearspace-${logo.node_id}`,
+          kind: "logo",
+          severity: logo.min_sibling_gap_px <= 0 ? "high" : "medium",
+          value: `${logo.min_sibling_gap_px}px clear space`,
+          nearestMatch: `${rules.minClearSpacePx}px minimum`,
+          distance: Math.round(rules.minClearSpacePx - logo.min_sibling_gap_px),
+          count: 1,
+          examples: [label],
+        });
+      }
+
+      if (rules.approvedColors.length > 0 && logo.fill_color_hex) {
+        const approved = new Set(rules.approvedColors.map(c => c.toUpperCase()));
+        if (!approved.has(logo.fill_color_hex.toUpperCase())) {
+          const near = nearest(logo.fill_color_hex, rules.approvedColors);
+          findings.push({
+            id: `logo-color-${logo.node_id}`,
+            kind: "logo",
+            severity: "high",
+            value: logo.fill_color_hex,
+            nearestMatch: near?.match ?? null,
+            distance: near?.distance ?? null,
+            count: 1,
+            examples: [label],
+          });
+        }
+      }
     }
   }
 

@@ -32,13 +32,46 @@ export interface NormalizedColorNode {
   bounds:           { x: number; y: number; width: number; height: number } | null;
 }
 
+export interface NormalizedSpacingNode {
+  node_id:      string;
+  node_name:    string;
+  layout_mode:  "HORIZONTAL" | "VERTICAL";
+  padding_left:   number;
+  padding_right:  number;
+  padding_top:    number;
+  padding_bottom: number;
+  item_spacing:   number;
+}
+
+export interface NormalizedLogoNode {
+  node_id:   string;
+  node_name: string;
+  bounds:    { x: number; y: number; width: number; height: number } | null;
+  fill_color_hex: string | null;
+  // Smallest gap (px) to any visible sibling in the same parent — the
+  // clear-space a brand guide typically wants a minimum around the logo.
+  // null when the logo is the only child (nothing to measure against).
+  min_sibling_gap_px: number | null;
+}
+
 export interface NormalizedSnapshot {
   frame_name:      string;
   frame_bounds:    { x: number; y: number; width: number; height: number } | null;
   text_nodes:      NormalizedTextNode[];
   color_nodes:     NormalizedColorNode[];
+  spacing_nodes:   NormalizedSpacingNode[];
+  logo_nodes:      NormalizedLogoNode[];
   raw_node_count:  number;
   visibility_stats: FigmaVisibilityStats;
+}
+
+// Axis-aligned gap between two boxes — 0 if they overlap, straight distance
+// if aligned on one axis, diagonal distance if offset on both.
+function boxGap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): number {
+  const hGap = Math.max(a.x - (b.x + b.width), b.x - (a.x + a.width), 0);
+  const vGap = Math.max(a.y - (b.y + b.height), b.y - (a.y + a.height), 0);
+  if (hGap > 0 && vGap > 0) return Math.sqrt(hGap * hGap + vGap * vGap);
+  return Math.max(hGap, vGap);
 }
 
 export interface FigmaVisibilityStats {
@@ -177,8 +210,10 @@ function shouldSkipByName(node: any, ancestorNames: string[], options: Required<
 }
 
 export function normalizeNodes(rootDoc: any, options: FigmaVisibilityOptions = {}): NormalizedSnapshot {
-  const text_nodes:  NormalizedTextNode[]  = [];
-  const color_nodes: NormalizedColorNode[] = [];
+  const text_nodes:    NormalizedTextNode[]    = [];
+  const color_nodes:   NormalizedColorNode[]   = [];
+  const spacing_nodes: NormalizedSpacingNode[] = [];
+  const logo_nodes:    NormalizedLogoNode[]    = [];
   const visibility_stats = emptyStats();
   const visibilityOptions = getFigmaVisibilityOptions(options);
   let raw_node_count = 0;
@@ -247,6 +282,19 @@ export function normalizeNodes(rootDoc: any, options: FigmaVisibilityOptions = {
       const dropShadow  = node.effects?.find((e: any) => e.type === "DROP_SHADOW" && e.visible !== false);
       const hasVisual   = solidFill || solidStroke || dropShadow || (node.cornerRadius ?? 0) > 0;
 
+      if ((node.layoutMode === "HORIZONTAL" || node.layoutMode === "VERTICAL")) {
+        spacing_nodes.push({
+          node_id:   node.id   ?? "",
+          node_name: node.name ?? "",
+          layout_mode: node.layoutMode,
+          padding_left:   node.paddingLeft   ?? 0,
+          padding_right:  node.paddingRight  ?? 0,
+          padding_top:    node.paddingTop    ?? 0,
+          padding_bottom: node.paddingBottom ?? 0,
+          item_spacing:   node.itemSpacing   ?? 0,
+        });
+      }
+
       if (hasVisual) {
         color_nodes.push({
           node_id:          node.id   ?? "",
@@ -273,8 +321,22 @@ export function normalizeNodes(rootDoc: any, options: FigmaVisibilityOptions = {
       const childClipBounds = node.clipsContent === true && node.absoluteBoundingBox
         ? [...ctx.clipBounds, node.absoluteBoundingBox]
         : ctx.clipBounds;
+      const siblings = (node.children ?? []).filter((c: any) => c?.visible !== false && c?.absoluteBoundingBox);
       let siblingMaskBounds: any | null = null;
       for (const child of node.children ?? []) {
+        if (typeof child?.name === "string" && /logo/i.test(child.name) && child.absoluteBoundingBox) {
+          const b = child.absoluteBoundingBox;
+          const others = siblings.filter((s: any) => s !== child);
+          const gaps = others.map((s: any) => boxGap(b, s.absoluteBoundingBox));
+          const fill = child.fills?.find((f: any) => f.type === "SOLID" && f.visible !== false)?.color;
+          logo_nodes.push({
+            node_id: child.id ?? "",
+            node_name: child.name ?? "",
+            bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+            fill_color_hex: fill ? rgbToHex(fill.r, fill.g, fill.b) : null,
+            min_sibling_gap_px: gaps.length > 0 ? Math.round(Math.min(...gaps)) : null,
+          });
+        }
         walk(child, {
           parentVisible: true,
           ancestorNames: [...ctx.ancestorNames, node.name ?? ""],
@@ -294,6 +356,8 @@ export function normalizeNodes(rootDoc: any, options: FigmaVisibilityOptions = {
     frame_bounds:   frame_bounds ?? (rootDoc?.absoluteBoundingBox ?? null),
     text_nodes,
     color_nodes,
+    spacing_nodes,
+    logo_nodes,
     raw_node_count,
     visibility_stats,
   };

@@ -34,9 +34,9 @@ export async function POST(req: NextRequest) {
   if (!brandGuide?.trim()) return NextResponse.json({ error: "Upload a brand guide (.md) file." }, { status: 400 });
 
   const brand = parseBrandGuide(brandGuide);
-  if (brand.colors.length === 0 && brand.fonts.length === 0) {
+  if (brand.colors.length === 0 && brand.fonts.length === 0 && brand.spacing.length === 0 && !brand.logo) {
     return NextResponse.json({
-      error: "Could not find any colors or fonts in that brand guide. Wrap approved hex colors and font names in backticks, e.g. `#3366CC` or `Inter`.",
+      error: "Could not find any checkable rules in that brand guide. Wrap approved hex colors and font names in backticks, e.g. `#3366CC` or `Inter` — or add a Spacing/Logo section.",
     }, { status: 422 });
   }
 
@@ -76,8 +76,12 @@ export async function POST(req: NextRequest) {
     checkedAt: new Date().toISOString(),
     brandColors: brand.colors,
     brandFonts: brand.fonts,
+    brandSpacing: brand.spacing,
+    brandLogo: brand.logo,
     colorsChecked: snapshot.color_nodes.length + snapshot.text_nodes.length,
     textNodesChecked: snapshot.text_nodes.length,
+    spacingNodesChecked: snapshot.spacing_nodes.length,
+    logoNodesFound: snapshot.logo_nodes.length,
     findings,
   });
 }

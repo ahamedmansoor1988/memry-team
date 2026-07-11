@@ -8,6 +8,8 @@ import {
   Loader2,
   Palette,
   Play,
+  Ruler,
+  ShieldCheck,
   Type,
   UploadCloud,
   X,
@@ -17,7 +19,7 @@ import { ScanHelpToggle } from "@/components/scan-help-toggle";
 
 interface BrandFinding {
   id: string;
-  kind: "color" | "font";
+  kind: "color" | "font" | "spacing" | "logo";
   severity: "high" | "medium" | "low";
   value: string;
   nearestMatch: string | null;
@@ -31,8 +33,12 @@ interface CheckResult {
   checkedAt: string;
   brandColors: string[];
   brandFonts: string[];
+  brandSpacing: number[];
+  brandLogo: { minSizePx: number | null; minClearSpacePx: number | null; approvedColors: string[] } | null;
   colorsChecked: number;
   textNodesChecked: number;
+  spacingNodesChecked: number;
+  logoNodesFound: number;
   findings: BrandFinding[];
 }
 
@@ -80,8 +86,17 @@ function OnboardingPanels() {
 
 ## Typography
 - Headings: \`Inter\`
-- Body: \`Inter\``}
+- Body: \`Inter\`
+
+## Spacing
+- Grid: \`8px\`, \`16px\`, \`24px\`, \`32px\`
+
+## Logo
+- Minimum size: \`24px\`
+- Minimum clear space: \`16px\`
+- Approved colors: \`#000000\`, \`#FFFFFF\``}
         </pre>
+        <p className="mt-2 text-[11px] leading-relaxed text-[#a1a1aa]">Spacing and Logo sections are optional — colors and fonts alone are enough to run a check.</p>
       </div>
     </div>
   );
@@ -91,17 +106,30 @@ function swatchStyle(hex: string) {
   return /^#[0-9A-Fa-f]{6}$/.test(hex) ? { background: hex } : { background: "#e5e5e5" };
 }
 
+const KIND_LABEL: Record<BrandFinding["kind"], string> = {
+  color: "Off-brand color",
+  font: "Unapproved font",
+  spacing: "Off-grid spacing",
+  logo: "Logo rule violation",
+};
+
+function logoHeadline(finding: BrandFinding): string {
+  if (finding.id.startsWith("logo-size-")) return `Logo renders at ${finding.value} — smaller than the minimum`;
+  if (finding.id.startsWith("logo-clearspace-")) return `Only ${finding.value} around the logo — below the required minimum`;
+  return `Logo uses ${finding.value}, not an approved logo color`;
+}
+
 function FindingCard({ finding, index }: { finding: BrandFinding; index: number }) {
   return (
     <div className="rounded-xl border border-black/[0.08] bg-white p-4">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{index}</span>
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize ${SEVERITY_CLASS[finding.severity]}`}>{finding.severity}</span>
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{finding.kind === "color" ? "Off-brand color" : "Unapproved font"}</span>
-        <span className="ml-auto text-[11px] text-[#a1a1aa]">{finding.count} use{finding.count === 1 ? "" : "s"}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">{KIND_LABEL[finding.kind]}</span>
+        {finding.count > 1 && <span className="ml-auto text-[11px] text-[#a1a1aa]">{finding.count} uses</span>}
       </div>
 
-      {finding.kind === "color" ? (
+      {finding.kind === "color" && (
         <div className="flex items-center gap-3">
           <span className="h-8 w-8 shrink-0 rounded-lg border border-black/[0.1]" style={swatchStyle(finding.value)} />
           <div>
@@ -118,10 +146,40 @@ function FindingCard({ finding, index }: { finding: BrandFinding; index: number 
             )}
           </div>
         </div>
-      ) : (
+      )}
+
+      {finding.kind === "font" && (
         <div>
           <p className="text-[13px] font-semibold text-[#17171c]">"{finding.value}" is not an approved font</p>
           {finding.nearestMatch && <p className="mt-0.5 text-[12px] text-[#4b5563]">Brand guide specifies: {finding.nearestMatch}</p>}
+        </div>
+      )}
+
+      {finding.kind === "spacing" && (
+        <div>
+          <p className="text-[13px] font-semibold text-[#17171c]">{finding.value} spacing is not on the approved grid</p>
+          {finding.nearestMatch && (
+            <p className="mt-0.5 text-[12px] text-[#4b5563]">
+              Nearest approved value: {finding.nearestMatch}
+              {typeof finding.distance === "number" && <span className="text-[#a1a1aa]"> ({finding.distance}px off)</span>}
+            </p>
+          )}
+        </div>
+      )}
+
+      {finding.kind === "logo" && (
+        <div>
+          <p className="text-[13px] font-semibold text-[#17171c]">{logoHeadline(finding)}</p>
+          {finding.nearestMatch && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[#4b5563]">
+              Required: {finding.id.startsWith("logo-color-") ? (
+                <span className="inline-flex items-center gap-1 font-mono">
+                  <span className="h-3 w-3 rounded-sm border border-black/[0.1]" style={swatchStyle(finding.nearestMatch)} />
+                  {finding.nearestMatch}
+                </span>
+              ) : finding.nearestMatch}
+            </p>
+          )}
         </div>
       )}
 
@@ -185,6 +243,8 @@ export default function BrandConsistencyPage() {
 
   const colorFindings = result?.findings.filter(f => f.kind === "color") ?? [];
   const fontFindings = result?.findings.filter(f => f.kind === "font") ?? [];
+  const spacingFindings = result?.findings.filter(f => f.kind === "spacing") ?? [];
+  const logoFindings = result?.findings.filter(f => f.kind === "logo") ?? [];
 
   return (
     <div className="h-full overflow-y-auto bg-white text-[#0f0f0f]">
@@ -195,7 +255,7 @@ export default function BrandConsistencyPage() {
           </div>
           <div>
             <h1 className="flex items-center gap-2 text-[17px] font-semibold">Brand Consistency <BetaTag /></h1>
-            <p className="mt-0.5 text-[12px] text-[#71717a]">Upload your brand guide, point at a Figma file, and find colors and fonts that don't match.</p>
+            <p className="mt-0.5 text-[12px] text-[#71717a]">Upload your brand guide, point at a Figma file, and find colors, fonts, spacing, and logo usage that don't match.</p>
           </div>
         </div>
 
@@ -268,7 +328,11 @@ export default function BrandConsistencyPage() {
                 <Palette size={15} className="mt-0.5 shrink-0 text-emerald-600" />
                 <div>
                   <p className="text-[13px] font-medium text-emerald-800">Everything matches the brand guide.</p>
-                  <p className="mt-0.5 text-[12px] text-emerald-700">Checked {result.textNodesChecked} text layers against {result.brandColors.length} colors and {result.brandFonts.length} fonts.</p>
+                  <p className="mt-0.5 text-[12px] text-emerald-700">
+                    Checked {result.textNodesChecked} text layers against {result.brandColors.length} colors and {result.brandFonts.length} fonts
+                    {result.brandSpacing.length > 0 && `, ${result.spacingNodesChecked} auto-layout frames against the spacing grid`}
+                    {result.brandLogo && result.logoNodesFound > 0 && `, and ${result.logoNodesFound} logo layer${result.logoNodesFound === 1 ? "" : "s"}`}.
+                  </p>
                 </div>
               </div>
             )}
@@ -290,22 +354,48 @@ export default function BrandConsistencyPage() {
                 {fontFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
               </div>
             )}
+
+            {spacingFindings.length > 0 && (
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
+                  <Ruler size={12} /> Spacing · {spacingFindings.length} off-grid
+                </p>
+                {spacingFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
+              </div>
+            )}
+
+            {logoFindings.length > 0 && (
+              <div className="space-y-2">
+                <p className="flex items-center gap-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">
+                  <ShieldCheck size={12} /> Logo · {logoFindings.length} issue{logoFindings.length === 1 ? "" : "s"}
+                </p>
+                {logoFindings.map((f, i) => <FindingCard key={f.id} finding={f} index={i + 1} />)}
+              </div>
+            )}
           </section>
 
           <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-white p-3">
+              <div className="col-span-2 rounded-lg bg-white p-3">
                 <p className="text-[22px] font-semibold leading-none">{result ? result.findings.length : "—"}</p>
-                <p className="mt-1 text-[11px] text-[#71717a]">Off-brand</p>
+                <p className="mt-1 text-[11px] text-[#71717a]">Total off-brand</p>
               </div>
               <div className="rounded-lg bg-white p-3">
                 <p className="text-[22px] font-semibold leading-none">{result ? colorFindings.length : "—"}</p>
                 <p className="mt-1 text-[11px] text-[#71717a]">Colors</p>
               </div>
-              <div className="col-span-2 rounded-lg bg-white p-3">
+              <div className="rounded-lg bg-white p-3">
                 <p className="text-[22px] font-semibold leading-none">{result ? fontFindings.length : "—"}</p>
                 <p className="mt-1 text-[11px] text-[#71717a]">Fonts</p>
+              </div>
+              <div className="rounded-lg bg-white p-3">
+                <p className="text-[22px] font-semibold leading-none">{result ? spacingFindings.length : "—"}</p>
+                <p className="mt-1 text-[11px] text-[#71717a]">Spacing</p>
+              </div>
+              <div className="rounded-lg bg-white p-3">
+                <p className="text-[22px] font-semibold leading-none">{result ? logoFindings.length : "—"}</p>
+                <p className="mt-1 text-[11px] text-[#71717a]">Logo</p>
               </div>
             </div>
             <div className="mt-4 border-t border-black/[0.06] pt-3">
@@ -313,11 +403,13 @@ export default function BrandConsistencyPage() {
                 <>
                   <p className="text-[11px] text-[#71717a]">Frame: {result.frameName}</p>
                   <p className="mt-1 text-[11px] leading-relaxed text-[#71717a]">
-                    Brand palette: {result.brandColors.length} color{result.brandColors.length === 1 ? "" : "s"} · {result.brandFonts.length} font{result.brandFonts.length === 1 ? "" : "s"}
+                    Brand: {result.brandColors.length} color{result.brandColors.length === 1 ? "" : "s"} · {result.brandFonts.length} font{result.brandFonts.length === 1 ? "" : "s"}
+                    {result.brandSpacing.length > 0 && ` · ${result.brandSpacing.length} spacing value${result.brandSpacing.length === 1 ? "" : "s"}`}
+                    {result.brandLogo && " · logo rules"}
                   </p>
                 </>
               ) : (
-                <p className="text-[11px] text-[#71717a]">Checks every text layer's font and every fill/stroke color against your brand guide.</p>
+                <p className="text-[11px] text-[#71717a]">Checks every text layer's font, every fill/stroke color, auto-layout spacing, and logo sizing/clear-space/color against your brand guide.</p>
               )}
             </div>
           </aside>
