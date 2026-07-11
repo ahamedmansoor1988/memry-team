@@ -1048,8 +1048,13 @@ async function inspectBrand(page) {
     function isVisible(el) {
       const cs = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
-      return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0" &&
-        rect.width > 0 && rect.height > 0;
+      if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
+      if (rect.width < 2 || rect.height < 2) return false;
+      // Screen-reader-only technique: real content pushed miles off-canvas
+      // via a large negative offset. Not hidden by CSS visibility rules, so
+      // isVisible() alone lets it through — it just isn't real page content.
+      if (rect.right < -500 || rect.bottom < -500 || rect.left > 20000 || rect.top > 20000) return false;
+      return true;
     }
 
     function labelFor(el) {
@@ -1157,13 +1162,19 @@ async function inspectBrand(page) {
       return smaller > 0 ? inter / smaller : 0;
     }
 
-    // A real logo lockup is small — this also throws out accidental matches
-    // like a body/html class that merely contains the substring "logo".
+    // A real logo lockup is small and lives in the header — this also
+    // throws out accidental matches like a body/html class that merely
+    // contains the substring "logo", and third-party social/share icons
+    // (e.g. a Facebook widget's "facebook-logo-button") sitting deep in
+    // the page far from any real brand mark.
+    const HEADER_ZONE_PX = 600;
     const candidates = [];
     for (const el of logoEls) {
       if (!isVisible(el)) continue;
       const rect = el.getBoundingClientRect();
       if (rect.width < 8 || rect.height < 8 || rect.width > 400 || rect.height > 200) continue;
+      const pageY = rect.top + window.scrollY;
+      if (pageY > HEADER_ZONE_PX) continue;
       candidates.push({ el, rect, area: rect.width * rect.height });
     }
     // Smallest first, so when a wrapper <a>/<div> and the <img> inside it
@@ -1234,6 +1245,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v3" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v4" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));

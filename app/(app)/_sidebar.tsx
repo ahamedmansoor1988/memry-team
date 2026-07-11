@@ -10,9 +10,8 @@ import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
-  { id: "history",       label: "History",        icon: History, beta: false },
+  { id: "brand-consistency", label: "Brand Check", icon: Palette, beta: false },
   { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
-  { id: "brand-consistency", label: "Brand Check", icon: Palette, beta: true },
 ];
 
 export function BetaTag({ className = "" }: { className?: string }) {
@@ -92,6 +91,15 @@ export function Sidebar({ userEmail }: Props) {
             </span>
           </Link>
         )}
+        <Link
+          href="/agents/history"
+          className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
+            pathname.startsWith("/agents/history") ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+          }`}
+        >
+          <History size={14} strokeWidth={1.75} />
+          <span className="text-[13px] font-medium">History</span>
+        </Link>
         <Link
           href="/agents/settings"
           className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
