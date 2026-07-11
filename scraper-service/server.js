@@ -1032,7 +1032,141 @@ app.post("/accessibility", async (req, res) => {
   }
 });
 
+// Live-page equivalent of lib/figma-normalize.ts's NormalizedSnapshot —
+// shaped so the exact same checkBrandConsistency() logic that runs on
+// Figma data can run unmodified on a rendered webpage.
+async function inspectBrand(page) {
+  return page.evaluate(() => {
+    function rgbToHex(rgb) {
+      if (!rgb || rgb === "transparent" || rgb === "rgba(0, 0, 0, 0)") return null;
+      const m = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+      if (!m) return null;
+      if (m[4] !== undefined && parseFloat(m[4]) < 0.5) return null; // near-transparent, not a real fill
+      return "#" + [m[1], m[2], m[3]].map(x => parseInt(x).toString(16).padStart(2, "0").toUpperCase()).join("");
+    }
+
+    function isVisible(el) {
+      const cs = window.getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0" &&
+        rect.width > 0 && rect.height > 0;
+    }
+
+    function labelFor(el) {
+      const aria = el.getAttribute("aria-label");
+      if (aria) return aria.slice(0, 60);
+      const id = el.id ? `#${el.id}` : "";
+      const cls = String(el.className || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".");
+      return `${el.tagName.toLowerCase()}${id}${cls ? "." + cls : ""}`;
+    }
+
+    const text_nodes = [];
+    const color_nodes = [];
+    const seenColorEls = new Set();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    let count = 0;
+    while ((node = walker.nextNode()) && count < 3000) {
+      const text = node.textContent.trim();
+      if (text.length < 2 || text.length > 300) continue;
+      const el = node.parentElement;
+      if (!el || !isVisible(el)) continue;
+      count++;
+      const cs = window.getComputedStyle(el);
+      text_nodes.push({
+        node_id: "", node_name: labelFor(el), content: text,
+        font_family: cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
+        font_size: parseFloat(cs.fontSize) || 0,
+        font_weight: parseInt(cs.fontWeight, 10) || 400,
+        font_style: cs.fontStyle === "italic" ? "italic" : "normal",
+        letter_spacing: 0, line_height_px: 0, text_align: cs.textAlign || "left",
+        fill_color: rgbToHex(cs.color) || "#000000",
+        style_id: null, fill_style_id: null, bounds: null,
+      });
+    }
+
+    for (const el of document.body.querySelectorAll("*")) {
+      if (!isVisible(el) || seenColorEls.has(el)) continue;
+      const cs = window.getComputedStyle(el);
+      const bg = rgbToHex(cs.backgroundColor);
+      const border = cs.borderTopWidth !== "0px" ? rgbToHex(cs.borderTopColor) : null;
+      if (!bg && !border) continue;
+      seenColorEls.add(el);
+      color_nodes.push({
+        node_id: "", node_name: labelFor(el), node_type: el.tagName,
+        fill_color_hex: bg, fill_opacity: bg ? 1 : null,
+        stroke_color_hex: border, stroke_width: border ? parseFloat(cs.borderTopWidth) : null,
+        border_radius: parseFloat(cs.borderTopLeftRadius) || null, shadow: null,
+        bounds: null,
+      });
+      if (color_nodes.length >= 1500) break;
+    }
+
+    const logo_nodes = [];
+    const logoEls = document.querySelectorAll(
+      "img[alt*='logo' i], [class*='logo' i], [id*='logo' i], svg[aria-label*='logo' i]"
+    );
+    function boxGap(a, b) {
+      const hGap = Math.max(a.left - b.right, b.left - a.right, 0);
+      const vGap = Math.max(a.top - b.bottom, b.top - a.bottom, 0);
+      if (hGap > 0 && vGap > 0) return Math.sqrt(hGap * hGap + vGap * vGap);
+      return Math.max(hGap, vGap);
+    }
+    for (const el of logoEls) {
+      if (!isVisible(el) || logo_nodes.length >= 10) continue;
+      const rect = el.getBoundingClientRect();
+      const cs = window.getComputedStyle(el);
+      const siblings = el.parentElement
+        ? [...el.parentElement.children].filter(s => s !== el && isVisible(s))
+        : [];
+      const gaps = siblings.map(s => boxGap(rect, s.getBoundingClientRect()));
+      logo_nodes.push({
+        node_id: "", node_name: labelFor(el),
+        bounds: { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
+        fill_color_hex: rgbToHex(cs.backgroundColor) || rgbToHex(cs.color),
+        min_sibling_gap_px: gaps.length > 0 ? Math.round(Math.min(...gaps)) : null,
+      });
+    }
+
+    return {
+      frame_name: document.title || location.hostname,
+      frame_bounds: null,
+      text_nodes, color_nodes, spacing_nodes: [], logo_nodes,
+      raw_node_count: text_nodes.length + color_nodes.length,
+      visibility_stats: {},
+    };
+  });
+}
+
+// POST /brand-scan — live-page equivalent of the Figma brand-check data source
+app.post("/brand-scan", async (req, res) => {
+  const { url } = req.body ?? {};
+  if (!url || typeof url !== "string") {
+    return res.status(400).json({ error: "url is required" });
+  }
+
+  let page;
+  try {
+    const b = await getBrowser();
+    page = await b.newPage();
+    await page.route("**/*", route => {
+      const type = route.request().resourceType();
+      if (type === "media") return route.abort();
+      return route.continue();
+    });
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+
+    const snapshot = await inspectBrand(page);
+    res.json({ url, checkedAt: new Date().toISOString(), snapshot });
+  } catch (err) {
+    console.error("[brand-scan] error:", err.message);
+    res.status(500).json({ error: err.message });
+  } finally {
+    if (page) await page.close().catch(() => {});
+  }
+});
+
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "layout-v1" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v1" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));

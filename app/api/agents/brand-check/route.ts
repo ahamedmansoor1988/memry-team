@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { normalizeNodes } from "@/lib/figma-normalize";
+import { normalizeNodes, type NormalizedSnapshot } from "@/lib/figma-normalize";
 import { parseBrandGuide } from "@/lib/brand-guide";
 import { checkBrandConsistency } from "@/lib/brand-check";
 import { checkDailyLimit, clientIp } from "@/lib/rate-limit";
@@ -13,6 +13,16 @@ async function figmaFetch(pat: string, path: string): Promise<Response> {
   return fetch(`https://api.figma.com/v1${path}`, { headers: { "X-Figma-Token": pat } });
 }
 
+function normalizeUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw.trim());
+    if (!["http:", "https:"].includes(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const limit = await checkDailyLimit(`ip:${clientIp(req)}`, "brand-check", FREE_CHECKS_PER_DAY);
   if (!limit.allowed) {
@@ -22,15 +32,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { fileKey?: string; nodeId?: string; pat?: string; brandGuide?: string };
+  let body: { fileKey?: string; nodeId?: string; pat?: string; brandGuide?: string; url?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { fileKey, nodeId, pat, brandGuide } = body;
-  if (!fileKey || !pat) return NextResponse.json({ error: "A Figma file URL and personal access token are required." }, { status: 400 });
+  const { fileKey, nodeId, pat, brandGuide, url } = body;
+  const source: "figma" | "url" = url ? "url" : "figma";
+
+  if (source === "figma" && (!fileKey || !pat)) {
+    return NextResponse.json({ error: "A Figma file URL and personal access token are required." }, { status: 400 });
+  }
   if (!brandGuide?.trim()) return NextResponse.json({ error: "Upload a brand guide (.md) file." }, { status: 400 });
 
   const brand = parseBrandGuide(brandGuide);
@@ -40,38 +54,66 @@ export async function POST(req: NextRequest) {
     }, { status: 422 });
   }
 
-  let rootDoc: unknown;
+  let snapshot: NormalizedSnapshot;
   let frameName = "Whole file";
-  try {
-    if (nodeId) {
-      const res = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=15`);
+
+  if (source === "url") {
+    const normalized = normalizeUrl(url!);
+    if (!normalized) return NextResponse.json({ error: "That doesn't look like a valid http(s) URL." }, { status: 400 });
+    const base = process.env.SCRAPER_SERVICE_URL;
+    if (!base) return NextResponse.json({ error: "The browser scanner is not configured." }, { status: 503 });
+
+    try {
+      const res = await fetch(`${base}/brand-scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalized }),
+        signal: AbortSignal.timeout(45_000),
+      });
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        return NextResponse.json({ error: `Figma API error ${res.status}: ${txt.slice(0, 200)}` }, { status: res.status >= 500 ? 502 : 422 });
+        return NextResponse.json({ error: `Could not scan that page: ${txt.slice(0, 200)}` }, { status: 502 });
       }
       const data = await res.json();
-      rootDoc = data?.nodes?.[nodeId]?.document;
-      frameName = (rootDoc as { name?: string })?.name ?? frameName;
-      if (!rootDoc) return NextResponse.json({ error: "That frame was not found in the Figma file." }, { status: 404 });
-    } else {
-      const res = await figmaFetch(pat, `/files/${fileKey}?depth=15`);
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        return NextResponse.json({ error: `Figma API error ${res.status}: ${txt.slice(0, 200)}` }, { status: res.status >= 500 ? 502 : 422 });
-      }
-      const data = await res.json();
-      rootDoc = data?.document;
-      frameName = data?.name ?? frameName;
-      if (!rootDoc) return NextResponse.json({ error: "Could not read that Figma file." }, { status: 404 });
+      snapshot = data.snapshot as NormalizedSnapshot;
+      frameName = data.url ?? normalized;
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Could not reach the scanner." }, { status: 503 });
     }
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Could not reach Figma." }, { status: 503 });
+  } else {
+    let rootDoc: unknown;
+    try {
+      if (nodeId) {
+        const res = await figmaFetch(pat!, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=15`);
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          return NextResponse.json({ error: `Figma API error ${res.status}: ${txt.slice(0, 200)}` }, { status: res.status >= 500 ? 502 : 422 });
+        }
+        const data = await res.json();
+        rootDoc = data?.nodes?.[nodeId]?.document;
+        frameName = (rootDoc as { name?: string })?.name ?? frameName;
+        if (!rootDoc) return NextResponse.json({ error: "That frame was not found in the Figma file." }, { status: 404 });
+      } else {
+        const res = await figmaFetch(pat!, `/files/${fileKey}?depth=15`);
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          return NextResponse.json({ error: `Figma API error ${res.status}: ${txt.slice(0, 200)}` }, { status: res.status >= 500 ? 502 : 422 });
+        }
+        const data = await res.json();
+        rootDoc = data?.document;
+        frameName = data?.name ?? frameName;
+        if (!rootDoc) return NextResponse.json({ error: "Could not read that Figma file." }, { status: 404 });
+      }
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Could not reach Figma." }, { status: 503 });
+    }
+    snapshot = normalizeNodes(rootDoc);
   }
 
-  const snapshot = normalizeNodes(rootDoc);
   const findings = checkBrandConsistency(snapshot, brand);
 
   return NextResponse.json({
+    source,
     frameName,
     checkedAt: new Date().toISOString(),
     brandColors: brand.colors,
