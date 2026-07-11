@@ -4,17 +4,15 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings, MonitorCheck, Accessibility, GitCompareArrows, AlertTriangle, Palette } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings, Accessibility, AlertTriangle, Palette } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
   { id: "history",       label: "History",        icon: History, beta: false },
-  { id: "responsive",    label: "Layout QA",    icon: MonitorCheck, beta: true },
   { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
-  { id: "screenshot-diff", label: "Screenshot Diff", icon: GitCompareArrows, beta: true },
-  { id: "brand-consistency", label: "Brand Consistency", icon: Palette, beta: true },
+  { id: "brand-consistency", label: "Branding", icon: Palette, beta: true },
 ];
 
 export function BetaTag({ className = "" }: { className?: string }) {
