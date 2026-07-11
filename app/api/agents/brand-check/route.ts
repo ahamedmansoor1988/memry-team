@@ -3,11 +3,13 @@ import { normalizeNodes, type NormalizedSnapshot } from "@/lib/figma-normalize";
 import { parseBrandGuide } from "@/lib/brand-guide";
 import { checkBrandConsistency } from "@/lib/brand-check";
 import { checkDailyLimit, clientIp } from "@/lib/rate-limit";
+import { createClient as createAuthClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const FREE_CHECKS_PER_DAY = 10;
+const BRAND_CHECKS_PER_DAY = 100;
+const ANONYMOUS_CHECKS_PER_DAY = 10;
 
 async function figmaFetch(pat: string, path: string): Promise<Response> {
   return fetch(`https://api.figma.com/v1${path}`, { headers: { "X-Figma-Token": pat } });
@@ -24,10 +26,14 @@ function normalizeUrl(raw: string): string | null {
 }
 
 export async function POST(req: NextRequest) {
-  const limit = await checkDailyLimit(`ip:${clientIp(req)}`, "brand-check", FREE_CHECKS_PER_DAY);
+  const supabase = await createAuthClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const limitKey = user ? `user:${user.id}` : `ip:${clientIp(req)}`;
+  const limitCount = user ? BRAND_CHECKS_PER_DAY : ANONYMOUS_CHECKS_PER_DAY;
+  const limit = await checkDailyLimit(limitKey, "brand-check", limitCount);
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: `Daily free check limit reached (${FREE_CHECKS_PER_DAY}/day). Come back tomorrow.` },
+      { error: `Daily brand check limit reached (${limitCount}/day). Come back tomorrow.` },
       { status: 429 }
     );
   }
