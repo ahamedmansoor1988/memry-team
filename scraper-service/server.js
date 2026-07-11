@@ -1100,6 +1100,47 @@ async function inspectBrand(page) {
       return { x: Math.round(r.left + window.scrollX), y: Math.round(r.top + window.scrollY), width: Math.round(r.width), height: Math.round(r.height) };
     }
 
+    const SYSTEM_FONTS = new Set(["system-ui", "-apple-system", "blinkmacsystemfont", "sans-serif", "serif", "monospace", "arial", "helvetica", "times", "times new roman", "roboto"]);
+    function firstBrandFont(fontFamily) {
+      const fonts = String(fontFamily || "")
+        .split(",")
+        .map(font => font.replace(/['"]/g, "").trim())
+        .filter(Boolean);
+      return fonts.find(font => !SYSTEM_FONTS.has(font.toLowerCase())) || fonts[0] || "";
+    }
+
+    function hasVisibleText(el) {
+      return Boolean(el.innerText && el.innerText.trim().length > 0);
+    }
+
+    function isInteractive(el) {
+      return Boolean(el.closest("a, button, input, select, textarea, [role='button'], [role='link'], [role='menuitem'], [tabindex]"));
+    }
+
+    function isMediaOrArtwork(el) {
+      const identity = `${el.tagName} ${el.id || ""} ${String(el.className || "")} ${el.getAttribute("aria-label") || ""}`.toLowerCase();
+      if (/^(IMG|PICTURE|VIDEO|CANVAS|SOURCE)$/i.test(el.tagName)) return true;
+      if (el.closest("picture, video, canvas")) return true;
+      if (el.querySelector("img, picture, video, canvas")) {
+        const rect = el.getBoundingClientRect();
+        if (!hasVisibleText(el) || rect.width * rect.height > 120000) return true;
+      }
+      return /\b(gallery|media|artwork|poster|photo|picture|image|product-image|animation|canvas|viewport-content)\b/.test(identity) &&
+        !isInteractive(el);
+    }
+
+    function shouldInspectColorElement(el, cs) {
+      if (isMediaOrArtwork(el)) return false;
+      const rect = el.getBoundingClientRect();
+      const area = rect.width * rect.height;
+      const bg = rgbToHex(cs.backgroundColor);
+      const border = cs.borderTopWidth !== "0px" ? rgbToHex(cs.borderTopColor) : null;
+      if (!bg && !border) return false;
+      if (area > 180000 && !hasVisibleText(el) && !isInteractive(el)) return false;
+      if (area > 400000 && cs.backgroundImage && cs.backgroundImage !== "none") return false;
+      return true;
+    }
+
     const text_nodes = [];
     const color_nodes = [];
     const seenColorEls = new Set();
@@ -1115,7 +1156,7 @@ async function inspectBrand(page) {
       const cs = window.getComputedStyle(el);
       text_nodes.push({
         node_id: "", node_name: labelFor(el), content: text,
-        font_family: cs.fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
+        font_family: firstBrandFont(cs.fontFamily),
         font_size: parseFloat(cs.fontSize) || 0,
         font_weight: parseInt(cs.fontWeight, 10) || 400,
         font_style: cs.fontStyle === "italic" ? "italic" : "normal",
@@ -1129,9 +1170,9 @@ async function inspectBrand(page) {
     for (const el of document.body.querySelectorAll("*")) {
       if (!isVisible(el) || seenColorEls.has(el)) continue;
       const cs = window.getComputedStyle(el);
+      if (!shouldInspectColorElement(el, cs)) continue;
       const bg = rgbToHex(cs.backgroundColor);
       const border = cs.borderTopWidth !== "0px" ? rgbToHex(cs.borderTopColor) : null;
-      if (!bg && !border) continue;
       seenColorEls.add(el);
       color_nodes.push({
         node_id: "", node_name: labelFor(el), node_type: el.tagName,

@@ -1,9 +1,9 @@
 /**
  * Parses a freeform brand-guide markdown file into a checkable spec.
- * Convention: wrap approved hex colors and font names in backticks
- * anywhere in the doc, e.g. `#3366CC` or `Inter`. Colors and fonts are
- * picked up document-wide regardless of section, so a simple guide with
- * no headings at all still works.
+ * Convention: wrap approved hex colors and font names in backticks, e.g.
+ * `#3366CC` or `Inter`. Colors are picked up document-wide. Fonts are only
+ * picked up from typography/font-family context so unrelated tokens like
+ * shadows, radii, and CSS snippets do not become bogus approved fonts.
  *
  * Spacing and logo rules are opt-in and section-scoped: put them under a
  * heading containing "spacing"/"grid" or "logo" so they don't get
@@ -25,6 +25,8 @@ export interface BrandGuide {
 
 const HEX_RE = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/;
 const PX_RE = /^(\d+(?:\.\d+)?)\s*px$/i;
+const TYPOGRAPHY_RE = /font|typeface|typography|text style/i;
+const SYSTEM_FONTS = new Set(["system-ui", "-apple-system", "blinkmacsystemfont", "sans-serif", "serif", "monospace", "arial", "helvetica", "times", "times new roman", "roboto"]);
 
 function normalizeHex(hex: string): string {
   const h = hex.slice(1);
@@ -53,6 +55,36 @@ function backtickTokens(text: string): string[] {
   return Array.from(text.matchAll(/`([^`\n]+)`/g)).map(m => m[1].trim());
 }
 
+function splitFontList(value: string): string[] {
+  return value
+    .split(",")
+    .map(font => font.replace(/^['"]|['"]$/g, "").trim())
+    .filter(Boolean);
+}
+
+function isLikelyFontName(token: string): boolean {
+  if (!token || token.length > 60) return false;
+  if (HEX_RE.test(token) || PX_RE.test(token)) return false;
+  if (/rgba?\(|hsla?\(|#[0-9a-f]{3,6}\b/i.test(token)) return false;
+  if (/[{};]/.test(token)) return false;
+  if (/\b\d+(?:px|rem|em|%)\b/i.test(token)) return false;
+  if (!/[a-z]/i.test(token)) return false;
+  const normalized = token.toLowerCase();
+  if (SYSTEM_FONTS.has(normalized)) return false;
+  return /^[\w .+'-]+$/.test(token);
+}
+
+function addFont(fonts: string[], seenFonts: Set<string>, token: string) {
+  for (const rawFont of splitFontList(token)) {
+    if (!isLikelyFontName(rawFont)) continue;
+    const key = rawFont.toLowerCase();
+    if (!seenFonts.has(key)) {
+      seenFonts.add(key);
+      fonts.push(rawFont);
+    }
+  }
+}
+
 export function parseBrandGuide(markdown: string): BrandGuide {
   const colors = new Set<string>();
   const fonts: string[] = [];
@@ -61,12 +93,6 @@ export function parseBrandGuide(markdown: string): BrandGuide {
   for (const token of backtickTokens(markdown)) {
     if (HEX_RE.test(token)) {
       colors.add(normalizeHex(token));
-    } else if (token.length > 0 && token.length < 60 && !PX_RE.test(token)) {
-      const key = token.toLowerCase();
-      if (!seenFonts.has(key)) {
-        seenFonts.add(key);
-        fonts.push(token);
-      }
     }
   }
 
@@ -80,6 +106,20 @@ export function parseBrandGuide(markdown: string): BrandGuide {
   let logo: LogoRules | null = null;
 
   for (const section of splitSections(markdown)) {
+    const inTypographySection = TYPOGRAPHY_RE.test(section.heading);
+    for (const line of section.body.split("\n")) {
+      const isTypographyLine = inTypographySection || TYPOGRAPHY_RE.test(line);
+      if (!isTypographyLine) continue;
+
+      for (const token of backtickTokens(line)) {
+        if (!HEX_RE.test(token)) addFont(fonts, seenFonts, token);
+      }
+
+      for (const match of line.matchAll(/font(?:-family|Family)?\s*:\s*["']([^"']+)["']/gi)) {
+        addFont(fonts, seenFonts, match[1]);
+      }
+    }
+
     if (/spacing|grid/i.test(section.heading)) {
       for (const token of backtickTokens(section.body)) {
         const px = token.match(PX_RE);
