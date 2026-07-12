@@ -1278,6 +1278,25 @@ app.post("/brand-scan", async (req, res) => {
     });
     await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
 
+    // Custom web fonts (font-display: swap/fallback) often haven't finished
+    // downloading by the time "networkidle" fires — measuring immediately
+    // captures the system fallback (e.g. "SF Pro Text") instead of the
+    // brand's actual typeface, producing false "unapproved font" findings.
+    // Same fix already used by /scrape's extractStyles().
+    await page.evaluate(async () => {
+      const fontFamilies = [...document.styleSheets]
+        .flatMap(sheet => {
+          try { return [...sheet.cssRules]; } catch { return []; }
+        })
+        .filter(rule => rule instanceof CSSFontFaceRule)
+        .map(rule => rule.style.getPropertyValue("font-family").replace(/['"]/g, "").trim());
+      await Promise.all([
+        document.fonts.ready,
+        ...fontFamilies.map(f => document.fonts.load(`16px ${f}`).catch(() => {})),
+      ]);
+      await new Promise(r => setTimeout(r, 500));
+    });
+
     const snapshot = await inspectBrand(page);
     const screenshot = await captureScreenshot(page, 1440);
     res.json({ url, checkedAt: new Date().toISOString(), snapshot, screenshot });
@@ -1290,6 +1309,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v5" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v6" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
