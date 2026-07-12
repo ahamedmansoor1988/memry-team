@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle,
   Check,
-  ChevronDown,
   ExternalLink,
   Loader2,
   Palette,
@@ -15,7 +14,6 @@ import {
 } from "lucide-react";
 import { BetaTag } from "@/app/(app)/_sidebar";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
-import { AnnotatedScreenshot, type Screenshot } from "@/components/qa-report";
 
 interface BrandFinding {
   id: string;
@@ -45,7 +43,6 @@ interface CheckResult {
   textNodesChecked: number;
   spacingNodesChecked: number;
   logoNodesFound: number;
-  screenshot?: Screenshot | null;
   findings: BrandFinding[];
 }
 
@@ -236,7 +233,6 @@ export default function BrandConsistencyPage() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [source, setSource] = useState<"figma" | "url">("figma");
   const [liveUrl, setLiveUrl] = useState("");
-  const [visualOpen, setVisualOpen] = useState(false);
 
   useEffect(() => {
     setPat(localStorage.getItem("loupe_pat") ?? "");
@@ -282,14 +278,6 @@ export default function BrandConsistencyPage() {
   const needsReviewFindings = orderedFindings.filter(f => f.severity !== "low");
   const minorFindings = orderedFindings.filter(f => f.severity === "low");
   const issueIndex = new Map(orderedFindings.map((f, i) => [f.id, i + 1]));
-  const markers = orderedFindings
-    .filter((f): f is BrandFinding & { x: number; y: number } =>
-      f.kind !== "color" &&
-      f.severity !== "low" &&
-      typeof f.x === "number" &&
-      typeof f.y === "number"
-    )
-    .map(f => ({ id: f.id, index: issueIndex.get(f.id) ?? 0, severity: f.severity, x: f.x, y: f.y, width: f.width, height: f.height }));
 
   return (
     <div className="h-full overflow-y-auto bg-white text-[#0f0f0f]">
@@ -443,42 +431,6 @@ export default function BrandConsistencyPage() {
                   <ShieldCheck size={12} /> Logo · {logoFindings.length} issue{logoFindings.length === 1 ? "" : "s"}
                 </p>
                 {logoFindings.map(f => <FindingCard key={f.id} finding={f} index={issueIndex.get(f.id) ?? 0} />)}
-              </div>
-            )}
-
-            {result && result.screenshot && (
-              <div className="rounded-xl border border-black/[0.08] bg-white shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setVisualOpen(open => !open)}
-                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-                >
-                  <div>
-                    <p className="text-[13px] font-semibold text-[#17171c]">Visual reference</p>
-                    <p className="mt-0.5 text-[11px] text-[#71717a]">
-                      Used only to locate concrete UI elements. Color drift is reviewed from swatches; product imagery and artwork are excluded from screenshot boxes.
-                    </p>
-                  </div>
-                  <ChevronDown
-                    size={16}
-                    className={`shrink-0 text-[#71717a] transition-transform ${visualOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-                {visualOpen && (
-                  <div className="border-t border-black/[0.06] p-4">
-                    {markers.length > 0 ? (
-                      <>
-                        <p className="mb-3 text-[11px] text-[#71717a]">Numbered boxes are shown only for actionable text, spacing, and logo findings.</p>
-                        <AnnotatedScreenshot screenshot={result.screenshot} findings={markers} />
-                      </>
-                    ) : (
-                      <>
-                        <p className="mb-3 text-[11px] text-[#71717a]">No screenshot boxes are shown for this run because the findings are color-token candidates, not concrete visible UI defects.</p>
-                        <AnnotatedScreenshot screenshot={result.screenshot} findings={[]} />
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </section>
