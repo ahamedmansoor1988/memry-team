@@ -1050,10 +1050,14 @@ async function inspectBrand(page) {
       const rect = el.getBoundingClientRect();
       if (cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0") return false;
       if (rect.width < 2 || rect.height < 2) return false;
-      // Screen-reader-only technique: real content pushed miles off-canvas
-      // via a large negative offset. Not hidden by CSS visibility rules, so
-      // isVisible() alone lets it through — it just isn't real page content.
-      if (rect.right < -500 || rect.bottom < -500 || rect.left > 20000 || rect.top > 20000) return false;
+      // Off-canvas technique (sr-only content or a closed mobile menu):
+      // pushed way outside the viewport via a large offset in either
+      // direction. Checking left/right and top/bottom separately catches
+      // both "anchored by right edge" (element ends up left of screen,
+      // rect.right very negative) and "anchored by left edge with a fixed
+      // width" (rect.left very negative but rect.right can land near 0).
+      if (rect.left < -300 || rect.right < -300 || rect.right > 20000) return false;
+      if (rect.top < -300 || rect.bottom < -300 || rect.bottom > 20000) return false;
       return true;
     }
 
@@ -1286,6 +1290,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v4" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v5" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
