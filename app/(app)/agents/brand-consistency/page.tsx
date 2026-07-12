@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Type,
 } from "lucide-react";
-import { BetaTag } from "@/app/(app)/_sidebar";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
 
 interface BrandFinding {
@@ -287,7 +286,7 @@ export default function BrandConsistencyPage() {
             <Palette size={17} strokeWidth={1.8} />
           </div>
           <div>
-            <h1 className="flex items-center gap-2 text-[17px] font-semibold">Brand Consistency <BetaTag /></h1>
+            <h1 className="text-[17px] font-semibold">Brand Consistency</h1>
             <p className="mt-0.5 text-[12px] text-[#71717a]">Check a Figma file or a live webpage for colors, fonts, spacing, and logo usage that don't match your brand guide.</p>
           </div>
         </div>
