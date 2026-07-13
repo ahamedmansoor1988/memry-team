@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Play, Loader2, ChevronRight, AlertCircle, CheckCircle2,
-  Trash2, ArrowUp, FileCode2, Globe, KeyRound, Sparkles,
+  Trash2, ArrowUp, FileCode2, Globe, Sparkles,
   Check, RefreshCw, Upload, Database,
 } from "lucide-react";
 
@@ -90,7 +90,6 @@ export default function FigmaComparePage() {
     localStorage.setItem("loupe_figma_url", v);
     setSnapshot(null); // reset snapshot status when URL changes
   }, []);
-  const setPat = useCallback((v: string) => { setPatRaw(v); localStorage.setItem("loupe_pat", v); }, []);
   // Parse fileKey / nodeId from the current Figma URL
   function parseFigmaUrl(url: string) {
     const fileKeyMatch = url.match(/figma\.com\/(?:file|design)\/([A-Za-z0-9]+)/);
@@ -529,7 +528,6 @@ export default function FigmaComparePage() {
               <div className="space-y-2">
                 <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
                 <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
-                <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
               </div>
 
               <div className="mt-4 rounded-xl border border-[#f0f0f0] bg-[#fcfcfd] px-3 py-3">
@@ -544,13 +542,18 @@ export default function FigmaComparePage() {
                 {liveStyles && <span className="rounded-full bg-[#f4f4f5] px-2 py-1">{liveStyles.length} live styles</span>}
                 <span className="ml-auto rounded-full bg-[#f4f4f5] px-2 py-1">{checks.size}/{CHECK_OPTIONS.length} checks</span>
               </div>
+              {!pat.trim() && (
+                <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">
+                  Add your Figma token in <a href="/agents/settings" className="font-medium text-[#17171c] underline underline-offset-2">Settings</a>.
+                </p>
+              )}
 
               <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
                 className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
                 {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
               </button>
               {!canRun && (
-                <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">Add a frame URL, live URL, token, and at least one check.</p>
+                <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">Add a frame URL, live URL, saved token, and at least one check.</p>
               )}
             </section>
           </div>
