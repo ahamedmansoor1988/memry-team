@@ -515,101 +515,44 @@ export default function FigmaComparePage() {
         {/* Execution area */}
         {runMsgs.length === 0 ? (
           <div className="flex-1 overflow-y-auto bg-[#fafafa] px-6 py-6">
-            <div className="mx-auto grid max-w-6xl grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_420px]">
-              <section className="space-y-4">
-                <div className="rounded-2xl border border-[#ececf0] bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[15px] font-semibold text-[#17171c]">Comparison setup</p>
-                      <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-[#71717a]">
-                        Match one Figma frame against the captured live page. Loupe reports missing comps and typography/color drift as a QA table.
-                      </p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${canRun ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
-                      {canRun ? "Ready to run" : "Needs setup"}
-                    </span>
-                  </div>
+            <section className="mx-auto max-w-3xl rounded-2xl border border-[#ececf0] bg-white p-5 shadow-sm">
+              <div className="mb-5 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[15px] font-semibold text-[#17171c]">Run comparison</p>
+                  <p className="mt-1 text-[12px] text-[#71717a]">Compare one Figma frame with one live page.</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${canRun ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
+                  {canRun ? "Ready" : "Incomplete"}
+                </span>
+              </div>
 
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <ReadinessCard
-                      icon={FileCode2}
-                      title="Figma frame"
-                      status={figmaUrl.trim() ? "Connected" : "Missing"}
-                      detail={snapshot ? `${snapshot.textNodeCount} text · ${snapshot.colorNodeCount} colors` : figmaUrl.trim() ? "Frame URL saved" : "Paste a selected frame URL"}
-                      ready={Boolean(figmaUrl.trim())}
-                    />
-                    <ReadinessCard
-                      icon={Globe}
-                      title="Live page"
-                      status={liveStyles ? "Captured" : scrapeStatus === "fetching" ? "Capturing" : liveUrl.trim() ? "URL saved" : "Missing"}
-                      detail={liveStyles ? `${liveStyles.length} live styles ready` : liveUrl.trim() || "Paste the production or staging URL"}
-                      ready={Boolean(liveStyles || liveUrl.trim())}
-                      loading={scrapeStatus === "fetching"}
-                    />
-                    <ReadinessCard
-                      icon={KeyRound}
-                      title="Figma token"
-                      status={pat.trim() ? "Available" : "Missing"}
-                      detail={pat.trim() ? "Stored locally for API access" : "Required to read the frame"}
-                      ready={Boolean(pat.trim())}
-                    />
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
+                <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
+                <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
+              </div>
 
-                <div className="rounded-2xl border border-[#ececf0] bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[14px] font-semibold text-[#17171c]">Checks included</p>
-                      <p className="mt-1 text-[12px] text-[#71717a]">Turn off noisy categories for a narrower run.</p>
-                    </div>
-                    <span className="rounded-full bg-[#f4f4f5] px-2.5 py-1 text-[11px] font-medium text-[#4b5563]">{checks.size}/{CHECK_OPTIONS.length} enabled</span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                    {CHECK_OPTIONS.map(opt => {
-                      const active = checks.has(opt.id);
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={() => toggleCheck(opt.id)}
-                          className={`flex min-h-[72px] flex-col justify-between rounded-xl border px-3 py-3 text-left transition-all ${
-                            active
-                              ? "border-[#0f0f0f] bg-[#0f0f0f] text-white"
-                              : "border-[#e8e8ec] bg-white text-[#71717a] hover:border-[#a1a1aa]"
-                          }`}
-                        >
-                          <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${active ? "border-white bg-white text-[#0f0f0f]" : "border-[#d8d8de]"}`}>
-                            {active && <Check size={12} strokeWidth={3} />}
-                          </span>
-                          <span className="text-[12px] font-semibold">{opt.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </section>
+              <div className="mt-4 rounded-xl border border-[#f0f0f0] bg-[#fcfcfd] px-3 py-3">
+                <ChecklistPanel checks={checks} onToggle={toggleCheck} />
+              </div>
 
-              <section className="h-fit rounded-2xl border border-[#ececf0] bg-white p-4 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[14px] font-semibold text-[#17171c]">Run comparison</p>
-                    <p className="mt-1 text-[12px] text-[#71717a]">Inputs are saved on this device.</p>
-                  </div>
-                  <Sparkles size={16} className="text-[#a1a1aa]" />
-                </div>
-                <div className="space-y-2">
-                  <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
-                  <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
-                  <ConfigCard icon={KeyRound} label="Figma Token" value={pat} placeholder="figd_..." onChange={setPat} secret />
-                  <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
-                    {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
-                  </button>
-                  {!canRun && (
-                    <p className="text-center text-[11px] text-[#a1a1aa]">Add a frame URL, live URL, token, and at least one check.</p>
-                  )}
-                </div>
-              </section>
-            </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-[#71717a]">
+                <StatusPill ready={Boolean(figmaUrl.trim())} label="Frame" />
+                <StatusPill ready={Boolean(liveUrl.trim())} label="Live URL" />
+                <StatusPill ready={Boolean(pat.trim())} label="Token" />
+                {snapshot && <span className="rounded-full bg-[#f4f4f5] px-2 py-1">{snapshot.textNodeCount} Figma nodes</span>}
+                {liveStyles && <span className="rounded-full bg-[#f4f4f5] px-2 py-1">{liveStyles.length} live styles</span>}
+                <span className="ml-auto rounded-full bg-[#f4f4f5] px-2 py-1">{checks.size}/{CHECK_OPTIONS.length} checks</span>
+              </div>
+
+              <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
+                className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-[#0f0f0f] px-5 py-3 text-[13px] font-semibold text-white disabled:opacity-40 hover:bg-[#1a1a1a] transition-all">
+                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+              </button>
+              {!canRun && (
+                <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">Add a frame URL, live URL, token, and at least one check.</p>
+              )}
+            </section>
           </div>
         ) : (
           /* ── Split screen: log left | results right ── */
@@ -740,27 +683,11 @@ function renderInline(text: string): React.ReactNode {
 }
 
 /* ── Sub-components ──────────────────────────────────────────────── */
-function ReadinessCard({ icon: Icon, title, status, detail, ready, loading = false }: {
-  icon: any;
-  title: string;
-  status: string;
-  detail: string;
-  ready: boolean;
-  loading?: boolean;
-}) {
+function StatusPill({ ready, label }: { ready: boolean; label: string }) {
   return (
-    <div className="rounded-xl border border-[#ececf0] bg-[#fcfcfd] p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-[#4b5563] shadow-sm">
-          {loading ? <Loader2 size={14} className="animate-spin" /> : <Icon size={14} />}
-        </div>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
-          {status}
-        </span>
-      </div>
-      <p className="text-[12px] font-semibold text-[#17171c]">{title}</p>
-      <p className="mt-1 truncate text-[11px] text-[#71717a]">{detail}</p>
-    </div>
+    <span className={`rounded-full px-2 py-1 ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
+      {label}: {ready ? "ready" : "missing"}
+    </span>
   );
 }
 
@@ -794,12 +721,12 @@ function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, bad
   onChange: (v: string) => void; hint?: string; badge?: string; secret?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-[#f0f0f0] bg-white px-4 py-3 transition-colors focus-within:border-[#cfcfd6]">
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[#f7f7f8] text-[#71717a]">
-        <Icon size={13} />
+    <div className="flex items-start gap-2.5 rounded-lg border border-[#f0f0f0] bg-white px-3 py-2.5 transition-colors focus-within:border-[#cfcfd6]">
+      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#f7f7f8] text-[#71717a]">
+        <Icon size={12} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        <div className="mb-0.5 flex items-center gap-2">
           <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-wide">{label}</span>
           {badge && <span className="rounded-full bg-[#e8f6ee] px-2 py-0.5 text-[10px] font-medium text-[#1a9457]">{badge}</span>}
         </div>
