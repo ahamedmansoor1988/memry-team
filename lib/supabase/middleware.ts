@@ -28,8 +28,6 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-
   const { pathname } = request.nextUrl;
 
   // Temporarily hidden agents — code stays in the repo, but the routes are
@@ -54,6 +52,27 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/privacy") ||
     pathname === "/agents/accessibility";
   const isApiRoute = pathname.startsWith("/api/");
+
+  // Only hit Supabase when the auth state actually affects routing (protected
+  // pages, or auth pages that bounce logged-in users). Public pages and API
+  // routes skip the network call entirely. Cap the call at 5s so a slow or
+  // paused Supabase project can't hang the middleware past Vercel's limit
+  // (MIDDLEWARE_INVOCATION_TIMEOUT would take down every route).
+  const needsUser = isAuthPage || (!isPublicPage && !isApiRoute);
+  let user = null;
+  if (needsUser) {
+    try {
+      const result = await Promise.race([
+        supabase.auth.getUser(),
+        new Promise<{ data: { user: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { user: null } }), 5000)
+        ),
+      ]);
+      user = result.data.user;
+    } catch {
+      user = null;
+    }
+  }
 
   if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
     const url = request.nextUrl.clone();
