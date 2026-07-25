@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Globe2, MonitorCheck, Play, RefreshCw, RotateCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Globe2, MonitorCheck, RefreshCw, RotateCw } from "lucide-react";
 
 const STUDIO_PRESETS = [
   { id: "iphone-se", label: "iPhone SE", width: 375, height: 667, group: "Phone" },
@@ -101,20 +101,38 @@ export default function ResponsiveAgentPage() {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto bg-white">
-      <section className="h-full">
-        <div className="flex h-full min-h-full overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-[#f7f7f8]">
+      <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-black/[0.06] bg-white px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#111113] text-white">
+            <MonitorCheck size={17} strokeWidth={1.9} />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-[17px] font-semibold leading-tight text-[#111113]">Responsive Check</h1>
+              <span className="rounded-full bg-[#f4f4f5] px-2 py-0.5 text-[10px] font-semibold text-[#71717a]">Preview</span>
+            </div>
+            <p className="mt-0.5 truncate text-[12px] leading-snug text-[#71717a]">Test the current site inside device presets and custom screen sizes.</p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="rounded-lg bg-[#f4f4f5] px-2.5 py-1.5 text-[11px] font-medium text-[#71717a]">
+            {zoomMode === "fit" ? `Fit · ${Math.round(previewScale * 100)}%` : `${Math.round(previewScale * 100)}%`}
+          </span>
+          <span className="rounded-lg bg-[#f4f4f5] px-2.5 py-1.5 font-mono text-[12px] font-semibold text-[#3f3f46]">
+            {studioViewport.width} x {studioViewport.height}
+          </span>
+        </div>
+      </header>
+
+      <section className="min-h-0 flex-1">
+        <div className="flex h-full min-h-0 overflow-hidden">
           {panelOpen && (
-            <aside className="w-[240px] shrink-0 border-r border-black/[0.06] bg-white p-4">
+            <aside className="w-[256px] shrink-0 overflow-y-auto border-r border-black/[0.06] bg-white p-4">
               <div className="mb-4 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/[0.04]">
-                    <MonitorCheck size={17} strokeWidth={1.8} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[17px] font-semibold text-[#17171c]">Responsive Check</p>
-                    <p className="mt-0.5 truncate text-[12px] text-[#71717a]">Device mockups</p>
-                  </div>
+                <div className="min-w-0">
+                  <p className="truncate text-[14px] font-semibold text-[#111113]">Controls</p>
+                  <p className="mt-0.5 truncate text-[11px] text-[#71717a]">URL, device, zoom</p>
                 </div>
                 <button
                   onClick={() => setPanelOpen(false)}
@@ -125,7 +143,7 @@ export default function ResponsiveAgentPage() {
                 </button>
               </div>
 
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Page URL</label>
+              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717a]">Page URL</label>
               <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 py-2.5">
                 <div className="flex items-center gap-2">
                   <Globe2 size={14} className="shrink-0 text-[#a1a1aa]" />
@@ -139,7 +157,7 @@ export default function ResponsiveAgentPage() {
                 </div>
               </div>
 
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Device</label>
+              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717a]">Device</label>
               <select
                 value={activePresetId}
                 onChange={e => setActivePresetId(e.target.value)}
@@ -190,7 +208,7 @@ export default function ResponsiveAgentPage() {
                 </>
               )}
 
-              <label className="mb-2 mt-5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Zoom</label>
+              <label className="mb-2 mt-5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717a]">Zoom</label>
               <select
                 value={zoomMode}
                 onChange={e => setZoomMode(e.target.value)}
@@ -205,7 +223,7 @@ export default function ResponsiveAgentPage() {
                 <button
                   onClick={() => setFrameKey(key => key + 1)}
                   disabled={!canPreview}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#111113] text-[13px] font-semibold text-white transition-colors hover:bg-[#27272a] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <RefreshCw size={14} /> Refresh preview
                 </button>
@@ -214,7 +232,7 @@ export default function ResponsiveAgentPage() {
           )}
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex shrink-0 items-center justify-between border-b border-black/[0.06] bg-white px-4 py-2.5">
+            <div className="flex h-[46px] shrink-0 items-center justify-between border-b border-black/[0.06] bg-white px-4">
               <div className="flex items-center gap-2">
                 {!panelOpen && (
                   <button
@@ -225,18 +243,18 @@ export default function ResponsiveAgentPage() {
                     <ChevronRight size={16} />
                   </button>
                 )}
-                <span className="rounded-lg bg-black/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-[#71717a]">
-                  {zoomMode === "fit" ? `Fit · ${Math.round(previewScale * 100)}%` : `${Math.round(previewScale * 100)}%`}
-                </span>
+                <span className="text-[12px] font-medium text-[#71717a]">{previewHost || "No page loaded"}</span>
               </div>
-              <span className="rounded-lg bg-black/[0.04] px-2.5 py-1.5 font-mono text-[12px] font-semibold text-[#4b5563]">
-                {studioViewport.width} x {studioViewport.height}
-              </span>
+              {canPreview && (
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-black/[0.08] bg-white px-2.5 text-[12px] font-medium text-[#3f3f46] transition-colors hover:border-black/20 hover:bg-[#fafafa]">
+                  Open page <ExternalLink size={12} />
+                </a>
+              )}
             </div>
 
-            <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-[#f5f5f7]">
+            <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-[#f7f7f8]">
               <div
-                className="absolute left-1/2 top-1/2 origin-center overflow-hidden rounded-[22px] bg-white shadow-[0_24px_90px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06]"
+                className="absolute left-1/2 top-1/2 origin-center overflow-hidden rounded-[20px] bg-white shadow-[0_24px_90px_rgba(17,17,19,0.16)] ring-1 ring-black/[0.08]"
                 style={{
                   width: studioViewport.width,
                   height: studioViewport.height,
@@ -278,7 +296,7 @@ export default function ResponsiveAgentPage() {
                           rel="noopener noreferrer"
                           className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#111113] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#27272a]"
                         >
-                          <Play size={12} /> Open in new tab
+                          <ExternalLink size={12} /> Open in new tab
                         </a>
                       </div>
                     )}

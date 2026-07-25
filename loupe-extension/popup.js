@@ -13,12 +13,24 @@ const patWarning = document.getElementById("patWarning");
 const patSettingsBtn = document.getElementById("patSettingsBtn");
 const agentButtons = document.querySelectorAll("[data-agent]");
 
-// Capture & compare always checks every signal — no per-check picker.
 const ALL_CHECK_KEYS = ["missing_elements", "font_family", "font_size", "font_weight", "color"];
+const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
+const CHECK_MAP = {
+  missing: "missing_elements",
+  family:  "font_family",
+  size:    "font_size",
+  weight:  "font_weight",
+  color:   "color",
+};
 
 // Load saved settings
-chrome.storage.local.get(["figmaUrl", "figmaPatStatus", "patExpired"], ({ figmaUrl, figmaPatStatus, patExpired }) => {
+chrome.storage.local.get(["figmaUrl", "checks", "figmaPatStatus", "patExpired"], ({ figmaUrl, checks, figmaPatStatus, patExpired }) => {
   if (figmaUrl) figmaInput.value = figmaUrl;
+  const selected = Array.isArray(checks) && checks.length ? checks : CHECK_IDS;
+  CHECK_IDS.forEach(id => {
+    const el = document.getElementById(`chk-${id}`);
+    if (el) el.checked = selected.includes(id);
+  });
   if (figmaPatStatus === "expired" || patExpired === true) {
     patWarning.hidden = false;
   }
@@ -39,8 +51,11 @@ patSettingsBtn.addEventListener("click", () => {
 btn.addEventListener("click", async () => {
   const figmaUrl = figmaInput.value.trim();
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
+  const checks = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
+  if (checks.length === 0) { setStatus("Choose at least one check.", "error"); return; }
+  const checkKeys = checks.map(id => CHECK_MAP[id]);
 
-  chrome.storage.local.set({ figmaUrl });
+  chrome.storage.local.set({ figmaUrl, checks });
   btn.disabled = true;
   setStatus("Extracting styles…");
 
@@ -89,7 +104,7 @@ btn.addEventListener("click", async () => {
     liveUrl:  tab.url,
     figmaUrl,
     autorun:  "1",
-    checks:   ALL_CHECK_KEYS.join(","),
+    checks:   (checkKeys.length ? checkKeys : ALL_CHECK_KEYS).join(","),
   });
   const loupeUrl = `${LOUPE_APP}?${params}`;
   await openOrFocusLoupe(loupeUrl, `${LOUPE_APP}*`);

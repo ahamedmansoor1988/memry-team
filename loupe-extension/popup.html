@@ -7,14 +7,27 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  :root {
+    --text: #111113;
+    --text-2: #3f3f46;
+    --text-3: #71717a;
+    --muted: #a1a1aa;
+    --border: #e8e8ec;
+    --border-soft: #f1f1f4;
+    --surface: #ffffff;
+    --surface-soft: #fbfbfc;
+    --brand: linear-gradient(135deg, #a855f7 0%, #ec4899 52%, #f97316 100%);
+    --radius: 12px;
+  }
+
   html,
   body {
     width: 100%;
     min-width: 320px;
     min-height: 100vh;
     overflow-x: hidden;
-    background: #fff;
-    color: #111113;
+    background: var(--surface);
+    color: var(--text);
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: 0;
   }
@@ -24,7 +37,7 @@
   .shell {
     min-height: 100vh;
     padding-bottom: 88px;
-    background: #fff;
+    background: var(--surface);
   }
 
   .brand-strip {
@@ -55,11 +68,11 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    border: 1px solid #ececf0;
+    border: 1px solid var(--border);
     border-radius: 999px;
-    background: #f7f7f8;
+    background: var(--surface-soft);
     padding: 5px 9px;
-    color: #71717a;
+    color: var(--text-3);
     font-size: 10px;
     font-weight: 800;
     white-space: nowrap;
@@ -69,12 +82,12 @@
     width: 6px;
     height: 6px;
     border-radius: 999px;
-    background: linear-gradient(135deg, #a855f7, #ec4899, #f97316);
+    background: var(--brand);
   }
 
   .subtitle {
     margin-top: 10px;
-    color: #5f6068;
+    color: var(--text-2);
     font-size: 13px;
     line-height: 1.45;
   }
@@ -82,9 +95,9 @@
   .current-page,
   .pat-warning {
     margin: 0 18px 12px;
-    border: 1px solid #efeff3;
-    border-radius: 14px;
-    background: #fbfbfc;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface-soft);
     padding: 10px 11px;
   }
 
@@ -117,19 +130,19 @@
 
   .current-label,
   .section-label {
-    color: #71717a;
+    color: var(--text-3);
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
-  .current-label { color: #a1a1aa; font-size: 9px; }
+  .current-label { color: var(--muted); font-size: 9px; }
 
   .current-url {
     margin-top: 4px;
     overflow: hidden;
-    color: #28282e;
+    color: var(--text-2);
     font-size: 11px;
     font-weight: 700;
     text-overflow: ellipsis;
@@ -137,26 +150,26 @@
   }
 
   .section {
-    border-top: 1px solid #f1f1f4;
+    border-top: 1px solid var(--border-soft);
     padding: 14px 18px;
   }
 
   .section-head { margin-bottom: 9px; }
 
   .hint {
-    color: #a1a1aa;
+    color: var(--muted);
     font-size: 10px;
     white-space: nowrap;
   }
 
   input[type="text"] {
     width: 100%;
-    border: 1px solid #e4e4e7;
-    border-radius: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     outline: none;
-    background: #fff;
+    background: var(--surface);
     padding: 10px 12px;
-    color: #111113;
+    color: var(--text);
     font: inherit;
     font-size: 12px;
     transition: border-color 0.15s, box-shadow 0.15s;
@@ -169,20 +182,26 @@
 
   input[type="text"]::placeholder { color: #c9c9d2; }
 
+  .checks,
   .agent-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 7px;
   }
 
+  .chip { position: relative; min-width: 0; }
+  .chip input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
+
+  .chip label,
+  .secondary-action,
   .agent-button {
     display: flex;
     min-width: 0;
     align-items: center;
-    border: 1px solid #ececf0;
+    border: 1px solid var(--border);
     border-radius: 11px;
-    background: #fff;
-    color: #555762;
+    background: var(--surface);
+    color: var(--text-2);
     cursor: pointer;
     font-family: inherit;
     font-size: 11px;
@@ -190,10 +209,65 @@
     transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
   }
 
+  .secondary-action {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    gap: 8px;
+    background: #111113;
+    color: #fff;
+  }
+
+  .secondary-action:hover {
+    border-color: #111113;
+    background: #27272a;
+    color: #fff;
+    transform: translateY(-1px);
+  }
+
+  .chip label {
+    min-height: 34px;
+    gap: 8px;
+    padding: 8px 10px;
+    user-select: none;
+  }
+
+  .chip input:checked + label {
+    border-color: #f4c2da;
+    background: #fff7fb;
+    color: var(--text);
+  }
+
+  .chip-dot {
+    display: flex;
+    width: 15px;
+    height: 15px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #d8d8de;
+    border-radius: 999px;
+    background: var(--surface);
+    flex: none;
+  }
+
+  .chip input:checked + label .chip-dot {
+    border-color: transparent;
+    background: var(--brand);
+  }
+
+  .chip input:checked + label .chip-dot::after {
+    content: "";
+    width: 4px;
+    height: 7px;
+    border: solid #fff;
+    border-width: 0 1.8px 1.8px 0;
+    transform: rotate(45deg) translate(-0.5px, -0.5px);
+  }
+
   .agent-button:hover {
     border-color: #f4c2da;
     background: #fff7fb;
-    color: #19191f;
+    color: var(--text);
     transform: translateY(-1px);
   }
 
@@ -204,7 +278,7 @@
   }
 
   .agent-button span:last-child {
-    color: #a1a1aa;
+    color: var(--muted);
     font-size: 10px;
   }
 
@@ -214,7 +288,7 @@
     bottom: 0;
     left: 0;
     z-index: 2;
-    border-top: 1px solid #f1f1f4;
+    border-top: 1px solid var(--border-soft);
     padding: 14px 18px 16px;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 -12px 24px rgba(17, 17, 19, 0.04);
@@ -231,7 +305,7 @@
     gap: 8px;
     border: 0;
     border-radius: 13px;
-    background: linear-gradient(135deg, #a855f7 0%, #ec4899 52%, #f97316 100%);
+    background: var(--brand);
     color: #fff;
     cursor: pointer;
     font-family: inherit;
@@ -297,12 +371,48 @@
 
   <section class="section">
     <div class="section-head">
+      <div class="section-label">Check options</div>
+      <div class="hint">Choose checks</div>
+    </div>
+    <div class="checks">
+      <div class="chip">
+        <input type="checkbox" id="chk-family">
+        <label for="chk-family"><span class="chip-dot"></span>Font family</label>
+      </div>
+      <div class="chip">
+        <input type="checkbox" id="chk-size">
+        <label for="chk-size"><span class="chip-dot"></span>Font size</label>
+      </div>
+      <div class="chip">
+        <input type="checkbox" id="chk-weight">
+        <label for="chk-weight"><span class="chip-dot"></span>Font weight</label>
+      </div>
+      <div class="chip">
+        <input type="checkbox" id="chk-color">
+        <label for="chk-color"><span class="chip-dot"></span>Color</label>
+      </div>
+      <div class="chip">
+        <input type="checkbox" id="chk-missing">
+        <label for="chk-missing"><span class="chip-dot"></span>Missing comps</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div class="section-label">Responsive preview</div>
+      <div class="hint">Opens in Loupe</div>
+    </div>
+    <button class="secondary-action" type="button" data-agent="responsive">
+      Open responsive preview
+    </button>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <div class="section-label">Other agents</div>
     </div>
     <div class="agent-grid">
-      <button class="agent-button" type="button" data-agent="responsive">
-        <span>Device Preview</span><span>Responsive check</span>
-      </button>
       <button class="agent-button" type="button" data-agent="brand">
         <span>Brand Check</span><span>Colors & fonts</span>
       </button>
