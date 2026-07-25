@@ -1051,6 +1051,11 @@ app.post("/accessibility", async (req, res) => {
   try {
     const b = await getBrowser();
     page = await b.newPage();
+    // Without an explicit viewport, the remote browser's default can land
+    // on a different responsive breakpoint than what a desktop visitor
+    // sees (e.g. a smaller default from Browserless in production) —
+    // measuring contrast/layout against the wrong breakpoint's markup.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.route("**/*", route => {
       const type = route.request().resourceType();
       if (type === "media") return route.abort();
@@ -1352,6 +1357,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v11" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v12" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
