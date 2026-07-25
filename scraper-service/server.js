@@ -795,7 +795,16 @@ async function inspectAccessibility(page) {
     // skipped — decorative motion-effect/hover layers commonly carry a
     // solid background-color in CSS that never actually paints.
     function effectiveBackground(el) {
-      const rect = el.getBoundingClientRect();
+      let rect = el.getBoundingClientRect();
+      // elementsFromPoint only sees what's currently in the viewport — for
+      // below/above-the-fold text (most of a long page, since we don't
+      // pre-scroll every element into view before this runs) rect.top/left
+      // land outside [0, innerWidth/Height] and the point sample comes back
+      // empty, which used to silently fall through to the white default.
+      if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+        el.scrollIntoView({ block: "center", inline: "center" });
+        rect = el.getBoundingClientRect();
+      }
       const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
       const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
       const stack = document.elementsFromPoint(x, y);
@@ -1327,6 +1336,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v8" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v9" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
