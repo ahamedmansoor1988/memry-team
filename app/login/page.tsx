@@ -6,7 +6,10 @@ export default function LoginPage() {
   async function signInWithGoogle() {
     const supabase = createClient();
     const redirectParam = new URLSearchParams(window.location.search).get("redirect");
-    const next = redirectParam?.startsWith("/invite/") ? redirectParam : "/agents/figma-compare";
+    const next =
+      redirectParam?.startsWith("/invite/") || redirectParam?.startsWith("/agents/")
+        ? redirectParam
+        : "/agents/figma-compare";
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {

@@ -77,12 +77,21 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isAuthPage && !isPublicPage && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    url.search = "";
+    url.searchParams.set("redirect", `${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(url);
   }
 
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/agents/figma-compare";
+    const redirectParam = request.nextUrl.searchParams.get("redirect");
+    const next =
+      redirectParam?.startsWith("/invite/") || redirectParam?.startsWith("/agents/")
+        ? redirectParam
+        : "/agents/figma-compare";
+    const destination = new URL(next, request.nextUrl.origin);
+    url.pathname = destination.pathname;
+    url.search = destination.search;
     return NextResponse.redirect(url);
   }
 
