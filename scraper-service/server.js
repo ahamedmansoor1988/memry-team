@@ -820,6 +820,11 @@ async function inspectAccessibility(page) {
       const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
       const stack = document.elementsFromPoint(x, y);
       for (const node of stack) {
+        // Elementor's hover/motion-effect "fill" layers carry a solid
+        // background-color that's purely decorative and toggles opacity via
+        // an animation timer — sampled at the wrong instant it reads as
+        // opacity:1 even though it never represents real page content.
+        if (String(node.className || "").includes("motion-effects-layer")) continue;
         const cs = window.getComputedStyle(node);
         if (parseFloat(cs.opacity) === 0) continue;
         if (cs.backgroundImage && cs.backgroundImage !== "none") return null;
@@ -1347,6 +1352,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v10" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v11" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
