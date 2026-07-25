@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -12,21 +12,19 @@
     width: 100%;
     min-width: 320px;
     min-height: 100vh;
-    margin: 0;
     overflow-x: hidden;
-    overflow-y: auto;
     background: #fff;
     color: #111113;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
     letter-spacing: 0;
   }
 
+  body { overflow-y: auto; }
+
   .shell {
     min-height: 100vh;
-    overflow: visible;
-    background: #fff;
-    border: 0;
     padding-bottom: 88px;
+    background: #fff;
   }
 
   .brand-strip {
@@ -38,17 +36,19 @@
     padding: 18px 18px 14px;
   }
 
-  .header-row {
+  .header-row,
+  .section-head,
+  .tool-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
   }
 
   .logo {
     display: block;
-    width: auto;
     height: 26px;
+    width: auto;
   }
 
   .badge {
@@ -61,7 +61,7 @@
     padding: 5px 9px;
     color: #71717a;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 800;
     white-space: nowrap;
   }
 
@@ -79,46 +79,8 @@
     line-height: 1.45;
   }
 
-  .flow {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-    margin: 0 18px 14px;
-  }
-
-  .flow-step {
-    display: flex;
-    min-width: 0;
-    min-height: 32px;
-    align-items: center;
-    gap: 8px;
-    border: 1px solid #f0f0f3;
-    border-radius: 12px;
-    background: linear-gradient(180deg, #fff 0%, #fbfbfc 100%);
-    padding: 7px 9px;
-  }
-
-  .flow-number {
-    display: inline-flex;
-    width: 18px;
-    height: 18px;
-    align-items: center;
-    justify-content: center;
-    border-radius: 999px;
-    background: #111113;
-    color: #fff;
-    font-size: 9px;
-    font-weight: 800;
-  }
-
-  .flow-text {
-    color: #555762;
-    font-size: 10px;
-    font-weight: 800;
-    line-height: 1.25;
-  }
-
-  .current-page {
+  .current-page,
+  .pat-warning {
     margin: 0 18px 12px;
     border: 1px solid #efeff3;
     border-radius: 14px;
@@ -126,20 +88,50 @@
     padding: 10px 11px;
   }
 
-  .current-label {
-    color: #a1a1aa;
-    font-size: 9px;
-    font-weight: 700;
+  .pat-warning {
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #991b1b;
+  }
+
+  .pat-warning[hidden] { display: none; }
+
+  .pat-warning strong {
+    display: block;
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .pat-warning button {
+    margin-top: 7px;
+    border: 0;
+    background: transparent;
+    color: #991b1b;
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .current-label,
+  .section-label {
+    color: #71717a;
+    font-size: 10px;
+    font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
   }
+
+  .current-label { color: #a1a1aa; font-size: 9px; }
 
   .current-url {
     margin-top: 4px;
     overflow: hidden;
     color: #28282e;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -149,21 +141,7 @@
     padding: 14px 18px;
   }
 
-  .section-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 9px;
-  }
-
-  .section-label {
-    color: #71717a;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
+  .section-head { margin-bottom: 9px; }
 
   .hint {
     color: #a1a1aa;
@@ -171,8 +149,7 @@
     white-space: nowrap;
   }
 
-  input[type="text"],
-  input[type="number"] {
+  input[type="text"] {
     width: 100%;
     border: 1px solid #e4e4e7;
     border-radius: 12px;
@@ -185,134 +162,46 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
-  input[type="text"]:focus,
-  input[type="number"]:focus {
+  input[type="text"]:focus {
     border-color: #ec4899;
     box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.12);
   }
 
   input[type="text"]::placeholder { color: #c9c9d2; }
 
-  input[type="number"] {
-    min-width: 0;
-    padding: 9px 8px;
-    text-align: center;
-    font-size: 11px;
-    font-weight: 800;
-  }
-
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button {
-    margin: 0;
-    -webkit-appearance: none;
-  }
-
-  .screen-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-  }
-
-  .screen-card:nth-child(3) {
-    grid-column: span 2;
-  }
-
-  .screen-card {
-    display: flex;
-    min-width: 0;
-    min-height: 47px;
-    flex-direction: column;
-    justify-content: center;
-    border: 1px solid #ececf0;
-    border-radius: 12px;
-    background: #fff;
-    padding: 9px;
-    color: #28282e;
-    cursor: pointer;
-    font-family: inherit;
-    text-align: left;
-    transition: border-color 0.15s, background 0.15s, transform 0.15s;
-  }
-
-  .screen-card:hover {
-    border-color: #f4c2da;
-    background: #fff7fb;
-    transform: translateY(-1px);
-  }
-
-  .screen-title {
-    font-size: 11px;
-    font-weight: 800;
-    line-height: 1.1;
-  }
-
-  .screen-size {
-    margin-top: 4px;
-    color: #9a9ba5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 9px;
-    font-weight: 700;
-  }
-
-  .custom-screen {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 58px;
-    align-items: center;
-    gap: 7px;
-    margin-top: 8px;
-  }
-
-  .screen-separator {
-    color: #a1a1aa;
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .screen-open {
-    min-height: 36px;
-    border: 0;
-    border-radius: 11px;
-    background: #111113;
-    color: #fff;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 11px;
-    font-weight: 800;
-    transition: transform 0.15s, opacity 0.15s;
-  }
-
-  .screen-open:hover:not(:disabled) {
-    transform: translateY(-1px);
-  }
-
-  .checks {
+  .checks,
+  .agent-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 7px;
   }
 
-  .chip {
-    position: relative;
-    min-width: 0;
-  }
+  .chip { position: relative; min-width: 0; }
   .chip input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
 
-  .chip label {
+  .chip label,
+  .agent-button,
+  .secondary-action,
+  .preset-button {
     display: flex;
     min-width: 0;
-    min-height: 34px;
     align-items: center;
-    gap: 8px;
     border: 1px solid #ececf0;
     border-radius: 11px;
     background: #fff;
-    padding: 8px 10px;
     color: #555762;
     cursor: pointer;
+    font-family: inherit;
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 800;
+    transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
+  }
+
+  .chip label {
+    min-height: 34px;
+    gap: 8px;
+    padding: 8px 10px;
     user-select: none;
-    transition: border-color 0.15s, background 0.15s, color 0.15s;
   }
 
   .chip input:checked + label {
@@ -335,8 +224,7 @@
 
   .chip input:checked + label .chip-dot {
     border-color: transparent;
-    background:
-      linear-gradient(135deg, #a855f7, #ec4899, #f97316);
+    background: linear-gradient(135deg, #a855f7, #ec4899, #f97316);
   }
 
   .chip input:checked + label .chip-dot::after {
@@ -348,13 +236,69 @@
     transform: rotate(45deg) translate(-0.5px, -0.5px);
   }
 
+  .secondary-action {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    gap: 8px;
+    background: #111113;
+    color: #fff;
+  }
+
+  .secondary-action:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .preset-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 8px;
+  }
+
+  .preset-button {
+    min-height: 46px;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 8px;
+    text-align: left;
+  }
+
+  .preset-button:hover,
+  .agent-button:hover {
+    border-color: #f4c2da;
+    background: #fff7fb;
+    color: #19191f;
+    transform: translateY(-1px);
+  }
+
+  .preset-size {
+    margin-top: 3px;
+    color: #9a9ba5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .agent-button {
+    min-height: 38px;
+    justify-content: space-between;
+    padding: 9px 10px;
+  }
+
+  .agent-button span:last-child {
+    color: #a1a1aa;
+    font-size: 10px;
+  }
+
   .actions {
-    border-top: 1px solid #f1f1f4;
     position: fixed;
     right: 0;
     bottom: 0;
     left: 0;
     z-index: 2;
+    border-top: 1px solid #f1f1f4;
     padding: 14px 18px 16px;
     background: rgba(255, 255, 255, 0.96);
     box-shadow: 0 -12px 24px rgba(17, 17, 19, 0.04);
@@ -364,25 +308,21 @@
   .primary {
     display: flex;
     width: 100%;
+    min-height: 46px;
     min-width: 0;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border-radius: 13px;
     border: 0;
+    border-radius: 13px;
+    background: linear-gradient(135deg, #a855f7 0%, #ec4899 52%, #f97316 100%);
+    color: #fff;
+    cursor: pointer;
     font-family: inherit;
     font-size: 13px;
     font-weight: 800;
-    cursor: pointer;
-    letter-spacing: 0;
-    transition: transform 0.15s, filter 0.15s, opacity 0.15s, border-color 0.15s, background 0.15s;
-  }
-
-  .primary {
-    min-height: 46px;
-    background: linear-gradient(135deg, #a855f7 0%, #ec4899 52%, #f97316 100%);
-    color: #fff;
     box-shadow: 0 12px 24px rgba(236, 72, 153, 0.22);
+    transition: transform 0.15s, filter 0.15s, opacity 0.15s;
   }
 
   .primary:hover:not(:disabled) {
@@ -407,16 +347,6 @@
 
   .status.error { color: #dc2626; }
   .status.ok { color: #16a34a; }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner {
-    width: 13px;
-    height: 13px;
-    border: 2px solid rgba(255, 255, 255, 0.4);
-    border-top-color: #fff;
-    border-radius: 999px;
-    animation: spin 0.65s linear infinite;
-  }
 </style>
 </head>
 <body>
@@ -428,59 +358,22 @@
       <img class="logo" src="loupe.svg" alt="Loupe">
       <span class="badge"><span class="badge-dot"></span>Design QA</span>
     </div>
-    <p class="subtitle">Capture real Chrome styles from this tab, compare them to a selected Figma frame, or run a quick responsive layout check.</p>
+    <p class="subtitle">Capture this tab for Figma QA, or open a device preview for responsive checks.</p>
   </header>
 
-  <div class="flow" aria-label="How Loupe works">
-    <div class="flow-step">
-      <span class="flow-number">1</span>
-      <div class="flow-text">Open live page</div>
-    </div>
-    <div class="flow-step">
-      <span class="flow-number">2</span>
-      <div class="flow-text">Paste frame link</div>
-    </div>
-    <div class="flow-step">
-      <span class="flow-number">3</span>
-      <div class="flow-text">Run QA</div>
-    </div>
-  </div>
-
   <div class="current-page">
-    <div class="current-label">Current tab</div>
+    <div class="current-label">Current page URL</div>
     <div class="current-url" id="currentUrl">Detecting active page…</div>
   </div>
 
-  <section class="section">
-    <div class="section-head">
-      <div class="section-label">Screen test</div>
-      <div class="hint">Opens current page</div>
-    </div>
-    <div class="screen-grid">
-      <button class="screen-card" data-screen-width="390" data-screen-height="844">
-        <span class="screen-title">Mobile</span>
-        <span class="screen-size">390 x 844</span>
-      </button>
-      <button class="screen-card" data-screen-width="768" data-screen-height="1024">
-        <span class="screen-title">Tablet</span>
-        <span class="screen-size">768 x 1024</span>
-      </button>
-      <button class="screen-card" data-screen-width="1440" data-screen-height="900">
-        <span class="screen-title">Desktop</span>
-        <span class="screen-size">1440 x 900</span>
-      </button>
-    </div>
-    <div class="custom-screen" aria-label="Custom screen size">
-      <input id="screenWidth" type="number" min="280" max="3840" value="1440" aria-label="Screen width">
-      <span class="screen-separator">x</span>
-      <input id="screenHeight" type="number" min="280" max="2160" value="900" aria-label="Screen height">
-      <button class="screen-open" id="openScreenBtn">Open</button>
-    </div>
-  </section>
+  <div class="pat-warning" id="patWarning" hidden>
+    <strong>Figma PAT expired. Update it in Settings.</strong>
+    <button id="patSettingsBtn" type="button">Open Settings</button>
+  </div>
 
   <section class="section">
     <div class="section-head">
-      <div class="section-label">Figma frame</div>
+      <div class="section-label">Figma frame URL</div>
       <div class="hint">Copy link to selection</div>
     </div>
     <input id="figmaUrl" type="text" placeholder="https://figma.com/design/…" />
@@ -488,7 +381,7 @@
 
   <section class="section">
     <div class="section-head">
-      <div class="section-label">Compare</div>
+      <div class="section-label">Check options</div>
       <div class="hint">Choose checks</div>
     </div>
     <div class="checks">
@@ -512,6 +405,41 @@
         <input type="checkbox" id="chk-missing">
         <label for="chk-missing"><span class="chip-dot"></span>Missing comps</label>
       </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div class="section-label">Responsive preview</div>
+      <div class="hint">Opens in Loupe</div>
+    </div>
+    <button class="secondary-action" id="responsivePreviewBtn" type="button">
+      Open responsive preview
+    </button>
+    <div class="preset-row">
+      <button class="preset-button" type="button" data-preview-device="iphone-15-pro">
+        Mobile <span class="preset-size">393 x 852</span>
+      </button>
+      <button class="preset-button" type="button" data-preview-device="ipad-pro">
+        Tablet <span class="preset-size">1024 x 1366</span>
+      </button>
+      <button class="preset-button" type="button" data-preview-device="macbook-pro">
+        Desktop <span class="preset-size">1440 x 900</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div class="section-label">Other agents</div>
+    </div>
+    <div class="agent-grid">
+      <button class="agent-button" type="button" data-agent="brand">
+        <span>Brand Check</span><span>Colors & fonts</span>
+      </button>
+      <button class="agent-button" type="button" data-agent="accessibility">
+        <span>Accessibility</span><span>WCAG scan</span>
+      </button>
     </div>
   </section>
 

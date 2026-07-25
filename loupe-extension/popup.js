@@ -1,14 +1,19 @@
 const LOUPE_API = "https://getloupe.vercel.app/api/extension-styles";
 const LOUPE_APP = "https://getloupe.vercel.app/agents/figma-compare";
+const RESPONSIVE_APP = "https://getloupe.vercel.app/agents/responsive";
+const BRAND_APP = "https://getloupe.vercel.app/agents/brand-consistency";
+const ACCESSIBILITY_APP = "https://getloupe.vercel.app/agents/accessibility";
+const SETTINGS_APP = "https://getloupe.vercel.app/agents/settings";
 
 const figmaInput  = document.getElementById("figmaUrl");
 const btn         = document.getElementById("btn");
 const status      = document.getElementById("status");
 const currentUrl  = document.getElementById("currentUrl");
-const screenWidthInput = document.getElementById("screenWidth");
-const screenHeightInput = document.getElementById("screenHeight");
-const openScreenBtn = document.getElementById("openScreenBtn");
-const deviceButtons = document.querySelectorAll("[data-screen-width][data-screen-height]");
+const patWarning = document.getElementById("patWarning");
+const patSettingsBtn = document.getElementById("patSettingsBtn");
+const responsivePreviewBtn = document.getElementById("responsivePreviewBtn");
+const previewButtons = document.querySelectorAll("[data-preview-device]");
+const agentButtons = document.querySelectorAll("[data-agent]");
 
 const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
 const CHECK_MAP = {
@@ -20,7 +25,7 @@ const CHECK_MAP = {
 };
 
 // Load saved settings
-chrome.storage.local.get(["figmaUrl", "checks"], ({ figmaUrl, checks }) => {
+chrome.storage.local.get(["figmaUrl", "checks", "figmaPatStatus", "patExpired"], ({ figmaUrl, checks, figmaPatStatus, patExpired }) => {
   if (figmaUrl) figmaInput.value = figmaUrl;
   if (checks) {
     CHECK_IDS.forEach(id => {
@@ -28,22 +33,31 @@ chrome.storage.local.get(["figmaUrl", "checks"], ({ figmaUrl, checks }) => {
       if (el) el.checked = checks.includes(id);
     });
   }
+  if (figmaPatStatus === "expired" || patExpired === true) {
+    patWarning.hidden = false;
+  }
 });
 
 refreshCurrentTab();
 
-deviceButtons.forEach(button => {
+previewButtons.forEach(button => {
   button.addEventListener("click", () => {
-    const width = Number(button.dataset.screenWidth);
-    const height = Number(button.dataset.screenHeight);
-    screenWidthInput.value = String(width);
-    screenHeightInput.value = String(height);
-    openScreenWindow(width, height);
+    openResponsivePreview(button.dataset.previewDevice || "macbook-pro");
   });
 });
 
-openScreenBtn.addEventListener("click", () => {
-  openScreenWindow(Number(screenWidthInput.value), Number(screenHeightInput.value));
+responsivePreviewBtn.addEventListener("click", () => {
+  openResponsivePreview("macbook-pro");
+});
+
+agentButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    openAgent(button.dataset.agent);
+  });
+});
+
+patSettingsBtn.addEventListener("click", () => {
+  openOrFocusLoupe(SETTINGS_APP, `${SETTINGS_APP}*`);
 });
 
 btn.addEventListener("click", async () => {
@@ -111,35 +125,36 @@ btn.addEventListener("click", async () => {
   setStatus("Loupe opened in a tab.", "ok");
 });
 
-async function openScreenWindow(width, height) {
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 280 || height < 280) {
-    setStatus("Enter a valid screen size.", "error");
-    return;
-  }
-
-  openScreenBtn.disabled = true;
-  setStatus(`Opening ${width} x ${height} screen test…`);
+async function openResponsivePreview(device) {
+  responsivePreviewBtn.disabled = true;
+  setStatus("Opening responsive preview…");
   const tab = await getLiveTab();
   if (!tab) {
-    openScreenBtn.disabled = false;
+    responsivePreviewBtn.disabled = false;
     return;
   }
 
-  try {
-    await chrome.windows.create({
-      url: tab.url,
-      type: "popup",
-      width: Math.round(width),
-      height: Math.round(height),
-      focused: true,
-    });
-    setStatus(`Opened ${width} x ${height} test window.`, "ok");
-  } catch (err) {
-    console.error("[Loupe] screen test failed:", err);
-    setStatus("Could not open the screen test window.", "error");
-  } finally {
-    openScreenBtn.disabled = false;
-  }
+  const params = new URLSearchParams({
+    url: tab.url,
+    device,
+  });
+  await openOrFocusLoupe(`${RESPONSIVE_APP}?${params}`, `${RESPONSIVE_APP}*`);
+  responsivePreviewBtn.disabled = false;
+  setStatus("Responsive preview opened.", "ok");
+}
+
+async function openAgent(agent) {
+  const routes = {
+    brand: BRAND_APP,
+    accessibility: ACCESSIBILITY_APP,
+  };
+  const route = routes[agent];
+  if (!route) return;
+  const tab = await getLiveTab();
+  if (!tab) return;
+  const params = new URLSearchParams({ url: tab.url });
+  await openOrFocusLoupe(`${route}?${params}`, `${route}*`);
+  setStatus(`${agent === "brand" ? "Brand Check" : "Accessibility"} opened.`, "ok");
 }
 
 async function refreshCurrentTab() {

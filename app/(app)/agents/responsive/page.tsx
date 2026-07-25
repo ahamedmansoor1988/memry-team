@@ -3,27 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
-  Check,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
   Globe2,
   Loader2,
   MonitorCheck,
-  MousePointerClick,
-  PanelTop,
   Play,
   RefreshCw,
   RotateCw,
-  Ruler,
   Share2,
   Sparkles,
-  TextCursorInput,
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
 import { analyzeLayoutIssue } from "@/lib/layout-analysis";
 import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
-import { ScanHelpToggle } from "@/components/scan-help-toggle";
 import { loadCachedScan, saveCachedScan } from "@/lib/scan-cache";
 
 const SCAN_CACHE_KEY = "loupe.layout-qa.last-scan";
@@ -67,53 +61,14 @@ const VIEWPORT_META: Record<ViewportName, { label: string; size: string }> = {
 };
 
 const STUDIO_PRESETS = [
-  { id: "macbook-pro", label: "MacBook Pro", width: 1440, height: 900 },
+  { id: "iphone-se", label: "iPhone SE", width: 375, height: 667 },
+  { id: "iphone-15-pro", label: "iPhone 15 Pro", width: 393, height: 852 },
+  { id: "pixel-8", label: "Pixel 8", width: 412, height: 915 },
+  { id: "ipad-pro", label: "iPad Pro", width: 1024, height: 1366 },
   { id: "macbook-air", label: "MacBook Air", width: 1280, height: 832 },
+  { id: "macbook-pro", label: "MacBook Pro", width: 1440, height: 900 },
   { id: "full-hd", label: "Full HD", width: 1920, height: 1080 },
   { id: "2k-monitor", label: "2K Monitor", width: 2560, height: 1440 },
-  { id: "ipad-pro", label: "iPad Pro", width: 1024, height: 1366 },
-  { id: "iphone-15-pro", label: "iPhone 15 Pro", width: 393, height: 852 },
-  { id: "iphone-se", label: "iPhone SE", width: 375, height: 667 },
-  { id: "pixel-8", label: "Pixel 8", width: 412, height: 915 },
-];
-
-const CHECK_GROUPS = [
-  {
-    icon: Ruler,
-    title: "Layout",
-    text: "Horizontal overflow, elements outside the viewport, fixed-width sections, broken containers, overflowing grids.",
-  },
-  {
-    icon: TextCursorInput,
-    title: "Typography",
-    text: "Clipped text, truncated labels, long unbreakable strings, text overflow.",
-  },
-  {
-    icon: PanelTop,
-    title: "Navigation",
-    text: "Sticky headers, mega menus, drawers, modals, and floating elements that cover or exceed the screen.",
-  },
-  {
-    icon: MousePointerClick,
-    title: "Mobile UX",
-    text: "Touch targets, floating widgets, and overlapping UI — reported separately so they never bury layout issues.",
-  },
-];
-
-const SCAN_STEPS = [
-  "Crawl page",
-  "Test every viewport",
-  "Detect layout failures",
-  "Explain root cause & fixes",
-];
-
-const REPORT_INCLUDES = [
-  "Annotated screenshots",
-  "Exact offending element",
-  "Root cause analysis",
-  "Suggested CSS fixes",
-  "Severity",
-  "Affected viewport",
 ];
 
 const TYPE_LABELS: Record<string, string> = {
@@ -480,7 +435,7 @@ export default function ResponsiveAgentPage() {
   const [customHeight, setCustomHeight] = useState(900);
   const [frameKey, setFrameKey] = useState(0);
   const [previewScale, setPreviewScale] = useState(1);
-  const [embedEnabled, setEmbedEnabled] = useState(false);
+  const [embedEnabled, setEmbedEnabled] = useState(true);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
   const canRun = url.trim().startsWith("http") && !running;
@@ -502,7 +457,7 @@ export default function ResponsiveAgentPage() {
   }, [canPreview, previewUrl]);
 
   useEffect(() => {
-    setEmbedEnabled(false);
+    setEmbedEnabled(true);
   }, [previewUrl]);
 
   useEffect(() => {
@@ -577,9 +532,19 @@ export default function ResponsiveAgentPage() {
     const params = new URLSearchParams(window.location.search);
     const urlParam = params.get("url");
     const shouldAutorun = params.get("autorun") === "1";
+    const deviceParam = params.get("device");
+    const widthParam = Number(params.get("width"));
+    const heightParam = Number(params.get("height"));
     if (!urlParam?.startsWith("http")) return;
 
     setUrl(urlParam);
+    if (deviceParam && STUDIO_PRESETS.some(preset => preset.id === deviceParam)) {
+      setActivePresetId(deviceParam);
+    } else if (Number.isFinite(widthParam) && Number.isFinite(heightParam) && widthParam >= 280 && heightParam >= 280) {
+      setActivePresetId("custom");
+      setCustomWidth(widthParam);
+      setCustomHeight(heightParam);
+    }
     if (shouldAutorun) {
       window.setTimeout(() => document.getElementById("responsive-run-btn")?.click(), 500);
     }
@@ -724,15 +689,10 @@ export default function ResponsiveAgentPage() {
     <div className="h-full overflow-y-auto bg-[#1f1f21] text-white">
       <section className="min-h-full px-5 py-5">
         <div className="mb-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <a href="/agents/figma-compare" className="inline-flex rounded-lg bg-white px-3 py-2 transition-opacity hover:opacity-90" title="Back to Loupe">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto" />
-            </a>
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Responsive Check</p>
-              <h1 className="mt-1 text-[20px] font-semibold tracking-normal text-white">Viewport Studio</h1>
-            </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Responsive Check</p>
+            <h1 className="mt-1 text-[20px] font-semibold tracking-normal text-white">Device screen preview</h1>
+            <p className="mt-1 text-[12px] text-white/45">Run the current website inside preset screen sizes, then scan when you need measured QA.</p>
           </div>
           <div className="flex items-center gap-2">
             {result?.url && (
@@ -749,14 +709,9 @@ export default function ResponsiveAgentPage() {
         <div className="grid min-h-[calc(100vh-92px)] gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="h-fit rounded-[22px] border border-white/10 bg-[#101012] p-4 shadow-2xl shadow-black/30 xl:sticky xl:top-5">
             <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#a855f7] via-[#ec4899] to-[#f97316] shadow-lg shadow-pink-500/20">
-                  <MonitorCheck size={16} />
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-white">ViewPort Studio</p>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">Live resize lab</p>
-                </div>
+              <div>
+                <p className="text-[14px] font-semibold text-white">Viewport controls</p>
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">Device presets</p>
               </div>
               <button
                 onClick={() => setFrameKey(key => key + 1)}
@@ -882,7 +837,14 @@ export default function ResponsiveAgentPage() {
                 transform: `translate(-50%, -50%) scale(${previewScale})`,
               }}
             >
-              {studioScreenshot ? (
+              {canPreview && embedEnabled ? (
+                <iframe
+                  key={`${frameKey}-${previewUrl}-${studioViewport.width}-${studioViewport.height}`}
+                  title="Viewport preview"
+                  src={previewUrl}
+                  className="h-full w-full border-0 bg-white"
+                />
+              ) : studioScreenshot ? (
                 <div className="relative h-full w-full bg-white">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -894,13 +856,6 @@ export default function ResponsiveAgentPage() {
                     Browser scan screenshot
                   </div>
                 </div>
-              ) : canPreview && embedEnabled ? (
-                <iframe
-                  key={`${frameKey}-${previewUrl}-${studioViewport.width}-${studioViewport.height}`}
-                  title="Viewport preview"
-                  src={previewUrl}
-                  className="h-full w-full border-0 bg-white"
-                />
               ) : (
                 <div className="flex h-full items-center justify-center bg-[#fafafa] px-8 text-center">
                   <div style={{ transform: `scale(${1 / previewScale})` }}>
@@ -941,54 +896,9 @@ export default function ResponsiveAgentPage() {
         </div>
       </section>
 
+      {(result || error || browserScannerConnected === false) && (
       <div className="bg-white text-[#0f0f0f]">
         <div className="mx-auto max-w-5xl px-6 py-6">
-          <ScanHelpToggle label="What the QA scan checks">
-            <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-              <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How Layout QA works</p>
-                <div className="grid grid-cols-4 gap-2">
-                  {SCAN_STEPS.map((step, index) => (
-                    <div key={step} className="relative rounded-lg bg-white px-3 py-3">
-                      <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
-                        {index + 1}
-                      </div>
-                      <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What gets checked</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {CHECK_GROUPS.map(group => {
-                    const Icon = group.icon;
-                    return (
-                      <div key={group.title} className="rounded-lg border border-black/[0.06] px-3 py-2.5">
-                        <div className="mb-1.5 flex items-center gap-2">
-                          <Icon size={13} className="text-[#4b5563]" />
-                          <p className="text-[12px] font-semibold text-[#17171c]">{group.title}</p>
-                        </div>
-                        <p className="text-[11px] leading-snug text-[#71717a]">{group.text}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 border-t border-black/[0.06] pt-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Report includes</p>
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                    {REPORT_INCLUDES.map(item => (
-                      <p key={item} className="flex items-center gap-1.5 text-[11px] text-[#4b5563]">
-                        <Check size={11} className="shrink-0 text-[#0f0f0f]" /> {item}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ScanHelpToggle>
-
         {result && result.mode === "static_fallback" && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3.5">
             <AlertCircle size={18} className="mt-0.5 shrink-0 text-amber-600" />
@@ -1093,6 +1003,7 @@ export default function ResponsiveAgentPage() {
             )}
           </section>
 
+          {result && (
           <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
             {score !== null && result && (
               <div className="mb-4 space-y-2">
@@ -1180,9 +1091,11 @@ export default function ResponsiveAgentPage() {
               </div>
             )}
           </aside>
+          )}
         </div>
       </div>
     </div>
+      )}
     </div>
   );
 }

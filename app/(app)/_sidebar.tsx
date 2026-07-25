@@ -4,13 +4,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings, Accessibility, AlertTriangle, Palette } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings, Accessibility, AlertTriangle, Palette, MonitorCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
 const NAV = [
   { id: "figma-compare", label: "Figma vs Live", icon: ScanSearch, beta: false },
   { id: "brand-consistency", label: "Brand Check", icon: Palette, beta: false },
+  { id: "responsive", label: "Responsive Check", icon: MonitorCheck, beta: false },
   { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
 ];
 
