@@ -16,6 +16,7 @@
     --border-soft: #f1f1f4;
     --surface: #ffffff;
     --surface-soft: #fbfbfc;
+    --surface-tint: #f7f7f9;
     --brand: linear-gradient(135deg, #a855f7 0%, #ec4899 52%, #f97316 100%);
     --radius: 12px;
   }
@@ -193,7 +194,6 @@
   .chip input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
 
   .chip label,
-  .secondary-action,
   .agent-button {
     display: flex;
     min-width: 0;
@@ -209,22 +209,6 @@
     transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
   }
 
-  .secondary-action {
-    width: 100%;
-    min-height: 42px;
-    justify-content: center;
-    gap: 8px;
-    background: #111113;
-    color: #fff;
-  }
-
-  .secondary-action:hover {
-    border-color: #111113;
-    background: #27272a;
-    color: #fff;
-    transform: translateY(-1px);
-  }
-
   .chip label {
     min-height: 34px;
     gap: 8px;
@@ -233,8 +217,8 @@
   }
 
   .chip input:checked + label {
-    border-color: #f4c2da;
-    background: #fff7fb;
+    border-color: #dedee5;
+    background: var(--surface-tint);
     color: var(--text);
   }
 
@@ -265,8 +249,8 @@
   }
 
   .agent-button:hover {
-    border-color: #f4c2da;
-    background: #fff7fb;
+    border-color: #d8d8de;
+    background: var(--surface-tint);
     color: var(--text);
     transform: translateY(-1px);
   }
@@ -280,6 +264,10 @@
   .agent-button span:last-child {
     color: var(--muted);
     font-size: 10px;
+  }
+
+  .tool-section {
+    padding-top: 11px;
   }
 
   .actions {
@@ -398,26 +386,16 @@
     </div>
   </section>
 
-  <section class="section">
-    <div class="section-head">
-      <div class="section-label">Responsive preview</div>
-      <div class="hint">Opens in Loupe</div>
-    </div>
-    <button class="secondary-action" type="button" data-agent="responsive">
-      Open responsive preview
-    </button>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
-      <div class="section-label">Other agents</div>
-    </div>
+  <section class="section tool-section">
     <div class="agent-grid">
       <button class="agent-button" type="button" data-agent="brand">
         <span>Brand Check</span><span>Colors & fonts</span>
       </button>
       <button class="agent-button" type="button" data-agent="accessibility">
         <span>Accessibility</span><span>WCAG scan</span>
+      </button>
+      <button class="agent-button" type="button" data-agent="responsive">
+        <span>Responsive Preview</span><span>Device sizes</span>
       </button>
     </div>
   </section>
