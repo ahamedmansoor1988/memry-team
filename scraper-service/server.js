@@ -788,14 +788,18 @@ async function inspectAccessibility(page) {
       return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
     }
     // Walk up for a solid background; bail (null) if a background image intervenes.
+    // Includes <html> itself — dark-themed sites often set the page background
+    // there rather than on <body> or any element in between, and skipping it
+    // used to make every such button/text falsely default to "white background".
     function effectiveBackground(el) {
       let cur = el;
-      while (cur && cur !== document.documentElement) {
+      while (cur) {
         const cs = window.getComputedStyle(cur);
         if (cs.backgroundImage && cs.backgroundImage !== "none") return null;
         const bg = parseColor(cs.backgroundColor);
         if (bg && bg.a >= 0.99) return bg;
-        cur = cur.parentElement;
+        if (cur === document.documentElement) break;
+        cur = cur.parentElement || document.documentElement;
       }
       return { r: 255, g: 255, b: 255, a: 1 };
     }
@@ -1309,6 +1313,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v6" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v7" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
