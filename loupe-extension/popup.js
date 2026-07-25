@@ -8,7 +8,7 @@ const responsiveBtn = document.getElementById("responsiveBtn");
 const status      = document.getElementById("status");
 const currentUrl  = document.getElementById("currentUrl");
 
-const CHECK_IDS = ["missing", "family", "size", "weight", "color"];
+const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
 const CHECK_MAP = {
   missing: "missing_elements",
   family:  "font_family",
@@ -35,6 +35,7 @@ btn.addEventListener("click", async () => {
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
 
   const checks    = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
+  if (checks.length === 0) { setStatus("Choose at least one check.", "error"); return; }
   const checkKeys = checks.map(id => CHECK_MAP[id]);
 
   chrome.storage.local.set({ figmaUrl, checks });

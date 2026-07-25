@@ -26,11 +26,11 @@ interface SnapshotMeta {
 }
 
 const CHECK_OPTIONS = [
-  { id: "missing_elements", label: "Missing Comps" },
   { id: "font_family",      label: "Font Family"      },
   { id: "font_size",        label: "Font Size"        },
   { id: "font_weight",      label: "Font Weight"      },
   { id: "color",            label: "Color"            },
+  { id: "missing_elements", label: "Missing Comps" },
 ];
 const CHECK_IDS = new Set(CHECK_OPTIONS.map(check => check.id));
 
@@ -76,9 +76,7 @@ export default function FigmaComparePage() {
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
   const [patExpiry, setPatExpiry] = useState<PatExpiryStatus>({ state: "none", daysLeft: null, message: "" });
-  const [checks, setChecks] = useState<Set<string>>(
-    new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"])
-  );
+  const [checks, setChecks] = useState<Set<string>>(new Set());
   const [configOpen, setConfigOpen] = useState(false);
 
   // Execution
