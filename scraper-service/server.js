@@ -802,8 +802,19 @@ async function inspectAccessibility(page) {
       // land outside [0, innerWidth/Height] and the point sample comes back
       // empty, which used to silently fall through to the white default.
       if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
-        el.scrollIntoView({ block: "center", inline: "center" });
+        // behavior: "instant" matters — many sites set `scroll-behavior: smooth`
+        // on <html>, which makes the default scrollIntoView animate over time.
+        // Reading the rect right after the call would still see the pre-scroll
+        // position since the animation hasn't finished yet.
+        el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
         rect = el.getBoundingClientRect();
+        // If it's still out of bounds (e.g. a JS-driven scroll library where
+        // window/document isn't the real scroll container), sampling a
+        // coordinate the element was never actually painted at would misjudge
+        // the background — bail (cannot judge) rather than guess white.
+        if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+          return null;
+        }
       }
       const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
       const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
@@ -1336,6 +1347,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v9" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v10" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
