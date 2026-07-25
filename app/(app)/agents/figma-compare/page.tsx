@@ -496,13 +496,13 @@ export default function FigmaComparePage() {
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {/* Top bar */}
         <div className="flex h-[58px] items-center justify-between border-b border-[#f0f0f0] bg-white px-6 shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0f0f0f] text-white">
-              <Sparkles size={15} />
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04]">
+              <Sparkles size={17} strokeWidth={1.8} />
             </div>
             <div>
-              <p className="text-[14px] font-semibold text-[#17171c]">Figma vs Live</p>
-              <p className="text-[11px] text-[#71717a]">Missing comps, fonts, weights, sizes, and color</p>
+              <p className="text-[17px] font-semibold text-[#17171c]">Figma vs Live</p>
+              <p className="mt-0.5 text-[12px] text-[#71717a]">Missing comps, fonts, weights, sizes, and color</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
