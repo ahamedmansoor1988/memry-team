@@ -787,19 +787,24 @@ async function inspectAccessibility(page) {
       const l1 = luminance(a), l2 = luminance(b);
       return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
     }
-    // Walk up for a solid background; bail (null) if a background image intervenes.
-    // Includes <html> itself — dark-themed sites often set the page background
-    // there rather than on <body> or any element in between, and skipping it
-    // used to make every such button/text falsely default to "white background".
+    // Reads the real paint-order stack at the element's own screen point
+    // (elementsFromPoint), not the DOM ancestor chain — the visible
+    // background is often painted by a sibling/absolute layer that isn't
+    // an ancestor at all (e.g. a full-bleed hero background section), and
+    // a plain ancestor walk can never see it. Layers with opacity:0 are
+    // skipped — decorative motion-effect/hover layers commonly carry a
+    // solid background-color in CSS that never actually paints.
     function effectiveBackground(el) {
-      let cur = el;
-      while (cur) {
-        const cs = window.getComputedStyle(cur);
+      const rect = el.getBoundingClientRect();
+      const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
+      const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
+      const stack = document.elementsFromPoint(x, y);
+      for (const node of stack) {
+        const cs = window.getComputedStyle(node);
+        if (parseFloat(cs.opacity) === 0) continue;
         if (cs.backgroundImage && cs.backgroundImage !== "none") return null;
         const bg = parseColor(cs.backgroundColor);
         if (bg && bg.a >= 0.99) return bg;
-        if (cur === document.documentElement) break;
-        cur = cur.parentElement || document.documentElement;
       }
       return { r: 255, g: 255, b: 255, a: 1 };
     }
@@ -816,6 +821,15 @@ async function inspectAccessibility(page) {
       if (!el || contrastChecked.has(el)) continue;
       contrastChecked.add(el);
       if (!isVisible(el) || isAssistiveHidden(el)) continue;
+      // Some widgets (hover/motion-effect buttons, sticky-header clones) keep
+      // a second copy of the same text stacked at the same coordinates — one
+      // is decorative and never actually painted on top. Skip a node if the
+      // element a user would actually see at its own center point isn't it
+      // (or doesn't contain it), so we don't judge contrast against a layer
+      // that's rendered behind something else.
+      const rect = el.getBoundingClientRect();
+      const topEl = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      if (topEl && !el.contains(topEl) && !topEl.contains(el)) continue;
       textNodesChecked++;
       const cs = window.getComputedStyle(el);
       let color = parseColor(cs.color);
@@ -1313,6 +1327,6 @@ app.post("/brand-scan", async (req, res) => {
 });
 
 // Health check
-app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v7" }));
+app.get("/health", (_req, res) => res.json({ ok: true, version: "brand-scan-v8" }));
 
 app.listen(PORT, () => console.log(`[scraper] listening on :${PORT}`));
