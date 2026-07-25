@@ -106,24 +106,20 @@ export default function ResponsiveAgentPage() {
         <div className="flex h-full min-h-full overflow-hidden">
           {panelOpen && (
             <aside className="w-[240px] shrink-0 border-r border-black/[0.06] bg-white p-4">
-              <div className="mb-4 flex items-center justify-between border-b border-black/[0.06] pb-3">
-                <p className="text-[14px] font-semibold text-[#17171c]">Responsive Check</p>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setFrameKey(key => key + 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
-                    title="Reload preview"
-                  >
-                    <RefreshCw size={14} />
-                  </button>
-                  <button
-                    onClick={() => setPanelOpen(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
-                    title="Hide panel"
-                  >
-                    <ChevronLeft size={14} />
-                  </button>
+              <div className="mb-4 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/[0.04]">
+                    <MonitorCheck size={17} strokeWidth={1.8} />
+                  </div>
+                  <p className="truncate text-[17px] font-semibold text-[#17171c]">Responsive Check</p>
                 </div>
+                <button
+                  onClick={() => setPanelOpen(false)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
+                  title="Hide panel"
+                >
+                  <ChevronLeft size={14} />
+                </button>
               </div>
 
               <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Page URL</label>
