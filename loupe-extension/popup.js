@@ -13,7 +13,6 @@ const patWarning = document.getElementById("patWarning");
 const patSettingsBtn = document.getElementById("patSettingsBtn");
 const agentButtons = document.querySelectorAll("[data-agent]");
 
-const ALL_CHECK_KEYS = ["missing_elements", "font_family", "font_size", "font_weight", "color"];
 const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
 const CHECK_MAP = {
   missing: "missing_elements",
@@ -104,7 +103,7 @@ btn.addEventListener("click", async () => {
     liveUrl:  tab.url,
     figmaUrl,
     autorun:  "1",
-    checks:   (checkKeys.length ? checkKeys : ALL_CHECK_KEYS).join(","),
+    checks:   checkKeys.join(","),
   });
   const loupeUrl = `${LOUPE_APP}?${params}`;
   await openOrFocusLoupe(loupeUrl, `${LOUPE_APP}*`);
