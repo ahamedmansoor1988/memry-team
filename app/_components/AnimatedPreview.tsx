@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ScanSearch, Palette, Accessibility, MonitorCheck } from "lucide-react";
+import { ScanSearch, Palette, Accessibility, MonitorCheck, Globe2 } from "lucide-react";
 
 interface Row {
   el: string;
@@ -11,7 +11,23 @@ interface Row {
   issue: string;
 }
 
-interface Scene {
+interface Card {
+  badge: string;
+  badgeBg: string;
+  badgeColor: string;
+  headline: string;
+  detail: string;
+  location: string;
+}
+
+interface Device {
+  label: string;
+  w: number;
+  h: number;
+}
+
+interface TableScene {
+  kind: "table";
   icon: typeof ScanSearch;
   label: string;
   badge: string;
@@ -21,8 +37,29 @@ interface Scene {
   rows: Row[];
 }
 
+interface CardScene {
+  kind: "cards";
+  icon: typeof ScanSearch;
+  label: string;
+  badge: string;
+  steps: string[];
+  cards: Card[];
+}
+
+interface DeviceScene {
+  kind: "devices";
+  icon: typeof ScanSearch;
+  label: string;
+  badge: string;
+  steps: string[];
+  devices: Device[];
+}
+
+type Scene = TableScene | CardScene | DeviceScene;
+
 const SCENES: Scene[] = [
   {
+    kind: "table",
     icon: ScanSearch,
     label: "Figma vs Live",
     badge: "9 nodes · depth=5",
@@ -42,6 +79,7 @@ const SCENES: Scene[] = [
     ],
   },
   {
+    kind: "cards",
     icon: Palette,
     label: "Brand Check",
     badge: "6 colors · 3 fonts",
@@ -51,15 +89,13 @@ const SCENES: Scene[] = [
       "Comparing every match against the brand guide…",
       "Found 5 mismatches.",
     ],
-    summaryTitle: "5 issues found",
-    summarySub: "3 color drift, 2 font",
-    rows: [
-      { el: "Hero heading", type: "Font", bg: "#fdf2f8", c: "#db2777", issue: "Inter → Söhne" },
-      { el: "CTA button", type: "Color", bg: "#fdf2f8", c: "#db2777", issue: "#111827 → #0F0F13" },
-      { el: "Section spacing", type: "Spacing", bg: "#fefce8", c: "#a16207", issue: "48px → 64px" },
+    cards: [
+      { badge: "Font Family", badgeBg: "#f5f3ff", badgeColor: "#7c3aed", headline: "Hero heading", detail: "Inter → Söhne", location: "Where to inspect: Top of page" },
+      { badge: "Color", badgeBg: "#fdf2f8", badgeColor: "#db2777", headline: "CTA button", detail: "#111827 → #0F0F13", location: "Where to inspect: Above the fold" },
     ],
   },
   {
+    kind: "cards",
     icon: Accessibility,
     label: "Accessibility QA",
     badge: "WCAG AA",
@@ -69,45 +105,43 @@ const SCENES: Scene[] = [
       "Checking labels, headings, and focus order…",
       "Found 4 WCAG issues.",
     ],
-    summaryTitle: "4 issues found",
-    summarySub: "1 contrast, 2 labels, 1 heading",
-    rows: [
-      { el: "Search input", type: "Missing label", bg: "#fef2f2", c: "#dc2626", issue: "No aria-label or <label>" },
-      { el: "Hero CTA", type: "Contrast", bg: "#fef2f2", c: "#dc2626", issue: "2.1:1 — needs 4.5:1" },
-      { el: "Section", type: "Heading order", bg: "#fefce8", c: "#a16207", issue: "H3 follows H1, skips H2" },
+    cards: [
+      { badge: "High · Contrast", badgeBg: "#fef2f2", badgeColor: "#dc2626", headline: "Text contrast is below the WCAG AA minimum", detail: "2.1:1 — needs 4.5:1", location: "Where to inspect: Hero CTA button" },
+      { badge: "Medium · Missing label", badgeBg: "#fefce8", badgeColor: "#a16207", headline: "Input has no accessible name", detail: "No aria-label or <label>", location: "Where to inspect: Search bar" },
     ],
   },
   {
+    kind: "devices",
     icon: MonitorCheck,
     label: "Responsive Check",
-    badge: "3 viewports",
+    badge: "acme.com",
     steps: [
-      "Loading the page at mobile, tablet, and desktop…",
-      "Measuring layout boxes at each breakpoint…",
-      "Checking for overflow and touch target size…",
-      "Found 3 layout issues.",
+      "Loading acme.com inside the device studio…",
+      "Preset ready — iPhone 15 Pro (393 × 852)…",
+      "Switching to iPad Pro (1024 × 1366)…",
+      "Switching to MacBook Pro (1440 × 900)…",
     ],
-    summaryTitle: "3 issues found",
-    summarySub: "1 overflow, 2 touch targets",
-    rows: [
-      { el: "Nav menu", type: "Overflow", bg: "#fef2f2", c: "#dc2626", issue: "Causes horizontal scroll at 375px" },
-      { el: "Icon button", type: "Touch target", bg: "#fefce8", c: "#a16207", issue: "28×28px — needs 44×44px" },
-      { el: "Footer link", type: "Touch target", bg: "#fefce8", c: "#a16207", issue: "32×24px — needs 44×44px" },
+    devices: [
+      { label: "iPhone 15 Pro", w: 130, h: 230 },
+      { label: "iPad Pro", w: 190, h: 220 },
+      { label: "MacBook Pro", w: 240, h: 155 },
     ],
   },
 ];
 
-const STEP_DELAY   = 900;   // ms between each step
-const RESULT_DELAY = 600;   // ms after last step before results appear
-const ROW_DELAY    = 180;   // ms between each row appearing
-const HOLD         = 3000;  // ms to hold final state before reset
-const RESET_PAUSE  = 600;   // ms blank before next cycle
+const STEP_DELAY    = 900;   // ms between each step
+const RESULT_DELAY  = 600;   // ms after last step before results appear
+const ROW_DELAY     = 220;   // ms between each row/card appearing
+const DEVICE_DELAY  = 900;   // ms between each device swap
+const HOLD          = 3000;  // ms to hold final state before reset
+const RESET_PAUSE   = 600;   // ms blank before next cycle
 
 export function AnimatedPreview() {
   const [sceneIndex,   setSceneIndex]   = useState(0);
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [showResults,  setShowResults]  = useState(false);
   const [visibleRows,  setVisibleRows]  = useState(0);
+  const [deviceIndex,  setDeviceIndex]  = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,16 +150,17 @@ export function AnimatedPreview() {
       let scene = 0;
 
       while (!cancelled) {
-        const { steps, rows } = SCENES[scene];
+        const current = SCENES[scene];
 
         setSceneIndex(scene);
         setVisibleSteps(0);
         setShowResults(false);
         setVisibleRows(0);
+        setDeviceIndex(0);
 
         await delay(400);
 
-        for (let i = 1; i <= steps.length; i++) {
+        for (let i = 1; i <= current.steps.length; i++) {
           if (cancelled) return;
           setVisibleSteps(i);
           await delay(STEP_DELAY);
@@ -135,10 +170,24 @@ export function AnimatedPreview() {
         if (cancelled) return;
         setShowResults(true);
 
-        for (let i = 1; i <= rows.length; i++) {
-          if (cancelled) return;
-          await delay(ROW_DELAY);
-          setVisibleRows(i);
+        if (current.kind === "table") {
+          for (let i = 1; i <= current.rows.length; i++) {
+            if (cancelled) return;
+            await delay(ROW_DELAY);
+            setVisibleRows(i);
+          }
+        } else if (current.kind === "cards") {
+          for (let i = 1; i <= current.cards.length; i++) {
+            if (cancelled) return;
+            await delay(ROW_DELAY);
+            setVisibleRows(i);
+          }
+        } else {
+          for (let i = 0; i < current.devices.length; i++) {
+            if (cancelled) return;
+            setDeviceIndex(i);
+            await delay(DEVICE_DELAY);
+          }
         }
 
         await delay(HOLD);
@@ -227,50 +276,112 @@ export function AnimatedPreview() {
             transition: "opacity 0.45s ease, transform 0.45s ease",
           }}
         >
-          <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 mb-4 flex items-center gap-3">
-            <div className="h-4 w-4 rounded-full border-2 border-orange-400 flex items-center justify-center shrink-0">
-              <div className="h-1.5 w-1.5 rounded-full bg-orange-400" />
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold text-orange-800">{scene.summaryTitle}</p>
-              <p className="text-[11px] text-orange-600">{scene.summarySub}</p>
-            </div>
-          </div>
+          {scene.kind === "table" && (
+            <>
+              <div className="rounded-xl border border-orange-100 bg-orange-50 px-4 py-3 mb-4 flex items-center gap-3">
+                <div className="h-4 w-4 rounded-full border-2 border-orange-400 flex items-center justify-center shrink-0">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+                </div>
+                <div>
+                  <p className="text-[13px] font-semibold text-orange-800">{scene.summaryTitle}</p>
+                  <p className="text-[11px] text-orange-600">{scene.summarySub}</p>
+                </div>
+              </div>
 
-          <div className="rounded-xl border border-[#f0f0f0] overflow-hidden">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
-                  <th className="px-3 py-2 text-left text-[#71717a] font-medium">#</th>
-                  <th className="px-3 py-2 text-left text-[#71717a] font-medium">Element</th>
-                  <th className="px-3 py-2 text-left text-[#71717a] font-medium">Type</th>
-                  <th className="px-3 py-2 text-left text-[#71717a] font-medium">Issue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scene.rows.map((row, i) => (
-                  <tr
-                    key={i}
-                    className="border-b border-[#f7f7f8] last:border-0"
-                    style={{
-                      opacity:    visibleRows > i ? 1 : 0,
-                      transform:  visibleRows > i ? "translateY(0)" : "translateY(4px)",
-                      transition: "opacity 0.3s ease, transform 0.3s ease",
-                    }}
-                  >
-                    <td className="px-3 py-2 text-[#a1a1aa]">{i + 1}</td>
-                    <td className="px-3 py-2 font-semibold text-[#17171c]">{row.el}</td>
-                    <td className="px-3 py-2">
-                      <span style={{ backgroundColor: row.bg, color: row.c }} className="rounded-full px-2 py-0.5 text-[10px] font-medium">
-                        {row.type}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-[#3f3f46]">{row.issue}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              <div className="rounded-xl border border-[#f0f0f0] overflow-hidden">
+                <table className="w-full text-[11px]">
+                  <thead>
+                    <tr className="bg-[#fafafa] border-b border-[#f0f0f0]">
+                      <th className="px-3 py-2 text-left text-[#71717a] font-medium">#</th>
+                      <th className="px-3 py-2 text-left text-[#71717a] font-medium">Element</th>
+                      <th className="px-3 py-2 text-left text-[#71717a] font-medium">Type</th>
+                      <th className="px-3 py-2 text-left text-[#71717a] font-medium">Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scene.rows.map((row, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-[#f7f7f8] last:border-0"
+                        style={{
+                          opacity:    visibleRows > i ? 1 : 0,
+                          transform:  visibleRows > i ? "translateY(0)" : "translateY(4px)",
+                          transition: "opacity 0.3s ease, transform 0.3s ease",
+                        }}
+                      >
+                        <td className="px-3 py-2 text-[#a1a1aa]">{i + 1}</td>
+                        <td className="px-3 py-2 font-semibold text-[#17171c]">{row.el}</td>
+                        <td className="px-3 py-2">
+                          <span style={{ backgroundColor: row.bg, color: row.c }} className="rounded-full px-2 py-0.5 text-[10px] font-medium">
+                            {row.type}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-[#3f3f46]">{row.issue}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {scene.kind === "cards" && (
+            <div className="space-y-2.5">
+              {scene.cards.map((card, i) => (
+                <div
+                  key={card.headline}
+                  className="rounded-xl border border-[#f0f0f0] bg-white px-3.5 py-3"
+                  style={{
+                    opacity:    visibleRows > i ? 1 : 0,
+                    transform:  visibleRows > i ? "translateY(0)" : "translateY(4px)",
+                    transition: "opacity 0.3s ease, transform 0.3s ease",
+                  }}
+                >
+                  <div className="mb-1.5 flex items-center gap-1.5">
+                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[9px] font-bold text-white">{i + 1}</span>
+                    <span style={{ backgroundColor: card.badgeBg, color: card.badgeColor }} className="rounded-full px-2 py-0.5 text-[9px] font-semibold">
+                      {card.badge}
+                    </span>
+                  </div>
+                  <p className="text-[12px] font-semibold text-[#17171c]">{card.headline}</p>
+                  <p className="mt-0.5 font-mono text-[11px] text-[#3f3f46]">{card.detail}</p>
+                  <p className="mt-1 text-[10px] text-[#a1a1aa]">{card.location}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {scene.kind === "devices" && (
+            <div className="relative flex h-[220px] items-center justify-center rounded-xl bg-[#242426] overflow-hidden">
+              <span className="absolute right-3 top-3 rounded-lg bg-black/60 px-2.5 py-1 font-mono text-[10px] font-semibold text-white/75">
+                {scene.devices[deviceIndex].label}
+              </span>
+              {scene.devices.map((d, i) => (
+                <div
+                  key={d.label}
+                  className="absolute overflow-hidden rounded-[10px] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
+                  style={{
+                    width: d.w,
+                    height: d.h,
+                    opacity: deviceIndex === i ? 1 : 0,
+                    transform: `scale(${deviceIndex === i ? 1 : 0.92})`,
+                    transition: "opacity 0.4s ease, transform 0.4s ease",
+                  }}
+                >
+                  <div className="flex h-5 items-center gap-1 border-b border-black/[0.06] bg-[#f5f5f7] px-2">
+                    <Globe2 size={8} className="text-[#a1a1aa]" />
+                    <span className="text-[7px] font-medium text-[#a1a1aa]">acme.com</span>
+                  </div>
+                  <div className="space-y-1.5 p-2.5">
+                    <div className="h-2 w-3/4 rounded bg-[#ececf0]" />
+                    <div className="h-1.5 w-full rounded bg-[#f2f2f4]" />
+                    <div className="h-1.5 w-5/6 rounded bg-[#f2f2f4]" />
+                    <div className="mt-2 h-6 w-1/2 rounded bg-[#e4e4e7]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
