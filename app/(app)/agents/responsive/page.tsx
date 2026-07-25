@@ -41,8 +41,12 @@ export default function ResponsiveAgentPage() {
     width: Math.max(customWidth, 280),
     height: Math.max(customHeight, 280),
   };
-  const previewUrl = url.trim();
-  const canPreview = previewUrl.startsWith("http");
+  const previewUrl = useMemo(() => {
+    const trimmed = url.trim();
+    if (!trimmed) return "";
+    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  }, [url]);
+  const canPreview = previewUrl.startsWith("http") && previewUrl.includes(".");
   const previewHost = useMemo(() => {
     try {
       return canPreview ? new URL(previewUrl).hostname : "";
