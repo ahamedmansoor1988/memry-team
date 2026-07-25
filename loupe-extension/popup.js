@@ -26,7 +26,7 @@ const CHECK_MAP = {
 // Load saved settings
 chrome.storage.local.get(["figmaUrl", "checks", "figmaPatStatus", "patExpired"], ({ figmaUrl, checks, figmaPatStatus, patExpired }) => {
   if (figmaUrl) figmaInput.value = figmaUrl;
-  const selected = Array.isArray(checks) && checks.length ? checks : CHECK_IDS;
+  const selected = Array.isArray(checks) ? checks : [];
   CHECK_IDS.forEach(id => {
     const el = document.getElementById(`chk-${id}`);
     if (el) el.checked = selected.includes(id);

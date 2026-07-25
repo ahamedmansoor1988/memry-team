@@ -157,6 +157,13 @@
 
   .section-head { margin-bottom: 9px; }
 
+  .checks-desc {
+    margin: -3px 0 9px;
+    color: var(--text-3);
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
   .hint {
     color: var(--muted);
     font-size: 10px;
@@ -354,6 +361,7 @@
       <div class="section-label">Figma frame URL</div>
       <div class="hint">Copy link to selection</div>
     </div>
+    <p class="checks-desc">Paste the Figma design for the page you're currently viewing — Loupe compares it against this live site.</p>
     <input id="figmaUrl" type="text" placeholder="https://figma.com/design/…" />
   </section>
 
@@ -362,6 +370,7 @@
       <div class="section-label">Check options</div>
       <div class="hint">Choose checks</div>
     </div>
+    <p class="checks-desc">Pick which mismatches to flag between your Figma design and the live site.</p>
     <div class="checks">
       <div class="chip">
         <input type="checkbox" id="chk-family">
