@@ -10,15 +10,16 @@
   html {
     width: 352px;
     margin: 0;
-    background: #fff;
+    background: transparent;
   }
 
   body {
     font-family: 'DM Sans', -apple-system, sans-serif;
     width: 352px;
     margin: 0;
+    padding: 8px;
     overflow: hidden;
-    background: #fff;
+    background: transparent;
     color: #111113;
     letter-spacing: 0;
   }
@@ -26,10 +27,10 @@
   .shell {
     margin: 0;
     overflow: hidden;
-    border: 0;
-    border-radius: 0;
+    border: 1px solid #e8e8ec;
+    border-radius: 18px;
     background: #fff;
-    box-shadow: none;
+    box-shadow: 0 8px 24px rgba(15, 15, 15, 0.10);
   }
 
   /* ── Header ── */
@@ -143,7 +144,7 @@
 
   button#btn {
     width: 100%;
-    background: #0f0f0f;
+    background: linear-gradient(135deg, #a855f7 0%, #ec4899 52%, #f97316 100%);
     color: #fff;
     border: none;
     border-radius: 12px;
@@ -157,9 +158,14 @@
     align-items: center;
     justify-content: center;
     gap: 7px;
-    transition: transform 0.15s, background 0.15s, opacity 0.15s;
+    box-shadow: 0 9px 18px rgba(236, 72, 153, 0.22);
+    transition: transform 0.15s, filter 0.15s, box-shadow 0.15s, opacity 0.15s;
   }
-  button#btn:hover:not(:disabled) { background: #1f1f23; transform: translateY(-1px); }
+  button#btn:hover:not(:disabled) {
+    filter: saturate(1.08) brightness(0.98);
+    box-shadow: 0 11px 22px rgba(236, 72, 153, 0.27);
+    transform: translateY(-1px);
+  }
   button#btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
   /* spinner inside button */
