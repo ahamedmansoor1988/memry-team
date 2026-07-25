@@ -102,8 +102,8 @@ export default function ResponsiveAgentPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-white">
-      <section className="min-h-full px-5 py-5">
-        <div className="flex min-h-[calc(100vh-40px)] overflow-hidden rounded-[28px] border border-black/[0.08] shadow-2xl shadow-black/10">
+      <section className="h-full">
+        <div className="flex h-full min-h-full overflow-hidden">
           {panelOpen && (
             <aside className="w-[240px] shrink-0 border-r border-black/[0.06] bg-white p-4">
               <div className="mb-4 flex items-center justify-between border-b border-black/[0.06] pb-3">
