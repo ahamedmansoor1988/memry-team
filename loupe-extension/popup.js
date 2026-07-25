@@ -11,28 +11,15 @@ const status      = document.getElementById("status");
 const currentUrl  = document.getElementById("currentUrl");
 const patWarning = document.getElementById("patWarning");
 const patSettingsBtn = document.getElementById("patSettingsBtn");
-const responsivePreviewBtn = document.getElementById("responsivePreviewBtn");
 const previewButtons = document.querySelectorAll("[data-preview-device]");
 const agentButtons = document.querySelectorAll("[data-agent]");
 
-const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
-const CHECK_MAP = {
-  missing: "missing_elements",
-  family:  "font_family",
-  size:    "font_size",
-  weight:  "font_weight",
-  color:   "color",
-};
+// Capture & compare always checks every signal — no per-check picker.
+const ALL_CHECK_KEYS = ["missing_elements", "font_family", "font_size", "font_weight", "color"];
 
 // Load saved settings
-chrome.storage.local.get(["figmaUrl", "checks", "figmaPatStatus", "patExpired"], ({ figmaUrl, checks, figmaPatStatus, patExpired }) => {
+chrome.storage.local.get(["figmaUrl", "figmaPatStatus", "patExpired"], ({ figmaUrl, figmaPatStatus, patExpired }) => {
   if (figmaUrl) figmaInput.value = figmaUrl;
-  if (checks) {
-    CHECK_IDS.forEach(id => {
-      const el = document.getElementById(`chk-${id}`);
-      if (el) el.checked = checks.includes(id);
-    });
-  }
   if (figmaPatStatus === "expired" || patExpired === true) {
     patWarning.hidden = false;
   }
@@ -44,10 +31,6 @@ previewButtons.forEach(button => {
   button.addEventListener("click", () => {
     openResponsivePreview(button.dataset.previewDevice || "macbook-pro");
   });
-});
-
-responsivePreviewBtn.addEventListener("click", () => {
-  openResponsivePreview("macbook-pro");
 });
 
 agentButtons.forEach(button => {
@@ -64,11 +47,7 @@ btn.addEventListener("click", async () => {
   const figmaUrl = figmaInput.value.trim();
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
 
-  const checks    = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
-  if (checks.length === 0) { setStatus("Choose at least one check.", "error"); return; }
-  const checkKeys = checks.map(id => CHECK_MAP[id]);
-
-  chrome.storage.local.set({ figmaUrl, checks });
+  chrome.storage.local.set({ figmaUrl });
   btn.disabled = true;
   setStatus("Extracting styles…");
 
@@ -117,7 +96,7 @@ btn.addEventListener("click", async () => {
     liveUrl:  tab.url,
     figmaUrl,
     autorun:  "1",
-    checks:   checkKeys.join(","),
+    checks:   ALL_CHECK_KEYS.join(","),
   });
   const loupeUrl = `${LOUPE_APP}?${params}`;
   await openOrFocusLoupe(loupeUrl, `${LOUPE_APP}*`);
@@ -126,21 +105,16 @@ btn.addEventListener("click", async () => {
 });
 
 async function openResponsivePreview(device) {
-  responsivePreviewBtn.disabled = true;
-  setStatus("Opening responsive preview…");
+  setStatus("Opening device preview…");
   const tab = await getLiveTab();
-  if (!tab) {
-    responsivePreviewBtn.disabled = false;
-    return;
-  }
+  if (!tab) return;
 
   const params = new URLSearchParams({
     url: tab.url,
     device,
   });
   await openOrFocusLoupe(`${RESPONSIVE_APP}?${params}`, `${RESPONSIVE_APP}*`);
-  responsivePreviewBtn.disabled = false;
-  setStatus("Responsive preview opened.", "ok");
+  setStatus("Device preview opened.", "ok");
 }
 
 async function openAgent(agent) {

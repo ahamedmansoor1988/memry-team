@@ -169,19 +169,13 @@
 
   input[type="text"]::placeholder { color: #c9c9d2; }
 
-  .checks,
   .agent-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 7px;
   }
 
-  .chip { position: relative; min-width: 0; }
-  .chip input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
-
-  .chip label,
   .agent-button,
-  .secondary-action,
   .preset-button {
     display: flex;
     min-width: 0;
@@ -195,58 +189,6 @@
     font-size: 11px;
     font-weight: 800;
     transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
-  }
-
-  .chip label {
-    min-height: 34px;
-    gap: 8px;
-    padding: 8px 10px;
-    user-select: none;
-  }
-
-  .chip input:checked + label {
-    border-color: #f4c2da;
-    background: #fff7fb;
-    color: #19191f;
-  }
-
-  .chip-dot {
-    display: flex;
-    width: 15px;
-    height: 15px;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid #d8d8de;
-    border-radius: 999px;
-    background: #fff;
-    flex: none;
-  }
-
-  .chip input:checked + label .chip-dot {
-    border-color: transparent;
-    background: linear-gradient(135deg, #a855f7, #ec4899, #f97316);
-  }
-
-  .chip input:checked + label .chip-dot::after {
-    content: "";
-    width: 4px;
-    height: 7px;
-    border: solid #fff;
-    border-width: 0 1.8px 1.8px 0;
-    transform: rotate(45deg) translate(-0.5px, -0.5px);
-  }
-
-  .secondary-action {
-    width: 100%;
-    min-height: 42px;
-    justify-content: center;
-    gap: 8px;
-    background: #111113;
-    color: #fff;
-  }
-
-  .secondary-action:hover:not(:disabled) {
-    transform: translateY(-1px);
   }
 
   .preset-row {
@@ -381,41 +323,9 @@
 
   <section class="section">
     <div class="section-head">
-      <div class="section-label">Check options</div>
-      <div class="hint">Choose checks</div>
-    </div>
-    <div class="checks">
-      <div class="chip">
-        <input type="checkbox" id="chk-family">
-        <label for="chk-family"><span class="chip-dot"></span>Font family</label>
-      </div>
-      <div class="chip">
-        <input type="checkbox" id="chk-size">
-        <label for="chk-size"><span class="chip-dot"></span>Font size</label>
-      </div>
-      <div class="chip">
-        <input type="checkbox" id="chk-weight">
-        <label for="chk-weight"><span class="chip-dot"></span>Font weight</label>
-      </div>
-      <div class="chip">
-        <input type="checkbox" id="chk-color">
-        <label for="chk-color"><span class="chip-dot"></span>Color</label>
-      </div>
-      <div class="chip">
-        <input type="checkbox" id="chk-missing">
-        <label for="chk-missing"><span class="chip-dot"></span>Missing comps</label>
-      </div>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
-      <div class="section-label">Responsive preview</div>
+      <div class="section-label">Device preview</div>
       <div class="hint">Opens in Loupe</div>
     </div>
-    <button class="secondary-action" id="responsivePreviewBtn" type="button">
-      Open responsive preview
-    </button>
     <div class="preset-row">
       <button class="preset-button" type="button" data-preview-device="iphone-15-pro">
         Mobile <span class="preset-size">393 x 852</span>
