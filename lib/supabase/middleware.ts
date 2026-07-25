@@ -33,7 +33,7 @@ export async function updateSession(request: NextRequest) {
   // Temporarily hidden agents — code stays in the repo, but the routes are
   // unreachable (no nav link, and direct URLs bounce away) so they can be
   // brought back later without rebuilding anything.
-  const HIDDEN_AGENT_PATHS = ["/agents/responsive", "/agents/screenshot-diff"];
+  const HIDDEN_AGENT_PATHS = ["/agents/screenshot-diff"];
   if (HIDDEN_AGENT_PATHS.includes(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/agents/accessibility";
