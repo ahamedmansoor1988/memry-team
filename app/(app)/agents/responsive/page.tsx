@@ -214,31 +214,36 @@ export default function ResponsiveAgentPage() {
             </aside>
           )}
 
-          <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_30%),#242426]">
-            {!panelOpen && (
-              <button
-                onClick={() => setPanelOpen(true)}
-                className="absolute left-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/70 text-white/70 shadow-lg transition-colors hover:bg-black/85 hover:text-white"
-                title="Show panel"
-              >
-                <ChevronRight size={16} />
-              </button>
-            )}
-            <div className="absolute right-5 top-5 z-10 rounded-xl bg-black/70 px-4 py-2 font-mono text-[14px] font-semibold text-white/75 shadow-lg">
-              {studioViewport.width} x {studioViewport.height}
-            </div>
-            <div className={`absolute ${panelOpen ? "left-5" : "left-16"} top-5 z-10 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[11px] font-medium text-white/50 transition-[left]`}>
-              {zoomMode === "fit" ? `Fit · ${Math.round(previewScale * 100)}%` : `${Math.round(previewScale * 100)}%`}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between border-b border-black/[0.06] bg-white px-4 py-2.5">
+              <div className="flex items-center gap-2">
+                {!panelOpen && (
+                  <button
+                    onClick={() => setPanelOpen(true)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
+                    title="Show panel"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                )}
+                <span className="rounded-lg bg-black/[0.04] px-2.5 py-1.5 text-[11px] font-medium text-[#71717a]">
+                  {zoomMode === "fit" ? `Fit · ${Math.round(previewScale * 100)}%` : `${Math.round(previewScale * 100)}%`}
+                </span>
+              </div>
+              <span className="rounded-lg bg-black/[0.04] px-2.5 py-1.5 font-mono text-[12px] font-semibold text-[#4b5563]">
+                {studioViewport.width} x {studioViewport.height}
+              </span>
             </div>
 
-            <div
-              className="absolute left-1/2 top-1/2 origin-center overflow-hidden rounded-[22px] bg-white shadow-[0_24px_90px_rgba(0,0,0,0.45)] ring-1 ring-white/20"
-              style={{
-                width: studioViewport.width,
-                height: studioViewport.height,
-                transform: `translate(-50%, -50%) scale(${previewScale})`,
-              }}
-            >
+            <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-[#f5f5f7]">
+              <div
+                className="absolute left-1/2 top-1/2 origin-center overflow-hidden rounded-[22px] bg-white shadow-[0_24px_90px_rgba(0,0,0,0.16)] ring-1 ring-black/[0.06]"
+                style={{
+                  width: studioViewport.width,
+                  height: studioViewport.height,
+                  transform: `translate(-50%, -50%) scale(${previewScale})`,
+                }}
+              >
               {canPreview && embedEnabled ? (
                 <iframe
                   key={`${frameKey}-${previewUrl}-${studioViewport.width}-${studioViewport.height}`}
@@ -281,6 +286,7 @@ export default function ResponsiveAgentPage() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
