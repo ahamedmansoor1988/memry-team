@@ -11,7 +11,6 @@ const status      = document.getElementById("status");
 const currentUrl  = document.getElementById("currentUrl");
 const patWarning = document.getElementById("patWarning");
 const patSettingsBtn = document.getElementById("patSettingsBtn");
-const previewButtons = document.querySelectorAll("[data-preview-device]");
 const agentButtons = document.querySelectorAll("[data-agent]");
 
 // Capture & compare always checks every signal — no per-check picker.
@@ -26,12 +25,6 @@ chrome.storage.local.get(["figmaUrl", "figmaPatStatus", "patExpired"], ({ figmaU
 });
 
 refreshCurrentTab();
-
-previewButtons.forEach(button => {
-  button.addEventListener("click", () => {
-    openResponsivePreview(button.dataset.previewDevice || "macbook-pro");
-  });
-});
 
 agentButtons.forEach(button => {
   button.addEventListener("click", () => {
@@ -104,21 +97,15 @@ btn.addEventListener("click", async () => {
   setStatus("Loupe opened in a tab.", "ok");
 });
 
-async function openResponsivePreview(device) {
-  setStatus("Opening device preview…");
-  const tab = await getLiveTab();
-  if (!tab) return;
-
-  const params = new URLSearchParams({
-    url: tab.url,
-    device,
-  });
-  await openOrFocusLoupe(`${RESPONSIVE_APP}?${params}`, `${RESPONSIVE_APP}*`);
-  setStatus("Device preview opened.", "ok");
-}
+const AGENT_LABELS = {
+  responsive: "Device Preview",
+  brand: "Brand Check",
+  accessibility: "Accessibility",
+};
 
 async function openAgent(agent) {
   const routes = {
+    responsive: RESPONSIVE_APP,
     brand: BRAND_APP,
     accessibility: ACCESSIBILITY_APP,
   };
@@ -128,7 +115,7 @@ async function openAgent(agent) {
   if (!tab) return;
   const params = new URLSearchParams({ url: tab.url });
   await openOrFocusLoupe(`${route}?${params}`, `${route}*`);
-  setStatus(`${agent === "brand" ? "Brand Check" : "Accessibility"} opened.`, "ok");
+  setStatus(`${AGENT_LABELS[agent] ?? "Agent"} opened.`, "ok");
 }
 
 async function refreshCurrentTab() {

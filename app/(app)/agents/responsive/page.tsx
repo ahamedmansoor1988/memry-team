@@ -86,20 +86,9 @@ export default function ResponsiveAgentPage() {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto bg-[#1f1f21] text-white">
+    <div className="h-full overflow-y-auto bg-white">
       <section className="min-h-full px-5 py-5">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Responsive Check</p>
-            <h1 className="mt-1 text-[20px] font-semibold tracking-normal text-white">Device screen preview</h1>
-            <p className="mt-1 text-[12px] text-white/45">Load a live site and preview it inside mobile, tablet, and laptop screens.</p>
-          </div>
-          <span className="rounded-full bg-black/40 px-3 py-1.5 font-mono text-[13px] font-semibold text-white/70">
-            {studioViewport.width} x {studioViewport.height}
-          </span>
-        </div>
-
-        <div className="grid min-h-[calc(100vh-92px)] gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="grid min-h-[calc(100vh-40px)] gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="h-fit rounded-[22px] border border-white/10 bg-[#101012] p-4 shadow-2xl shadow-black/30 xl:sticky xl:top-5">
             <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
               <div>

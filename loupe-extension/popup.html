@@ -175,8 +175,7 @@
     gap: 7px;
   }
 
-  .agent-button,
-  .preset-button {
+  .agent-button {
     display: flex;
     min-width: 0;
     align-items: center;
@@ -191,36 +190,11 @@
     transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
   }
 
-  .preset-row {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 7px;
-    margin-top: 8px;
-  }
-
-  .preset-button {
-    min-height: 46px;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    padding: 8px;
-    text-align: left;
-  }
-
-  .preset-button:hover,
   .agent-button:hover {
     border-color: #f4c2da;
     background: #fff7fb;
     color: #19191f;
     transform: translateY(-1px);
-  }
-
-  .preset-size {
-    margin-top: 3px;
-    color: #9a9ba5;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 9px;
-    font-weight: 700;
   }
 
   .agent-button {
@@ -323,27 +297,12 @@
 
   <section class="section">
     <div class="section-head">
-      <div class="section-label">Device preview</div>
-      <div class="hint">Opens in Loupe</div>
-    </div>
-    <div class="preset-row">
-      <button class="preset-button" type="button" data-preview-device="iphone-15-pro">
-        Mobile <span class="preset-size">393 x 852</span>
-      </button>
-      <button class="preset-button" type="button" data-preview-device="ipad-pro">
-        Tablet <span class="preset-size">1024 x 1366</span>
-      </button>
-      <button class="preset-button" type="button" data-preview-device="macbook-pro">
-        Desktop <span class="preset-size">1440 x 900</span>
-      </button>
-    </div>
-  </section>
-
-  <section class="section">
-    <div class="section-head">
       <div class="section-label">Other agents</div>
     </div>
     <div class="agent-grid">
+      <button class="agent-button" type="button" data-agent="responsive">
+        <span>Device Preview</span><span>Responsive check</span>
+      </button>
       <button class="agent-button" type="button" data-agent="brand">
         <span>Brand Check</span><span>Colors & fonts</span>
       </button>
