@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Accessibility,
   AlertCircle,
   CheckCircle2,
   ChevronDown,
@@ -14,6 +13,7 @@ import {
   MousePointerClick,
   Play,
   Share2,
+  ShieldCheck,
   Tags,
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
@@ -417,14 +417,14 @@ export default function AccessibilityAgentPage() {
   return (
     <div className="h-full overflow-y-auto bg-[#fafafa] text-[#0f0f0f]">
       <header className="border-b border-black/[0.06] bg-white">
-        <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between gap-4 px-8">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-8">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
-              <Accessibility size={18} strokeWidth={1.9} />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+              <ShieldCheck size={16} strokeWidth={1.9} />
             </div>
             <div className="min-w-0">
-              <h1 className="flex items-center gap-2 truncate text-[24px] font-semibold leading-tight text-[#111113]">Accessibility QA <BetaTag /></h1>
-              <p className="mt-1 truncate text-[14px] text-[#71717a]">WCAG checks for contrast, labels, headings, focus, ARIA, and tap targets on a live page.</p>
+              <h1 className="flex items-center gap-2 truncate text-[19px] font-semibold leading-tight text-[#111113]">Accessibility QA <BetaTag /></h1>
+              <p className="mt-0.5 truncate text-[12px] text-[#71717a]">WCAG checks for contrast, labels, headings, focus, ARIA, and tap targets on a live page.</p>
             </div>
           </div>
           {result?.url && (

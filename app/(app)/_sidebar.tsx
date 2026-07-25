@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings, Accessibility, AlertTriangle, Palette, MonitorCheck } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings, ShieldCheck, AlertTriangle, Palette, MonitorCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
@@ -19,7 +19,7 @@ const NAV_SECTIONS = [
   {
     label: "Other Tools",
     items: [
-      { id: "accessibility", label: "Accessibility", icon: Accessibility, beta: true },
+      { id: "accessibility", label: "Accessibility", icon: ShieldCheck, beta: true },
       { id: "responsive", label: "Responsive Check", icon: MonitorCheck, beta: false },
     ],
   },
@@ -53,7 +53,7 @@ export function Sidebar({ userEmail }: Props) {
   return (
     <aside className="flex h-screen w-[220px] shrink-0 flex-col bg-white border-r border-black/[0.06] text-[#0f0f0f]">
       {/* Logo */}
-      <div className="flex h-[45px] items-center gap-2.5 px-4 border-b border-black/[0.06] shrink-0">
+      <div className="flex h-16 items-center gap-2.5 px-4 border-b border-black/[0.06] shrink-0">
         <Image src="/loupe.svg" alt="Loupe" width={482} height={207} className="h-7 w-auto" />
         
       </div>

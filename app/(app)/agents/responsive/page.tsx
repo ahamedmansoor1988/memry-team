@@ -103,14 +103,14 @@ export default function ResponsiveAgentPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#fafafa]">
       <header className="shrink-0 border-b border-black/[0.06] bg-white">
-        <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between gap-4 px-8">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-between gap-4 px-8">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
-            <MonitorCheck size={18} strokeWidth={1.9} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+            <MonitorCheck size={16} strokeWidth={1.9} />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-[24px] font-semibold leading-tight text-[#111113]">Responsive Check</h1>
-            <p className="mt-1 truncate text-[14px] leading-snug text-[#71717a]">Test the current site inside device presets and custom screen sizes.</p>
+            <h1 className="truncate text-[19px] font-semibold leading-tight text-[#111113]">Responsive Check</h1>
+            <p className="mt-0.5 truncate text-[12px] leading-snug text-[#71717a]">Test the current site inside device presets and custom screen sizes.</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">

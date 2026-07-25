@@ -281,14 +281,14 @@ export default function BrandConsistencyPage() {
   return (
     <div className="h-full overflow-y-auto bg-[#fafafa] text-[#0f0f0f]">
       <header className="border-b border-black/[0.06] bg-white">
-        <div className="mx-auto flex h-20 max-w-[1280px] items-center px-8">
+        <div className="mx-auto flex h-16 max-w-[1280px] items-center px-8">
           <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
-            <Palette size={18} strokeWidth={1.9} />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+            <Palette size={16} strokeWidth={1.9} />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-[24px] font-semibold leading-tight text-[#111113]">Brand Check</h1>
-            <p className="mt-1 truncate text-[14px] text-[#71717a]">Check a Figma file or live webpage for colors, fonts, spacing, and logo usage that don't match your guide.</p>
+            <h1 className="truncate text-[19px] font-semibold leading-tight text-[#111113]">Brand Check</h1>
+            <p className="mt-0.5 truncate text-[12px] text-[#71717a]">Check a Figma file or live webpage for colors, fonts, spacing, and logo usage that don't match your guide.</p>
           </div>
           </div>
         </div>
