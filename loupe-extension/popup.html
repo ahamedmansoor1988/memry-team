@@ -26,6 +26,7 @@
     overflow: visible;
     background: #fff;
     border: 0;
+    padding-bottom: 88px;
   }
 
   .brand-strip {
@@ -80,17 +81,21 @@
 
   .flow {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 6px;
     margin: 0 18px 14px;
   }
 
   .flow-step {
-    min-height: 66px;
+    display: flex;
+    min-width: 0;
+    min-height: 32px;
+    align-items: center;
+    gap: 8px;
     border: 1px solid #f0f0f3;
-    border-radius: 14px;
+    border-radius: 12px;
     background: linear-gradient(180deg, #fff 0%, #fbfbfc 100%);
-    padding: 10px;
+    padding: 7px 9px;
   }
 
   .flow-number {
@@ -107,7 +112,6 @@
   }
 
   .flow-text {
-    margin-top: 7px;
     color: #555762;
     font-size: 10px;
     font-weight: 800;
@@ -167,7 +171,8 @@
     white-space: nowrap;
   }
 
-  input[type="text"] {
+  input[type="text"],
+  input[type="number"] {
     width: 100%;
     border: 1px solid #e4e4e7;
     border-radius: 12px;
@@ -180,24 +185,121 @@
     transition: border-color 0.15s, box-shadow 0.15s;
   }
 
-  input[type="text"]:focus {
+  input[type="text"]:focus,
+  input[type="number"]:focus {
     border-color: #ec4899;
     box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.12);
   }
 
   input[type="text"]::placeholder { color: #c9c9d2; }
 
-  .checks {
+  input[type="number"] {
+    min-width: 0;
+    padding: 9px 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  .screen-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
   }
 
-  .chip { position: relative; }
+  .screen-card:nth-child(3) {
+    grid-column: span 2;
+  }
+
+  .screen-card {
+    display: flex;
+    min-width: 0;
+    min-height: 47px;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid #ececf0;
+    border-radius: 12px;
+    background: #fff;
+    padding: 9px;
+    color: #28282e;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s, transform 0.15s;
+  }
+
+  .screen-card:hover {
+    border-color: #f4c2da;
+    background: #fff7fb;
+    transform: translateY(-1px);
+  }
+
+  .screen-title {
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .screen-size {
+    margin-top: 4px;
+    color: #9a9ba5;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .custom-screen {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 58px;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+  }
+
+  .screen-separator {
+    color: #a1a1aa;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .screen-open {
+    min-height: 36px;
+    border: 0;
+    border-radius: 11px;
+    background: #111113;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    transition: transform 0.15s, opacity 0.15s;
+  }
+
+  .screen-open:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .checks {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .chip {
+    position: relative;
+    min-width: 0;
+  }
   .chip input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; }
 
   .chip label {
     display: flex;
+    min-width: 0;
     min-height: 34px;
     align-items: center;
     gap: 8px;
@@ -248,8 +350,10 @@
 
   .actions {
     border-top: 1px solid #f1f1f4;
-    position: sticky;
+    position: fixed;
+    right: 0;
     bottom: 0;
+    left: 0;
     z-index: 2;
     padding: 14px 18px 16px;
     background: rgba(255, 255, 255, 0.96);
@@ -257,10 +361,10 @@
     backdrop-filter: blur(12px);
   }
 
-  .primary,
-  .secondary {
+  .primary {
     display: flex;
     width: 100%;
+    min-width: 0;
     align-items: center;
     justify-content: center;
     gap: 8px;
@@ -284,19 +388,6 @@
   .primary:hover:not(:disabled) {
     filter: saturate(1.07) brightness(0.99);
     transform: translateY(-1px);
-  }
-
-  .secondary {
-    min-height: 40px;
-    margin-top: 8px;
-    border: 1px solid #ececf0;
-    background: #fff;
-    color: #28282e;
-  }
-
-  .secondary:hover:not(:disabled) {
-    border-color: #d7d7de;
-    background: #fafafa;
   }
 
   button:disabled {
@@ -362,6 +453,33 @@
 
   <section class="section">
     <div class="section-head">
+      <div class="section-label">Screen test</div>
+      <div class="hint">Opens current page</div>
+    </div>
+    <div class="screen-grid">
+      <button class="screen-card" data-screen-width="390" data-screen-height="844">
+        <span class="screen-title">Mobile</span>
+        <span class="screen-size">390 x 844</span>
+      </button>
+      <button class="screen-card" data-screen-width="768" data-screen-height="1024">
+        <span class="screen-title">Tablet</span>
+        <span class="screen-size">768 x 1024</span>
+      </button>
+      <button class="screen-card" data-screen-width="1440" data-screen-height="900">
+        <span class="screen-title">Desktop</span>
+        <span class="screen-size">1440 x 900</span>
+      </button>
+    </div>
+    <div class="custom-screen" aria-label="Custom screen size">
+      <input id="screenWidth" type="number" min="280" max="3840" value="1440" aria-label="Screen width">
+      <span class="screen-separator">x</span>
+      <input id="screenHeight" type="number" min="280" max="2160" value="900" aria-label="Screen height">
+      <button class="screen-open" id="openScreenBtn">Open</button>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <div class="section-label">Figma frame</div>
       <div class="hint">Copy link to selection</div>
     </div>
@@ -403,12 +521,6 @@
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
       Capture & compare
-    </button>
-    <button class="secondary" id="responsiveBtn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/>
-      </svg>
-      Responsive check
     </button>
     <div class="status" id="status"></div>
   </div>

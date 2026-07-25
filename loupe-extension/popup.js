@@ -1,12 +1,14 @@
 const LOUPE_API = "https://getloupe.vercel.app/api/extension-styles";
 const LOUPE_APP = "https://getloupe.vercel.app/agents/figma-compare";
-const RESPONSIVE_APP = "https://getloupe.vercel.app/agents/responsive";
 
 const figmaInput  = document.getElementById("figmaUrl");
 const btn         = document.getElementById("btn");
-const responsiveBtn = document.getElementById("responsiveBtn");
 const status      = document.getElementById("status");
 const currentUrl  = document.getElementById("currentUrl");
+const screenWidthInput = document.getElementById("screenWidth");
+const screenHeightInput = document.getElementById("screenHeight");
+const openScreenBtn = document.getElementById("openScreenBtn");
+const deviceButtons = document.querySelectorAll("[data-screen-width][data-screen-height]");
 
 const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
 const CHECK_MAP = {
@@ -29,6 +31,20 @@ chrome.storage.local.get(["figmaUrl", "checks"], ({ figmaUrl, checks }) => {
 });
 
 refreshCurrentTab();
+
+deviceButtons.forEach(button => {
+  button.addEventListener("click", () => {
+    const width = Number(button.dataset.screenWidth);
+    const height = Number(button.dataset.screenHeight);
+    screenWidthInput.value = String(width);
+    screenHeightInput.value = String(height);
+    openScreenWindow(width, height);
+  });
+});
+
+openScreenBtn.addEventListener("click", () => {
+  openScreenWindow(Number(screenWidthInput.value), Number(screenHeightInput.value));
+});
 
 btn.addEventListener("click", async () => {
   const figmaUrl = figmaInput.value.trim();
@@ -95,23 +111,36 @@ btn.addEventListener("click", async () => {
   setStatus("Loupe opened in a tab.", "ok");
 });
 
-responsiveBtn.addEventListener("click", async () => {
-  responsiveBtn.disabled = true;
-  setStatus("Opening responsive check…");
-  const tab = await getLiveTab();
-  if (!tab) {
-    responsiveBtn.disabled = false;
+async function openScreenWindow(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 280 || height < 280) {
+    setStatus("Enter a valid screen size.", "error");
     return;
   }
 
-  const params = new URLSearchParams({
-    url: tab.url,
-    autorun: "1",
-  });
-  await openOrFocusLoupe(`${RESPONSIVE_APP}?${params}`, `${RESPONSIVE_APP}*`);
-  responsiveBtn.disabled = false;
-  setStatus("Responsive check opened.", "ok");
-});
+  openScreenBtn.disabled = true;
+  setStatus(`Opening ${width} x ${height} screen test…`);
+  const tab = await getLiveTab();
+  if (!tab) {
+    openScreenBtn.disabled = false;
+    return;
+  }
+
+  try {
+    await chrome.windows.create({
+      url: tab.url,
+      type: "popup",
+      width: Math.round(width),
+      height: Math.round(height),
+      focused: true,
+    });
+    setStatus(`Opened ${width} x ${height} test window.`, "ok");
+  } catch (err) {
+    console.error("[Loupe] screen test failed:", err);
+    setStatus("Could not open the screen test window.", "error");
+  } finally {
+    openScreenBtn.disabled = false;
+  }
+}
 
 async function refreshCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
