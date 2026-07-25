@@ -9,9 +9,12 @@
 
   html,
   body {
-    width: 360px;
+    width: 100%;
+    min-width: 320px;
+    min-height: 100vh;
     margin: 0;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     background: #fff;
     color: #111113;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -19,11 +22,10 @@
   }
 
   .shell {
-    overflow: hidden;
-    background:
-      linear-gradient(#fff, #fff) padding-box,
-      linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(236, 72, 153, 0.28), rgba(249, 115, 22, 0.28)) border-box;
-    border: 1px solid transparent;
+    min-height: 100vh;
+    overflow: visible;
+    background: #fff;
+    border: 0;
   }
 
   .brand-strip {
@@ -32,7 +34,7 @@
   }
 
   .header {
-    padding: 16px 16px 12px;
+    padding: 18px 18px 14px;
   }
 
   .header-row {
@@ -45,7 +47,7 @@
   .logo {
     display: block;
     width: auto;
-    height: 24px;
+    height: 26px;
   }
 
   .badge {
@@ -72,12 +74,48 @@
   .subtitle {
     margin-top: 10px;
     color: #5f6068;
-    font-size: 12px;
-    line-height: 1.4;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 18px 14px;
+  }
+
+  .flow-step {
+    min-height: 66px;
+    border: 1px solid #f0f0f3;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fff 0%, #fbfbfc 100%);
+    padding: 10px;
+  }
+
+  .flow-number {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #111113;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+  }
+
+  .flow-text {
+    margin-top: 7px;
+    color: #555762;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.25;
   }
 
   .current-page {
-    margin: 0 16px 12px;
+    margin: 0 18px 12px;
     border: 1px solid #efeff3;
     border-radius: 14px;
     background: #fbfbfc;
@@ -104,7 +142,7 @@
 
   .section {
     border-top: 1px solid #f1f1f4;
-    padding: 13px 16px;
+    padding: 14px 18px;
   }
 
   .section-head {
@@ -199,7 +237,13 @@
 
   .actions {
     border-top: 1px solid #f1f1f4;
-    padding: 13px 16px 14px;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 14px 18px 16px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -12px 24px rgba(17, 17, 19, 0.04);
+    backdrop-filter: blur(12px);
   }
 
   .primary,
@@ -284,6 +328,21 @@
     </div>
     <p class="subtitle">Capture real Chrome styles from this tab, compare them to a selected Figma frame, or run a quick responsive layout check.</p>
   </header>
+
+  <div class="flow" aria-label="How Loupe works">
+    <div class="flow-step">
+      <span class="flow-number">1</span>
+      <div class="flow-text">Open live page</div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-number">2</span>
+      <div class="flow-text">Paste frame link</div>
+    </div>
+    <div class="flow-step">
+      <span class="flow-number">3</span>
+      <div class="flow-text">Run QA</div>
+    </div>
+  </div>
 
   <div class="current-page">
     <div class="current-label">Current tab</div>

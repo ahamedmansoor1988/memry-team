@@ -90,7 +90,8 @@ btn.addEventListener("click", async () => {
   });
   const loupeUrl = `${LOUPE_APP}?${params}`;
   await openOrFocusLoupe(loupeUrl, `${LOUPE_APP}*`);
-  window.close();
+  btn.disabled = false;
+  setStatus("Loupe opened in a tab.", "ok");
 });
 
 responsiveBtn.addEventListener("click", async () => {
@@ -107,7 +108,8 @@ responsiveBtn.addEventListener("click", async () => {
     autorun: "1",
   });
   await openOrFocusLoupe(`${RESPONSIVE_APP}?${params}`, `${RESPONSIVE_APP}*`);
-  window.close();
+  responsiveBtn.disabled = false;
+  setStatus("Responsive check opened.", "ok");
 });
 
 async function refreshCurrentTab() {
