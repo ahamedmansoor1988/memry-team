@@ -15,6 +15,12 @@ const STUDIO_PRESETS = [
 ];
 
 const PRESET_GROUPS = ["Phone", "Tablet", "Laptop", "Monitor"] as const;
+const ZOOM_OPTIONS = [
+  { id: "fit", label: "Fit to screen" },
+  { id: "1", label: "100%" },
+  { id: "0.75", label: "75%" },
+  { id: "0.5", label: "50%" },
+];
 
 export default function ResponsiveAgentPage() {
   const [url, setUrl] = useState("");
@@ -22,7 +28,8 @@ export default function ResponsiveAgentPage() {
   const [customWidth, setCustomWidth] = useState(1440);
   const [customHeight, setCustomHeight] = useState(900);
   const [frameKey, setFrameKey] = useState(0);
-  const [previewScale, setPreviewScale] = useState(1);
+  const [zoomMode, setZoomMode] = useState("fit");
+  const [fitScale, setFitScale] = useState(1);
   const [embedEnabled, setEmbedEnabled] = useState(true);
   const [panelOpen, setPanelOpen] = useState(true);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -43,6 +50,7 @@ export default function ResponsiveAgentPage() {
       return "";
     }
   }, [canPreview, previewUrl]);
+  const previewScale = zoomMode === "fit" ? fitScale : Number(zoomMode);
 
   useEffect(() => {
     setEmbedEnabled(true);
@@ -57,7 +65,7 @@ export default function ResponsiveAgentPage() {
       const availableWidth = Math.max(rect.width - 72, 320);
       const availableHeight = Math.max(rect.height - 88, 280);
       const nextScale = Math.min(1, availableWidth / studioViewport.width, availableHeight / studioViewport.height);
-      setPreviewScale(Math.max(0.18, Number(nextScale.toFixed(3))));
+      setFitScale(Math.max(0.18, Number(nextScale.toFixed(3))));
     };
 
     updateScale();
@@ -91,25 +99,22 @@ export default function ResponsiveAgentPage() {
   return (
     <div className="h-full overflow-y-auto bg-white">
       <section className="min-h-full px-5 py-5">
-        <div className={`grid min-h-[calc(100vh-40px)] ${panelOpen ? "gap-5 xl:grid-cols-[240px_minmax(0,1fr)]" : "xl:grid-cols-[minmax(0,1fr)]"}`}>
+        <div className="flex min-h-[calc(100vh-40px)] overflow-hidden rounded-[28px] border border-black/[0.08] shadow-2xl shadow-black/10">
           {panelOpen && (
-            <aside className="h-fit rounded-[22px] border border-white/10 bg-[#101012] p-4 shadow-2xl shadow-black/30 xl:sticky xl:top-5">
-              <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
-                <div>
-                  <p className="text-[14px] font-semibold text-white">Viewport controls</p>
-                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">Device presets</p>
-                </div>
+            <aside className="w-[240px] shrink-0 border-r border-black/[0.06] bg-white p-4">
+              <div className="mb-4 flex items-center justify-between border-b border-black/[0.06] pb-3">
+                <p className="text-[14px] font-semibold text-[#17171c]">Responsive Check</p>
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => setFrameKey(key => key + 1)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.14] hover:text-white"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
                     title="Reload preview"
                   >
                     <RefreshCw size={14} />
                   </button>
                   <button
                     onClick={() => setPanelOpen(false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.14] hover:text-white"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
                     title="Hide panel"
                   >
                     <ChevronLeft size={14} />
@@ -117,36 +122,36 @@ export default function ResponsiveAgentPage() {
                 </div>
               </div>
 
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Page URL</label>
-              <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Page URL</label>
+              <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 py-2.5">
                 <div className="flex items-center gap-2">
-                  <Globe2 size={14} className="shrink-0 text-white/40" />
+                  <Globe2 size={14} className="shrink-0 text-[#a1a1aa]" />
                   <input
                     value={url}
                     onChange={e => setUrl(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && setFrameKey(key => key + 1)}
                     placeholder="https://example.com"
-                    className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-white outline-none placeholder:text-white/25"
+                    className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-[#17171c] outline-none placeholder:text-[#c4c4cc]"
                   />
                 </div>
               </div>
 
-              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Device</label>
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Device</label>
               <select
                 value={activePresetId}
                 onChange={e => setActivePresetId(e.target.value)}
-                className="mb-5 h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[12px] font-semibold text-white outline-none focus:border-white/25"
+                className="mb-5 h-10 w-full rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 text-[12px] font-semibold text-[#17171c] outline-none focus:border-black/20"
               >
                 {PRESET_GROUPS.map(group => (
-                  <optgroup key={group} label={group} className="bg-[#101012] text-white">
+                  <optgroup key={group} label={group}>
                     {STUDIO_PRESETS.filter(preset => preset.group === group).map(preset => (
-                      <option key={preset.id} value={preset.id} className="bg-[#101012] text-white">
+                      <option key={preset.id} value={preset.id}>
                         {preset.label} · {preset.width}x{preset.height}
                       </option>
                     ))}
                   </optgroup>
                 ))}
-                <option value="custom" className="bg-[#101012] text-white">Custom size…</option>
+                <option value="custom">Custom size…</option>
               </select>
 
               {activePresetId === "custom" && (
@@ -158,16 +163,16 @@ export default function ResponsiveAgentPage() {
                       max={3840}
                       value={customWidth}
                       onChange={e => setCustomWidth(Number(e.target.value) || 0)}
-                      className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
+                      className="h-10 rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 font-mono text-[13px] font-semibold text-[#17171c] outline-none focus:border-black/20"
                     />
-                    <span className="text-white/30">x</span>
+                    <span className="text-[#c4c4cc]">x</span>
                     <input
                       type="number"
                       min={280}
                       max={3840}
                       value={customHeight}
                       onChange={e => setCustomHeight(Number(e.target.value) || 0)}
-                      className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
+                      className="h-10 rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 font-mono text-[13px] font-semibold text-[#17171c] outline-none focus:border-black/20"
                     />
                   </div>
                   <button
@@ -175,18 +180,29 @@ export default function ResponsiveAgentPage() {
                       setCustomWidth(studioViewport.height);
                       setCustomHeight(studioViewport.width);
                     }}
-                    className="mb-1 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] text-[12px] font-semibold text-white/60 transition-colors hover:bg-white/[0.1] hover:text-white"
+                    className="mb-1 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-[#fafafa] text-[12px] font-semibold text-[#71717a] transition-colors hover:bg-black/[0.04] hover:text-[#17171c]"
                   >
                     <RotateCw size={13} /> Rotate
                   </button>
                 </>
               )}
 
-              <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+              <label className="mb-2 mt-5 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#a1a1aa]">Zoom</label>
+              <select
+                value={zoomMode}
+                onChange={e => setZoomMode(e.target.value)}
+                className="mb-5 h-10 w-full rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 text-[12px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+              >
+                {ZOOM_OPTIONS.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.label}</option>
+                ))}
+              </select>
+
+              <div className="mt-5 space-y-2 border-t border-black/[0.06] pt-4">
                 <button
                   onClick={() => setFrameKey(key => key + 1)}
                   disabled={!canPreview}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-[13px] font-semibold text-[#17171c] transition-colors hover:bg-[#f4f4f5] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#111113] text-[13px] font-semibold text-white transition-colors hover:bg-[#27272a] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <RefreshCw size={14} /> Refresh preview
                 </button>
@@ -194,7 +210,7 @@ export default function ResponsiveAgentPage() {
             </aside>
           )}
 
-          <div ref={stageRef} className="relative min-h-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_30%),#242426] shadow-2xl shadow-black/30">
+          <div ref={stageRef} className="relative min-h-[560px] flex-1 overflow-auto bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_30%),#242426]">
             {!panelOpen && (
               <button
                 onClick={() => setPanelOpen(true)}
@@ -208,7 +224,7 @@ export default function ResponsiveAgentPage() {
               {studioViewport.width} x {studioViewport.height}
             </div>
             <div className={`absolute ${panelOpen ? "left-5" : "left-16"} top-5 z-10 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[11px] font-medium text-white/50 transition-[left]`}>
-              Scale {Math.round(previewScale * 100)}%
+              {zoomMode === "fit" ? `Fit · ${Math.round(previewScale * 100)}%` : `${Math.round(previewScale * 100)}%`}
             </div>
 
             <div
