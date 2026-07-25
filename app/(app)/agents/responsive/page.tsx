@@ -127,21 +127,8 @@ export default function ResponsiveAgentPage() {
       <section className="min-h-0 flex-1">
         <div className="flex h-full min-h-0 overflow-hidden">
           {panelOpen && (
-            <aside className="w-[280px] shrink-0 overflow-y-auto border-r border-black/[0.06] bg-white p-6">
-              <div className="mb-5 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-4">
-                <div className="min-w-0">
-                  <p className="truncate text-[18px] font-semibold text-[#111113]">Controls</p>
-                  <p className="mt-1 truncate text-[13px] text-[#71717a]">URL, device, zoom</p>
-                </div>
-                <button
-                  onClick={() => setPanelOpen(false)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-black/[0.04] text-[#71717a] transition-colors hover:bg-black/[0.08] hover:text-[#17171c]"
-                  title="Hide panel"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-              </div>
-
+            <aside className="flex w-[280px] shrink-0 flex-col border-r border-black/[0.06] bg-white p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto">
               <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">Page URL</label>
               <div className="mb-5 rounded-xl border border-black/[0.10] bg-white px-4 py-3">
                 <div className="flex items-center gap-2">
@@ -160,7 +147,7 @@ export default function ResponsiveAgentPage() {
               <select
                 value={activePresetId}
                 onChange={e => setActivePresetId(e.target.value)}
-                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white pl-4 pr-10 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
               >
                 {PRESET_GROUPS.map(group => (
                   <optgroup key={group} label={group}>
@@ -211,7 +198,7 @@ export default function ResponsiveAgentPage() {
               <select
                 value={zoomMode}
                 onChange={e => setZoomMode(e.target.value)}
-                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white pl-4 pr-10 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
               >
                 {ZOOM_OPTIONS.map(opt => (
                   <option key={opt.id} value={opt.id}>{opt.label}</option>
@@ -227,6 +214,15 @@ export default function ResponsiveAgentPage() {
                   <RefreshCw size={14} /> Refresh preview
                 </button>
               </div>
+              </div>
+              <button
+                onClick={() => setPanelOpen(false)}
+                className="mt-4 inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-black/[0.08] bg-white text-[12px] font-semibold text-[#71717a] transition-colors hover:bg-black/[0.03] hover:text-[#17171c]"
+                title="Hide controls"
+              >
+                <ChevronLeft size={14} />
+                Collapse controls
+              </button>
             </aside>
           )}
 
