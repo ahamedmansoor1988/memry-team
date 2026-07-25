@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Globe2, MonitorCheck, RefreshCw, RotateCw } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Globe2, MonitorCheck, RefreshCw, RotateCw } from "lucide-react";
 
 const STUDIO_PRESETS = [
   { id: "iphone-se", label: "iPhone SE", width: 375, height: 667, group: "Phone" },
@@ -144,22 +144,25 @@ export default function ResponsiveAgentPage() {
               </div>
 
               <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">Device</label>
-              <select
-                value={activePresetId}
-                onChange={e => setActivePresetId(e.target.value)}
-                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white pl-4 pr-10 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
-              >
-                {PRESET_GROUPS.map(group => (
-                  <optgroup key={group} label={group}>
-                    {STUDIO_PRESETS.filter(preset => preset.group === group).map(preset => (
-                      <option key={preset.id} value={preset.id}>
-                        {preset.label} · {preset.width}x{preset.height}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-                <option value="custom">Custom size…</option>
-              </select>
+              <div className="relative mb-5">
+                <select
+                  value={activePresetId}
+                  onChange={e => setActivePresetId(e.target.value)}
+                  className="h-12 w-full appearance-none rounded-xl border border-black/[0.10] bg-white pl-4 pr-12 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+                >
+                  {PRESET_GROUPS.map(group => (
+                    <optgroup key={group} label={group}>
+                      {STUDIO_PRESETS.filter(preset => preset.group === group).map(preset => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.label} · {preset.width}x{preset.height}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                  <option value="custom">Custom size…</option>
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#17171c]" />
+              </div>
 
               {activePresetId === "custom" && (
                 <>
@@ -195,15 +198,18 @@ export default function ResponsiveAgentPage() {
               )}
 
               <label className="mb-2 mt-5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">Zoom</label>
-              <select
-                value={zoomMode}
-                onChange={e => setZoomMode(e.target.value)}
-                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white pl-4 pr-10 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
-              >
-                {ZOOM_OPTIONS.map(opt => (
-                  <option key={opt.id} value={opt.id}>{opt.label}</option>
-                ))}
-              </select>
+              <div className="relative mb-5">
+                <select
+                  value={zoomMode}
+                  onChange={e => setZoomMode(e.target.value)}
+                  className="h-12 w-full appearance-none rounded-xl border border-black/[0.10] bg-white pl-4 pr-12 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+                >
+                  {ZOOM_OPTIONS.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#17171c]" />
+              </div>
 
               <div className="mt-5 space-y-2 border-t border-black/[0.06] pt-4">
                 <button
