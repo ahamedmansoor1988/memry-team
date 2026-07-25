@@ -61,6 +61,34 @@ function formatRateLimitError(info: FigmaRateLimitInfo): string {
   return `Figma rate limited. ${diagLine}.`;
 }
 
+function formatFigmaApiError(status: number, body: string) {
+  let figmaMessage = body.slice(0, 200);
+  try {
+    const parsed = JSON.parse(body);
+    figmaMessage = String(parsed?.err ?? parsed?.message ?? figmaMessage);
+  } catch {}
+
+  const lower = figmaMessage.toLowerCase();
+  if (status === 403 && lower.includes("token") && lower.includes("expired")) {
+    return {
+      error: "Figma Personal Access Token expired. Update the Figma PAT in Settings, save the new token, then run the comparison again.",
+      responseStatus: 403,
+    };
+  }
+
+  if (status === 403) {
+    return {
+      error: `Figma access denied. Update or verify the Figma PAT in Settings, and make sure the token can read this file. Figma said: ${figmaMessage}`,
+      responseStatus: 403,
+    };
+  }
+
+  return {
+    error: `Figma API error ${status}: ${figmaMessage}`,
+    responseStatus: status >= 500 ? 502 : 422,
+  };
+}
+
 // Shared figmaFetch with full rate-limit diagnostics
 async function figmaFetch(pat: string, path: string): Promise<Response> {
   const reqId = Math.random().toString(36).slice(2, 10);
@@ -135,7 +163,8 @@ export async function POST(req: NextRequest) {
     const r10 = await figmaFetch(pat, `/files/${fileKey}/nodes?ids=${encodeURIComponent(nodeId)}&depth=10`);
     if (!r10.ok) {
       const txt = await r10.text().catch(() => "");
-      return NextResponse.json({ error: `Figma API error ${r10.status}: ${txt.slice(0, 200)}` }, { status: r10.status >= 500 ? 502 : 422 });
+      const formatted = formatFigmaApiError(r10.status, txt);
+      return NextResponse.json({ error: formatted.error }, { status: formatted.responseStatus });
     }
     figmaData = await r10.json();
     const rootDoc10 = figmaData?.nodes?.[nodeId]?.document;

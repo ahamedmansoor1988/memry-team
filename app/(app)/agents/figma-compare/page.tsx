@@ -6,6 +6,7 @@ import {
   Trash2, ArrowUp, FileCode2, Globe, Sparkles,
   Check, RefreshCw, Upload, Database,
 } from "lucide-react";
+import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
 /* ── Types ───────────────────────────────────────────────────────── */
 interface ApiCallEntry { method: string; path: string; status: number; ms: number; kb: number | null; retried: boolean; }
@@ -51,12 +52,30 @@ function hasLoupeUiText(styles: any[]) {
   return styles.some(style => LOUPE_UI_TEXT.test(String(style?.text ?? "").trim()));
 }
 
+function formatFigmaAccessError(status: number, message: string | undefined) {
+  const raw = message?.trim() || `Figma API error ${status}`;
+  const lower = raw.toLowerCase();
+  if (lower.includes("token") && lower.includes("expired")) {
+    return "Figma Personal Access Token expired. Update the Figma PAT in Settings, save the new token, then run the comparison again. Figma rejected the current token with 403.";
+  }
+  if (status === 403 || lower.includes("figma api error 403")) {
+    return "Figma access denied. Update or verify the Figma PAT in Settings, and make sure the token can read this Figma file.";
+  }
+  return raw;
+}
+
+function isFigmaPatError(text: string) {
+  const lower = text.toLowerCase();
+  return lower.includes("figma") && (lower.includes("personal access token") || lower.includes("pat") || lower.includes("token expired"));
+}
+
 /* ── Page ────────────────────────────────────────────────────────── */
 export default function FigmaComparePage() {
   // Config
   const [figmaUrl, setFigmaUrlRaw] = useState("");
   const [liveUrl,  setLiveUrlRaw]  = useState("");
   const [pat,      setPatRaw]      = useState("");
+  const [patExpiry, setPatExpiry] = useState<PatExpiryStatus>({ state: "none", daysLeft: null, message: "" });
   const [checks, setChecks] = useState<Set<string>>(
     new Set(["missing_elements", "font_family", "font_size", "font_weight", "color"])
   );
@@ -151,6 +170,7 @@ export default function FigmaComparePage() {
     setFigmaUrlRaw(savedFigma);
     setLiveUrlRaw(savedLive);
     setPatRaw(savedPat);
+    setPatExpiry(storedPatExpiryStatus());
     if (savedFigma) checkSnapshot(savedFigma);
 
     if (autorun && savedFigma && savedLive && savedPat) {
@@ -230,7 +250,7 @@ export default function FigmaComparePage() {
         return null;
       }
       if (!r.ok) {
-        addRun({ type: "error", text: d?.error ?? `Sync failed (${r.status})` });
+        addRun({ type: "error", text: formatFigmaAccessError(r.status, d?.error) });
         return null;
       }
       const meta: SnapshotMeta = {
@@ -348,7 +368,8 @@ export default function FigmaComparePage() {
           return;
         }
         if (!figmaRes.ok) {
-          addRun({ type: "error", text: `Figma API error ${figmaRes.status}. Sync design first to avoid Figma API calls.` });
+          const txt = await figmaRes.text().catch(() => "");
+          addRun({ type: "error", text: formatFigmaAccessError(figmaRes.status, txt || `Figma API error ${figmaRes.status}. Sync design first to avoid Figma API calls.`) });
           setRunning(false);
           return;
         }
@@ -464,9 +485,11 @@ export default function FigmaComparePage() {
   const frameReady = Boolean(parsedFigmaForRun);
   const liveReady = liveUrl.trim().startsWith("http");
   const checksReady = checks.size > 0;
-  const figmaAccessReady = Boolean(snapshot) || Boolean(pat.trim());
+  const tokenExpired = Boolean(pat.trim()) && patExpiry.state === "expired";
+  const figmaAccessReady = Boolean(snapshot) || (Boolean(pat.trim()) && !tokenExpired);
   const liveCaptureReady = scrapeStatus === "ready" && Boolean(liveStyles?.length);
   const canRun = !running && frameReady && liveReady && figmaAccessReady && checksReady;
+  const figmaAccessLabel = figmaAccessReady ? "Figma access ready" : tokenExpired ? "Token expired" : "Token needed";
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -520,9 +543,9 @@ export default function FigmaComparePage() {
 
         {/* Execution area */}
         {runMsgs.length === 0 ? (
-          <div className="flex-1 overflow-y-auto bg-[#fafafa] px-6 py-6">
-            <section className="mx-auto max-w-[820px] rounded-2xl border border-[#ececf0] bg-white p-5 shadow-sm">
-              <div className="mb-5 flex items-start justify-between gap-4">
+          <div className="flex-1 overflow-y-auto bg-[#fafafa] px-6 py-4">
+            <section className="mx-auto max-w-[900px] rounded-2xl border border-[#ececf0] bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[15px] font-semibold text-[#17171c]">Run comparison</p>
                   <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">One selected Figma frame, one live page, one focused QA report.</p>
@@ -532,7 +555,7 @@ export default function FigmaComparePage() {
                 </span>
               </div>
 
-              <div className="mb-4 grid gap-2 md:grid-cols-3">
+              <div className="mb-3 grid gap-2 md:grid-cols-3">
                 <FlowStep
                   step="1"
                   icon={FileCode2}
@@ -556,26 +579,40 @@ export default function FigmaComparePage() {
                 />
               </div>
 
-              <div className="rounded-xl border border-[#f0f0f0] bg-[#fcfcfd] p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Sources</p>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${figmaAccessReady ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
-                    {figmaAccessReady ? "Figma access ready" : "Token needed"}
-                  </span>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.85fr)]">
+                <div className="rounded-xl border border-[#f0f0f0] bg-[#fcfcfd] p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Sources</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${figmaAccessReady ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
+                      {figmaAccessLabel}
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
+                    <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <ConfigCard icon={FileCode2} label="Figma Frame" value={figmaUrl} placeholder="Paste Figma frame URL" onChange={setFigmaUrl} hint="Right-click frame → Copy link to selection" />
-                  <ConfigCard icon={Globe} label="Live Site" value={liveUrl} placeholder="Paste live site URL" onChange={setLiveUrl} />
+
+                <div className="rounded-xl border border-[#f0f0f0] bg-white px-3 py-3">
+                  <ChecklistPanel checks={checks} onToggle={toggleCheck} />
                 </div>
               </div>
+
+              <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:shadow-none disabled:opacity-40">
+                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+              </button>
+              {!canRun && (
+                <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">Complete the highlighted items above to run.</p>
+              )}
 
               {!figmaAccessReady && (
                 <SetupNotice
                   tone="warning"
-                  title="Figma token needed"
-                  body="Add your token in Settings so Loupe can sync this frame."
+                  title={tokenExpired ? "Figma token expired" : "Figma token needed"}
+                  body={tokenExpired ? "Update your Figma Personal Access Token in Settings, save the new PAT, then run this comparison again." : "Add your Figma Personal Access Token in Settings so Loupe can sync this frame."}
                   actionHref="/agents/settings"
-                  actionLabel="Open Settings"
+                  actionLabel={tokenExpired ? "Update PAT" : "Open Settings"}
                 />
               )}
               {liveReady && !liveCaptureReady && (
@@ -586,25 +623,13 @@ export default function FigmaComparePage() {
                 />
               )}
 
-              <div className="mt-3 rounded-xl border border-[#f0f0f0] bg-white px-3 py-3">
-                <ChecklistPanel checks={checks} onToggle={toggleCheck} />
-              </div>
-
               <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] text-[#71717a]">
                 <StatusPill ready={frameReady} label="Frame" value={frameReady ? "ready" : "missing"} />
                 <StatusPill ready={liveReady} label="Live URL" value={liveReady ? "ready" : "missing"} />
-                <StatusPill ready={figmaAccessReady} label="Figma access" value={figmaAccessReady ? "ready" : "missing"} />
+                <StatusPill ready={figmaAccessReady} label="Figma access" value={figmaAccessReady ? "ready" : tokenExpired ? "expired" : "missing"} />
                 <StatusPill ready={checksReady} label="Checks" value={`${checks.size}/${CHECK_OPTIONS.length}`} />
                 {liveStyles && <span className="rounded-full bg-[#f4f4f5] px-2 py-1">{liveStyles.length} live styles</span>}
               </div>
-
-              <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:shadow-none disabled:opacity-40">
-                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
-              </button>
-              {!canRun && (
-                <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">Complete the highlighted items above to run.</p>
-              )}
             </section>
           </div>
         ) : (
@@ -744,16 +769,16 @@ function FlowStep({ step, icon: Icon, title, detail, ready }: {
   ready: boolean;
 }) {
   return (
-    <div className={`rounded-xl border p-3 ${ready ? "border-[#dff2e6] bg-[#f8fffb]" : "border-[#f3e7c6] bg-[#fffaf0]"}`}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
+    <div className={`rounded-xl border p-2.5 ${ready ? "border-[#dff2e6] bg-[#f8fffb]" : "border-[#f3e7c6] bg-[#fffaf0]"}`}>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <div className={`flex h-6 w-6 items-center justify-center rounded-lg ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
           <Icon size={13} />
         </div>
         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
           {ready ? "Ready" : "Needed"}
         </span>
       </div>
-      <p className="text-[12px] font-semibold text-[#17171c]">{step}. {title}</p>
+      <p className="text-[11px] font-semibold text-[#17171c]">{step}. {title}</p>
       <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{detail}</p>
     </div>
   );
@@ -873,7 +898,14 @@ function RunBubble({ msg }: { msg: RunMessage }) {
   if (msg.type === "error") return (
     <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3">
       <AlertCircle size={13} className="text-red-500 mt-0.5 shrink-0" />
-      <p className="text-[12px] text-red-600 leading-relaxed">{msg.text}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] text-red-600 leading-relaxed">{msg.text}</p>
+        {isFigmaPatError(msg.text) && (
+          <a href="/agents/settings" className="mt-2 inline-flex rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50">
+            Update Figma PAT in Settings
+          </a>
+        )}
+      </div>
     </div>
   );
   if (msg.type === "result") {
@@ -973,7 +1005,14 @@ function LogLine({ msg }: { msg: RunMessage }) {
   if (msg.type === "error") return (
     <div className="flex items-start gap-2 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-[12px] text-red-500 leading-relaxed">
       <AlertCircle size={12} className="mt-0.5 shrink-0" />
-      <span>{msg.text}</span>
+      <div className="min-w-0 flex-1">
+        <p>{msg.text}</p>
+        {isFigmaPatError(msg.text) && (
+          <a href="/agents/settings" className="mt-2 inline-flex rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-50">
+            Update Figma PAT in Settings
+          </a>
+        )}
+      </div>
     </div>
   );
   return null;
