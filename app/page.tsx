@@ -1,18 +1,33 @@
 import Link from "next/link";
-import { Check, ArrowRight, Zap, Share2, History } from "lucide-react";
+import { ArrowRight, Zap, Share2, History, ScanSearch, Palette, Accessibility, MonitorCheck } from "lucide-react";
 import { AnimatedPreview } from "./_components/AnimatedPreview";
 
 export const metadata = {
-  title: "Loupe — Figma vs Live Design QA",
-  description: "Catch design bugs before they ship. Compare your Figma frames against the live site in one click.",
+  title: "Loupe — Design QA for Figma, Brand, Accessibility & Responsive",
+  description: "Catch design bugs before they ship. Compare Figma vs Live, check brand consistency, run accessibility scans, and preview responsive breakpoints — all in one click.",
 };
 
-const CHECKS = [
-  "Missing comps",
-  "Font family",
-  "Font size",
-  "Font weight",
-  "Color",
+const TOOLS = [
+  {
+    icon: ScanSearch,
+    title: "Figma vs Live",
+    desc: "Missing comps, fonts, weights, sizes, and color.",
+  },
+  {
+    icon: Palette,
+    title: "Brand Check",
+    desc: "Colors, fonts, spacing, and logo usage against your brand guide.",
+  },
+  {
+    icon: Accessibility,
+    title: "Accessibility QA",
+    desc: "WCAG contrast, labels, headings, focus, and tap targets.",
+  },
+  {
+    icon: MonitorCheck,
+    title: "Responsive Check",
+    desc: "Preview any live site across mobile, tablet, and desktop.",
+  },
 ];
 
 const HOW = [
@@ -103,13 +118,16 @@ export default function LandingPage() {
       {/* What it checks */}
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-6xl mx-auto px-6 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#71717a] mb-3">What Loupe checks</p>
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-[#71717a] mb-3">Four tools, one suite</p>
           <h2 className="text-[32px] font-semibold text-[#0f0f0f] mb-10">Every pixel. Every run.</h2>
-          <div className="flex flex-wrap justify-center gap-3">
-            {CHECKS.map(c => (
-              <div key={c} className="flex items-center gap-2 rounded-full border border-[#f0f0f0] bg-white px-4 py-2">
-                <Check size={12} className="text-emerald-500" />
-                <span className="text-[13px] text-[#17171c] font-medium">{c}</span>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {TOOLS.map(t => (
+              <div key={t.title} className="flex flex-col items-center gap-3 rounded-2xl border border-[#f0f0f0] bg-white p-5 text-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04]">
+                  <t.icon size={17} strokeWidth={1.8} className="text-[#3f3f46]" />
+                </div>
+                <p className="text-[14px] font-semibold text-[#17171c]">{t.title}</p>
+                <p className="text-[12px] leading-relaxed text-[#71717a]">{t.desc}</p>
               </div>
             ))}
           </div>
@@ -120,7 +138,8 @@ export default function LandingPage() {
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-6xl mx-auto px-6">
           <p className="text-[11px] font-semibold uppercase tracking-widest text-[#71717a] mb-3 text-center">How it works</p>
-          <h2 className="text-[32px] font-semibold text-[#0f0f0f] mb-12 text-center">From Figma to QA in 60 seconds</h2>
+          <h2 className="text-[32px] font-semibold text-[#0f0f0f] mb-2 text-center">From Figma to QA in 60 seconds</h2>
+          <p className="text-[13px] text-[#71717a] mb-12 text-center">Shown for Figma vs Live — Brand Check, Accessibility, and Responsive Check skip the Figma step and run straight off a live URL.</p>
           <div className="grid grid-cols-3 gap-10">
             {HOW.map(h => (
               <div key={h.step} className="space-y-3">
@@ -153,7 +172,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
             <h2 className="text-[32px] font-semibold text-white mb-4">Start catching bugs today</h2>
-            <p className="text-[15px] text-[#71717a] mb-8 max-w-md mx-auto">Free forever for individuals. No credit card required.</p>
+            <p className="text-[15px] text-[#71717a] mb-8 max-w-md mx-auto">Free for 15 days, 3 runs a day. No credit card required.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[14px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={14} />
             </Link>
