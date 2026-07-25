@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Globe2, MonitorCheck, Play, RefreshCw, RotateCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Globe2, MonitorCheck, Play, RefreshCw, RotateCw } from "lucide-react";
 
 const STUDIO_PRESETS = [
-  { id: "iphone-se", label: "iPhone SE", width: 375, height: 667 },
-  { id: "iphone-15-pro", label: "iPhone 15 Pro", width: 393, height: 852 },
-  { id: "pixel-8", label: "Pixel 8", width: 412, height: 915 },
-  { id: "ipad-pro", label: "iPad Pro", width: 1024, height: 1366 },
-  { id: "macbook-air", label: "MacBook Air", width: 1280, height: 832 },
-  { id: "macbook-pro", label: "MacBook Pro", width: 1440, height: 900 },
-  { id: "full-hd", label: "Full HD", width: 1920, height: 1080 },
-  { id: "2k-monitor", label: "2K Monitor", width: 2560, height: 1440 },
+  { id: "iphone-se", label: "iPhone SE", width: 375, height: 667, group: "Phone" },
+  { id: "iphone-15-pro", label: "iPhone 15 Pro", width: 393, height: 852, group: "Phone" },
+  { id: "pixel-8", label: "Pixel 8", width: 412, height: 915, group: "Phone" },
+  { id: "ipad-pro", label: "iPad Pro", width: 1024, height: 1366, group: "Tablet" },
+  { id: "macbook-air", label: "MacBook Air", width: 1280, height: 832, group: "Laptop" },
+  { id: "macbook-pro", label: "MacBook Pro", width: 1440, height: 900, group: "Laptop" },
+  { id: "full-hd", label: "Full HD", width: 1920, height: 1080, group: "Monitor" },
+  { id: "2k-monitor", label: "2K Monitor", width: 2560, height: 1440, group: "Monitor" },
 ];
+
+const PRESET_GROUPS = ["Phone", "Tablet", "Laptop", "Monitor"] as const;
 
 export default function ResponsiveAgentPage() {
   const [url, setUrl] = useState("");
@@ -22,6 +24,7 @@ export default function ResponsiveAgentPage() {
   const [frameKey, setFrameKey] = useState(0);
   const [previewScale, setPreviewScale] = useState(1);
   const [embedEnabled, setEmbedEnabled] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
   const stageRef = useRef<HTMLDivElement | null>(null);
 
   const activePreset = STUDIO_PRESETS.find(preset => preset.id === activePresetId);
@@ -65,7 +68,7 @@ export default function ResponsiveAgentPage() {
       observer.disconnect();
       window.removeEventListener("resize", updateScale);
     };
-  }, [studioViewport.width, studioViewport.height]);
+  }, [studioViewport.width, studioViewport.height, panelOpen]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -88,114 +91,123 @@ export default function ResponsiveAgentPage() {
   return (
     <div className="h-full overflow-y-auto bg-white">
       <section className="min-h-full px-5 py-5">
-        <div className="grid min-h-[calc(100vh-40px)] gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[22px] border border-white/10 bg-[#101012] p-4 shadow-2xl shadow-black/30 xl:sticky xl:top-5">
-            <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
-              <div>
-                <p className="text-[14px] font-semibold text-white">Viewport controls</p>
-                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">Device presets</p>
-              </div>
-              <button
-                onClick={() => setFrameKey(key => key + 1)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.14] hover:text-white"
-                title="Reload preview"
-              >
-                <RefreshCw size={14} />
-              </button>
-            </div>
-
-            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Page URL</label>
-            <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
-              <div className="flex items-center gap-2">
-                <Globe2 size={14} className="shrink-0 text-white/40" />
-                <input
-                  value={url}
-                  onChange={e => setUrl(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && setFrameKey(key => key + 1)}
-                  placeholder="https://example.com"
-                  className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-white outline-none placeholder:text-white/25"
-                />
-              </div>
-            </div>
-
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Presets</p>
-            <div className="grid grid-cols-2 gap-2">
-              {STUDIO_PRESETS.map(preset => {
-                const active = activePresetId === preset.id;
-                return (
+        <div className={`grid min-h-[calc(100vh-40px)] ${panelOpen ? "gap-5 xl:grid-cols-[240px_minmax(0,1fr)]" : "xl:grid-cols-[minmax(0,1fr)]"}`}>
+          {panelOpen && (
+            <aside className="h-fit rounded-[22px] border border-white/10 bg-[#101012] p-4 shadow-2xl shadow-black/30 xl:sticky xl:top-5">
+              <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+                <div>
+                  <p className="text-[14px] font-semibold text-white">Viewport controls</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">Device presets</p>
+                </div>
+                <div className="flex items-center gap-1.5">
                   <button
-                    key={preset.id}
-                    onClick={() => setActivePresetId(preset.id)}
-                    className={`min-h-[66px] rounded-xl border px-3 py-2 text-left transition-colors ${
-                      active
-                        ? "border-white bg-white text-[#17171c]"
-                        : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
-                    }`}
+                    onClick={() => setFrameKey(key => key + 1)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.14] hover:text-white"
+                    title="Reload preview"
                   >
-                    <span className="block text-[12px] font-semibold leading-tight">{preset.label}</span>
-                    <span className={`mt-1 block font-mono text-[11px] ${active ? "text-[#71717a]" : "text-white/35"}`}>
-                      {preset.width} x {preset.height}
-                    </span>
+                    <RefreshCw size={14} />
                   </button>
-                );
-              })}
-            </div>
+                  <button
+                    onClick={() => setPanelOpen(false)}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.14] hover:text-white"
+                    title="Hide panel"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                </div>
+              </div>
 
-            <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Custom size</p>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-              <input
-                type="number"
-                min={280}
-                max={3840}
-                value={customWidth}
-                onFocus={() => setActivePresetId("custom")}
-                onChange={e => {
-                  setActivePresetId("custom");
-                  setCustomWidth(Number(e.target.value) || 0);
-                }}
-                className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
-              />
-              <span className="text-white/30">x</span>
-              <input
-                type="number"
-                min={280}
-                max={3840}
-                value={customHeight}
-                onFocus={() => setActivePresetId("custom")}
-                onChange={e => {
-                  setActivePresetId("custom");
-                  setCustomHeight(Number(e.target.value) || 0);
-                }}
-                className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
-              />
-            </div>
-            <button
-              onClick={() => {
-                setActivePresetId("custom");
-                setCustomWidth(studioViewport.height);
-                setCustomHeight(studioViewport.width);
-              }}
-              className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] text-[12px] font-semibold text-white/60 transition-colors hover:bg-white/[0.1] hover:text-white"
-            >
-              <RotateCw size={13} /> Rotate
-            </button>
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Page URL</label>
+              <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <Globe2 size={14} className="shrink-0 text-white/40" />
+                  <input
+                    value={url}
+                    onChange={e => setUrl(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && setFrameKey(key => key + 1)}
+                    placeholder="https://example.com"
+                    className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-white outline-none placeholder:text-white/25"
+                  />
+                </div>
+              </div>
 
-            <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
-              <button
-                onClick={() => setFrameKey(key => key + 1)}
-                disabled={!canPreview}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-[13px] font-semibold text-[#17171c] transition-colors hover:bg-[#f4f4f5] disabled:cursor-not-allowed disabled:opacity-40"
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Device</label>
+              <select
+                value={activePresetId}
+                onChange={e => setActivePresetId(e.target.value)}
+                className="mb-5 h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[12px] font-semibold text-white outline-none focus:border-white/25"
               >
-                <RefreshCw size={14} /> Refresh preview
-              </button>
-            </div>
-          </aside>
+                {PRESET_GROUPS.map(group => (
+                  <optgroup key={group} label={group} className="bg-[#101012] text-white">
+                    {STUDIO_PRESETS.filter(preset => preset.group === group).map(preset => (
+                      <option key={preset.id} value={preset.id} className="bg-[#101012] text-white">
+                        {preset.label} · {preset.width}x{preset.height}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                <option value="custom" className="bg-[#101012] text-white">Custom size…</option>
+              </select>
+
+              {activePresetId === "custom" && (
+                <>
+                  <div className="mb-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                    <input
+                      type="number"
+                      min={280}
+                      max={3840}
+                      value={customWidth}
+                      onChange={e => setCustomWidth(Number(e.target.value) || 0)}
+                      className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
+                    />
+                    <span className="text-white/30">x</span>
+                    <input
+                      type="number"
+                      min={280}
+                      max={3840}
+                      value={customHeight}
+                      onChange={e => setCustomHeight(Number(e.target.value) || 0)}
+                      className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCustomWidth(studioViewport.height);
+                      setCustomHeight(studioViewport.width);
+                    }}
+                    className="mb-1 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] text-[12px] font-semibold text-white/60 transition-colors hover:bg-white/[0.1] hover:text-white"
+                  >
+                    <RotateCw size={13} /> Rotate
+                  </button>
+                </>
+              )}
+
+              <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+                <button
+                  onClick={() => setFrameKey(key => key + 1)}
+                  disabled={!canPreview}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-[13px] font-semibold text-[#17171c] transition-colors hover:bg-[#f4f4f5] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <RefreshCw size={14} /> Refresh preview
+                </button>
+              </div>
+            </aside>
+          )}
 
           <div ref={stageRef} className="relative min-h-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_30%),#242426] shadow-2xl shadow-black/30">
+            {!panelOpen && (
+              <button
+                onClick={() => setPanelOpen(true)}
+                className="absolute left-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/70 text-white/70 shadow-lg transition-colors hover:bg-black/85 hover:text-white"
+                title="Show panel"
+              >
+                <ChevronRight size={16} />
+              </button>
+            )}
             <div className="absolute right-5 top-5 z-10 rounded-xl bg-black/70 px-4 py-2 font-mono text-[14px] font-semibold text-white/75 shadow-lg">
               {studioViewport.width} x {studioViewport.height}
             </div>
-            <div className="absolute left-5 top-5 z-10 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[11px] font-medium text-white/50">
+            <div className={`absolute ${panelOpen ? "left-5" : "left-16"} top-5 z-10 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[11px] font-medium text-white/50 transition-[left]`}>
               Scale {Math.round(previewScale * 100)}%
             </div>
 
