@@ -1,29 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Check,
   CheckCircle2,
   ChevronDown,
   ExternalLink,
+  Globe2,
   Loader2,
   MonitorCheck,
   MousePointerClick,
   PanelTop,
   Play,
+  RefreshCw,
+  RotateCw,
   Ruler,
-  Smartphone,
-  Tablet,
-  Monitor,
   Share2,
   Sparkles,
   TextCursorInput,
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
 import { analyzeLayoutIssue } from "@/lib/layout-analysis";
-import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } from "@/components/qa-report";
-import { BetaTag } from "@/app/(app)/_sidebar";
+import { AnnotatedScreenshot, ScoreBadge, type Screenshot } from "@/components/qa-report";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
 import { loadCachedScan, saveCachedScan } from "@/lib/scan-cache";
 
@@ -61,17 +60,22 @@ interface ResponsiveResult {
 
 type ScannerStatus = "ready" | "not_configured" | "missing_endpoint" | "unreachable";
 
-const VIEWPORTS: Array<{ id: ViewportName; label: string; icon: typeof Smartphone }> = [
-  { id: "mobile", label: "Mobile", icon: Smartphone },
-  { id: "tablet", label: "Tablet", icon: Tablet },
-  { id: "desktop", label: "Desktop", icon: Monitor },
-];
-
 const VIEWPORT_META: Record<ViewportName, { label: string; size: string }> = {
   mobile: { label: "Mobile", size: "390 x 844" },
   tablet: { label: "Tablet", size: "768 x 1024" },
   desktop: { label: "Desktop", size: "1440 x 900" },
 };
+
+const STUDIO_PRESETS = [
+  { id: "macbook-pro", label: "MacBook Pro", width: 1440, height: 900 },
+  { id: "macbook-air", label: "MacBook Air", width: 1280, height: 832 },
+  { id: "full-hd", label: "Full HD", width: 1920, height: 1080 },
+  { id: "2k-monitor", label: "2K Monitor", width: 2560, height: 1440 },
+  { id: "ipad-pro", label: "iPad Pro", width: 1024, height: 1366 },
+  { id: "iphone-15-pro", label: "iPhone 15 Pro", width: 393, height: 852 },
+  { id: "iphone-se", label: "iPhone SE", width: 375, height: 667 },
+  { id: "pixel-8", label: "Pixel 8", width: 412, height: 915 },
+];
 
 const CHECK_GROUPS = [
   {
@@ -471,8 +475,57 @@ export default function ResponsiveAgentPage() {
   const [browserScannerConnected, setBrowserScannerConnected] = useState<boolean | null>(null);
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
   const [showTouch, setShowTouch] = useState(false);
+  const [activePresetId, setActivePresetId] = useState(STUDIO_PRESETS[0].id);
+  const [customWidth, setCustomWidth] = useState(1440);
+  const [customHeight, setCustomHeight] = useState(900);
+  const [frameKey, setFrameKey] = useState(0);
+  const [previewScale, setPreviewScale] = useState(1);
+  const [embedEnabled, setEmbedEnabled] = useState(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const canRun = url.trim().startsWith("http") && !running;
+  const activePreset = STUDIO_PRESETS.find(preset => preset.id === activePresetId);
+  const studioViewport = activePreset ?? {
+    id: "custom",
+    label: "Custom",
+    width: Math.max(customWidth, 280),
+    height: Math.max(customHeight, 280),
+  };
+  const previewUrl = url.trim();
+  const canPreview = previewUrl.startsWith("http");
+  const previewHost = useMemo(() => {
+    try {
+      return canPreview ? new URL(previewUrl).hostname : "";
+    } catch {
+      return "";
+    }
+  }, [canPreview, previewUrl]);
+
+  useEffect(() => {
+    setEmbedEnabled(false);
+  }, [previewUrl]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const updateScale = () => {
+      const rect = stage.getBoundingClientRect();
+      const availableWidth = Math.max(rect.width - 72, 320);
+      const availableHeight = Math.max(rect.height - 88, 280);
+      const nextScale = Math.min(1, availableWidth / studioViewport.width, availableHeight / studioViewport.height);
+      setPreviewScale(Math.max(0.18, Number(nextScale.toFixed(3))));
+    };
+
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(stage);
+    window.addEventListener("resize", updateScale);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateScale);
+    };
+  }, [studioViewport.width, studioViewport.height]);
 
   const { layoutIssues, touchIssues, layoutByViewport } = useMemo(() => {
     const issues = result?.issues ?? [];
@@ -564,6 +617,17 @@ export default function ResponsiveAgentPage() {
   function screenshotFor(viewport: string) {
     return result?.viewportResults?.find(v => v.viewport?.name === viewport)?.screenshot;
   }
+
+  const studioScreenshot = useMemo(() => {
+    const shots = result?.viewportResults ?? [];
+    const exact = shots.find(
+      item => item.viewport?.width === studioViewport.width && item.viewport?.height === studioViewport.height
+    )?.screenshot;
+    if (exact) return exact;
+    if (studioViewport.width <= 520) return shots.find(item => item.viewport?.name === "mobile")?.screenshot ?? null;
+    if (studioViewport.width <= 1100) return shots.find(item => item.viewport?.name === "tablet")?.screenshot ?? null;
+    return shots.find(item => item.viewport?.name === "desktop")?.screenshot ?? null;
+  }, [result, studioViewport.width, studioViewport.height]);
 
   async function shareReport() {
     if (!result || score === null) return;
@@ -657,105 +721,273 @@ export default function ResponsiveAgentPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-white text-[#0f0f0f]">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/[0.06] pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04]">
-              <MonitorCheck size={17} strokeWidth={1.8} />
-            </div>
-            <div>
-              <h1 className="flex items-center gap-2 text-[17px] font-semibold">Layout QA <BetaTag /></h1>
-              <p className="mt-0.5 text-[12px] text-[#71717a]">Automatically inspect your website for layout issues across mobile, tablet, and desktop viewports.</p>
-            </div>
-          </div>
-          {result?.url && (
-            <a href={result.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[12px] text-[#71717a] hover:text-[#0f0f0f]">
-              Open page <ExternalLink size={12} />
+    <div className="h-full overflow-y-auto bg-[#1f1f21] text-white">
+      <section className="min-h-full px-5 py-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <a href="/agents/figma-compare" className="inline-flex rounded-lg bg-white px-3 py-2 transition-opacity hover:opacity-90" title="Back to Loupe">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/loupe.svg" alt="Loupe" className="h-6 w-auto" />
             </a>
-          )}
-        </div>
-
-        <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-            <div className="min-w-0 flex-1">
-              <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Page to test</label>
-              <input
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && canRun && run()}
-                placeholder="https://example.com"
-                className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
-              />
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Responsive Check</p>
+              <h1 className="mt-1 text-[20px] font-semibold tracking-normal text-white">Viewport Studio</h1>
             </div>
-            <button
-              id="responsive-run-btn"
-              onClick={run}
-              disabled={!canRun}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
-              {browserScannerConnected ? "Run browser scan" : "Preview HTML"}
-            </button>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-[#71717a]">
-            <span className="rounded-full bg-white px-2 py-1 font-medium text-[#4b5563]">{browserScannerConnected ? "Browser scanner ready" : "HTML preview mode"}</span>
-            {VIEWPORTS.map(v => {
-              const Icon = v.icon;
-              return (
-                <span key={v.id} className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1">
-                  <Icon size={12} /> {v.label} {v.id === "mobile" ? "390" : v.id === "tablet" ? "768" : "1440"}px
-                </span>
-              );
-            })}
+          <div className="flex items-center gap-2">
+            {result?.url && (
+              <a href={result.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[12px] font-medium text-white/70 transition-colors hover:bg-white/[0.1] hover:text-white">
+                Open page <ExternalLink size={12} />
+              </a>
+            )}
+            <span className="rounded-full bg-black/40 px-3 py-1.5 font-mono text-[13px] font-semibold text-white/70">
+              {studioViewport.width} x {studioViewport.height}
+            </span>
           </div>
         </div>
 
-        <ScanHelpToggle>
-        <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How Layout QA works</p>
-            <div className="grid grid-cols-4 gap-2">
-              {SCAN_STEPS.map((step, index) => (
-                <div key={step} className="relative rounded-lg bg-white px-3 py-3">
-                  <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
-                    {index + 1}
-                  </div>
-                  <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
+        <div className="grid min-h-[calc(100vh-92px)] gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <aside className="h-fit rounded-[22px] border border-white/10 bg-[#101012] p-4 shadow-2xl shadow-black/30 xl:sticky xl:top-5">
+            <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#a855f7] via-[#ec4899] to-[#f97316] shadow-lg shadow-pink-500/20">
+                  <MonitorCheck size={16} />
                 </div>
-              ))}
+                <div>
+                  <p className="text-[14px] font-semibold text-white">ViewPort Studio</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-white/35">Live resize lab</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setFrameKey(key => key + 1)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.08] text-white/50 transition-colors hover:bg-white/[0.14] hover:text-white"
+                title="Reload preview"
+              >
+                <RefreshCw size={14} />
+              </button>
             </div>
-          </div>
 
-          <div className="rounded-xl border border-black/[0.08] bg-white p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What gets checked</p>
+            <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Page URL</label>
+            <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <Globe2 size={14} className="shrink-0 text-white/40" />
+                <input
+                  value={url}
+                  onChange={e => setUrl(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && setFrameKey(key => key + 1)}
+                  placeholder="https://example.com"
+                  className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-white outline-none placeholder:text-white/25"
+                />
+              </div>
+            </div>
+
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Presets</p>
             <div className="grid grid-cols-2 gap-2">
-              {CHECK_GROUPS.map(group => {
-                const Icon = group.icon;
+              {STUDIO_PRESETS.map(preset => {
+                const active = activePresetId === preset.id;
                 return (
-                  <div key={group.title} className="rounded-lg border border-black/[0.06] px-3 py-2.5">
-                    <div className="mb-1.5 flex items-center gap-2">
-                      <Icon size={13} className="text-[#4b5563]" />
-                      <p className="text-[12px] font-semibold text-[#17171c]">{group.title}</p>
-                    </div>
-                    <p className="text-[11px] leading-snug text-[#71717a]">{group.text}</p>
-                  </div>
+                  <button
+                    key={preset.id}
+                    onClick={() => setActivePresetId(preset.id)}
+                    className={`min-h-[66px] rounded-xl border px-3 py-2 text-left transition-colors ${
+                      active
+                        ? "border-white bg-white text-[#17171c]"
+                        : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
+                    }`}
+                  >
+                    <span className="block text-[12px] font-semibold leading-tight">{preset.label}</span>
+                    <span className={`mt-1 block font-mono text-[11px] ${active ? "text-[#71717a]" : "text-white/35"}`}>
+                      {preset.width} x {preset.height}
+                    </span>
+                  </button>
                 );
               })}
             </div>
-            <div className="mt-3 border-t border-black/[0.06] pt-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Report includes</p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {REPORT_INCLUDES.map(item => (
-                  <p key={item} className="flex items-center gap-1.5 text-[11px] text-[#4b5563]">
-                    <Check size={11} className="shrink-0 text-[#0f0f0f]" /> {item}
-                  </p>
-                ))}
-              </div>
+
+            <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">Custom size</p>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <input
+                type="number"
+                min={280}
+                max={3840}
+                value={customWidth}
+                onFocus={() => setActivePresetId("custom")}
+                onChange={e => {
+                  setActivePresetId("custom");
+                  setCustomWidth(Number(e.target.value) || 0);
+                }}
+                className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
+              />
+              <span className="text-white/30">x</span>
+              <input
+                type="number"
+                min={280}
+                max={3840}
+                value={customHeight}
+                onFocus={() => setActivePresetId("custom")}
+                onChange={e => {
+                  setActivePresetId("custom");
+                  setCustomHeight(Number(e.target.value) || 0);
+                }}
+                className="h-10 rounded-xl border border-white/10 bg-white/[0.06] px-3 font-mono text-[13px] font-semibold text-white outline-none focus:border-white/25"
+              />
+            </div>
+            <button
+              onClick={() => {
+                setActivePresetId("custom");
+                setCustomWidth(studioViewport.height);
+                setCustomHeight(studioViewport.width);
+              }}
+              className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] text-[12px] font-semibold text-white/60 transition-colors hover:bg-white/[0.1] hover:text-white"
+            >
+              <RotateCw size={13} /> Rotate
+            </button>
+
+            <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+              <button
+                onClick={() => setFrameKey(key => key + 1)}
+                disabled={!canPreview}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-[13px] font-semibold text-[#17171c] transition-colors hover:bg-[#f4f4f5] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RefreshCw size={14} /> Refresh preview
+              </button>
+              <button
+                id="responsive-run-btn"
+                onClick={run}
+                disabled={!canRun}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] text-[13px] font-semibold text-white shadow-lg shadow-pink-500/20 transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {running ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                Run QA scan
+              </button>
+              <p className="text-[10px] leading-relaxed text-white/35">
+                Preview is instant. QA scan measures mobile, tablet, and desktop when the scanner is online.
+              </p>
+            </div>
+          </aside>
+
+          <div ref={stageRef} className="relative min-h-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_30%),#242426] shadow-2xl shadow-black/30">
+            <div className="absolute right-5 top-5 z-10 rounded-xl bg-black/70 px-4 py-2 font-mono text-[14px] font-semibold text-white/75 shadow-lg">
+              {studioViewport.width} x {studioViewport.height}
+            </div>
+            <div className="absolute left-5 top-5 z-10 rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-[11px] font-medium text-white/50">
+              Scale {Math.round(previewScale * 100)}%
+            </div>
+
+            <div
+              className="absolute left-1/2 top-1/2 origin-center overflow-hidden rounded-[22px] bg-white shadow-[0_24px_90px_rgba(0,0,0,0.45)] ring-1 ring-white/20"
+              style={{
+                width: studioViewport.width,
+                height: studioViewport.height,
+                transform: `translate(-50%, -50%) scale(${previewScale})`,
+              }}
+            >
+              {studioScreenshot ? (
+                <div className="relative h-full w-full bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={studioScreenshot.dataUrl}
+                    alt={`${studioViewport.label} scan preview`}
+                    className="h-full w-full object-cover object-top"
+                  />
+                  <div className="absolute left-4 top-4 rounded-full bg-black/75 px-3 py-1.5 text-[11px] font-semibold text-white">
+                    Browser scan screenshot
+                  </div>
+                </div>
+              ) : canPreview && embedEnabled ? (
+                <iframe
+                  key={`${frameKey}-${previewUrl}-${studioViewport.width}-${studioViewport.height}`}
+                  title="Viewport preview"
+                  src={previewUrl}
+                  className="h-full w-full border-0 bg-white"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-[#fafafa] px-8 text-center">
+                  <div style={{ transform: `scale(${1 / previewScale})` }}>
+                    <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f0f0f3] text-[#71717a]">
+                      <MonitorCheck size={24} />
+                    </div>
+                    <p className="text-[18px] font-semibold text-[#17171c]">
+                      {canPreview ? "Preview frame ready" : "Enter a page URL"}
+                    </p>
+                    <p className="mt-1 max-w-[360px] text-[13px] leading-relaxed text-[#71717a]">
+                      {canPreview
+                        ? `${previewHost} is set to ${studioViewport.width} x ${studioViewport.height}. Run QA scan to capture a real browser screenshot; embedded previews can be blocked by the website.`
+                        : "Paste a live website URL, choose a preset, and Loupe will prepare that viewport."}
+                    </p>
+                    {canPreview && (
+                      <div className="mt-5 flex flex-wrap justify-center gap-2">
+                        <button
+                          onClick={() => setEmbedEnabled(true)}
+                          className="inline-flex h-9 items-center justify-center rounded-lg border border-black/[0.1] bg-white px-3 text-[12px] font-semibold text-[#17171c] transition-colors hover:bg-[#f4f4f5]"
+                        >
+                          Try embedded preview
+                        </button>
+                        <button
+                          onClick={run}
+                          disabled={!canRun}
+                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#111113] px-3 text-[12px] font-semibold text-white transition-colors hover:bg-[#27272a] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          {running ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                          Run QA scan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
-        </ScanHelpToggle>
+      </section>
+
+      <div className="bg-white text-[#0f0f0f]">
+        <div className="mx-auto max-w-5xl px-6 py-6">
+          <ScanHelpToggle label="What the QA scan checks">
+            <div className="mb-5 grid gap-3 lg:grid-cols-[1fr_1fr]">
+              <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">How Layout QA works</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {SCAN_STEPS.map((step, index) => (
+                    <div key={step} className="relative rounded-lg bg-white px-3 py-3">
+                      <div className="mb-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0f0f0f] text-[10px] font-semibold text-white">
+                        {index + 1}
+                      </div>
+                      <p className="text-[11px] font-medium leading-tight text-[#17171c]">{step}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-black/[0.08] bg-white p-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What gets checked</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {CHECK_GROUPS.map(group => {
+                    const Icon = group.icon;
+                    return (
+                      <div key={group.title} className="rounded-lg border border-black/[0.06] px-3 py-2.5">
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <Icon size={13} className="text-[#4b5563]" />
+                          <p className="text-[12px] font-semibold text-[#17171c]">{group.title}</p>
+                        </div>
+                        <p className="text-[11px] leading-snug text-[#71717a]">{group.text}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3 border-t border-black/[0.06] pt-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Report includes</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {REPORT_INCLUDES.map(item => (
+                      <p key={item} className="flex items-center gap-1.5 text-[11px] text-[#4b5563]">
+                        <Check size={11} className="shrink-0 text-[#0f0f0f]" /> {item}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ScanHelpToggle>
 
         {result && result.mode === "static_fallback" && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3.5">
@@ -950,6 +1182,7 @@ export default function ResponsiveAgentPage() {
           </aside>
         </div>
       </div>
+    </div>
     </div>
   );
 }

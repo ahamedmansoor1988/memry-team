@@ -7,12 +7,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const pathname = headers().get("x-pathname") ?? "";
-  const isPublicAgent = pathname === "/agents/accessibility";
+  const isPublicAgent = pathname === "/agents/accessibility" || pathname === "/agents/responsive";
+  const isFocusedAgent = pathname === "/agents/responsive";
   if (!user && !isPublicAgent) redirect("/login");
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white">
-      <Sidebar userEmail={user?.email ?? "Guest"} />
+    <div className={`flex h-screen overflow-hidden ${isFocusedAgent ? "bg-[#1f1f21]" : "bg-white"}`}>
+      {!isFocusedAgent && <Sidebar userEmail={user?.email ?? "Guest"} />}
       <main className="flex-1 overflow-hidden">
         {children}
       </main>

@@ -50,7 +50,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/pricing") ||
     pathname.startsWith("/terms") ||
     pathname.startsWith("/privacy") ||
-    pathname === "/agents/accessibility";
+    pathname === "/agents/accessibility" ||
+    pathname === "/agents/responsive";
   const isApiRoute = pathname.startsWith("/api/");
 
   // Only hit Supabase when the auth state actually affects routing (protected
