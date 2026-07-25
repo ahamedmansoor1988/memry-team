@@ -107,11 +107,14 @@ export default function ResponsiveAgentPage() {
           {panelOpen && (
             <aside className="w-[240px] shrink-0 border-r border-black/[0.06] bg-white p-4">
               <div className="mb-4 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/[0.04]">
-                    <MonitorCheck size={17} strokeWidth={1.8} />
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0f0f0f] text-white">
+                    <MonitorCheck size={15} />
                   </div>
-                  <p className="truncate text-[17px] font-semibold text-[#17171c]">Responsive Check</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-[#17171c]">Responsive Check</p>
+                    <p className="truncate text-[11px] text-[#71717a]">Device mockups for a live page</p>
+                  </div>
                 </div>
                 <button
                   onClick={() => setPanelOpen(false)}
