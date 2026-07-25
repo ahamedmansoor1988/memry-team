@@ -1,83 +1,39 @@
 import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
 
-export const metadata = {
-  title: "Pricing — Loupe",
-  description: "Simple, transparent pricing for design QA. Free to start.",
-};
+const MONTHLY_PRICE = 20;
 
-const PLANS = [
-  {
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    desc: "For individuals trying it out.",
-    cta: "Get started",
-    ctaHref: "/login",
-    highlight: false,
-    features: [
-      "10 runs / month",
-      "1 saved target",
-      "Font, color & missing element checks",
-      "Run history (7 days)",
-      "Shareable result links",
-      "Chrome extension",
-    ],
-    missing: [
-      "Scheduled runs",
-      "Email digests",
-      "Team seats",
-      "Priority support",
-    ],
-  },
-  {
-    name: "Pro",
-    price: "$19",
-    period: "per month",
-    desc: "For freelancers and solo designers who ship fast.",
-    cta: "Start Pro",
-    ctaHref: "/login",
-    highlight: true,
-    features: [
-      "Unlimited runs",
-      "5 saved targets",
-      "All checks (missing comps, fonts, color)",
-      "Full run history",
-      "Shareable result links",
-      "Chrome extension",
-      "Publish to Figma comments",
-      "Priority support",
-    ],
-    missing: [
-      "Team seats",
-      "Email digests",
-      "Scheduled runs",
-    ],
-  },
-  {
-    name: "Team",
-    price: "$49",
-    period: "per month",
-    desc: "For design and frontend teams who want zero regressions.",
-    cta: "Start Team",
-    ctaHref: "/login",
-    highlight: false,
-    features: [
-      "Everything in Pro",
-      "5 team seats",
-      "Unlimited saved targets",
-      "Scheduled runs (daily / weekly)",
-      "Email digest on new issues",
-      "Priority support",
-    ],
-    missing: [],
-  },
+const FREE_FEATURES = [
+  "3 runs / day for 15 days",
+  "Figma vs Live",
+  "Brand Check",
+  "Accessibility QA",
+  "Responsive Check",
+  "Chrome extension",
+  "Shareable result links",
+];
+
+const PRO_FEATURES = [
+  "Unlimited runs",
+  "Figma vs Live",
+  "Brand Check",
+  "Accessibility QA",
+  "Responsive Check",
+  "Chrome extension",
+  "Publish results to Figma comments",
+  "Full run history",
+  "Shareable result links",
+  "Priority support",
 ];
 
 const FAQ = [
   {
     q: "What counts as a run?",
-    a: "A run is one Figma vs Live comparison. Every time you click 'Run comparison' or the extension triggers a scan, that's one run.",
+    a: "A run is one scan — a Figma vs Live comparison, a Brand Check, an Accessibility scan, or a Responsive Check. Every time you click run or the extension triggers a scan, that's one run.",
+  },
+  {
+    q: "What happens after the 15-day free trial?",
+    a: "Your account stays open, but scans pause until you upgrade to Pro. Nothing you've already run gets deleted.",
   },
   {
     q: "Do I need a Figma paid plan?",
@@ -118,117 +74,117 @@ export default function PricingPage() {
       </header>
 
       {/* Header */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-12 text-center">
+      <section className="max-w-6xl mx-auto px-6 pt-16 pb-10 text-center">
         <h1 className="text-[52px] font-normal text-[#0f0f0f] leading-tight mb-4 font-[family-name:var(--font-serif)]">
           Pay for what you ship,<br />not what you try
         </h1>
         <p className="text-[17px] text-[#4b5563] max-w-lg mx-auto">
-          Start free with no limits on time. Upgrade when your team grows or your scan volume does.
+          Try every check free for 15 days. Upgrade when you need unlimited runs.
         </p>
       </section>
 
       {/* Plans */}
-      <section className="max-w-5xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-3 gap-5">
-          {PLANS.map(plan => (
-            <div
-              key={plan.name}
-              className={`rounded-2xl border p-6 flex flex-col ${
-                plan.highlight
-                  ? "border-[#0f0f0f] bg-[#0f0f0f] text-white"
-                  : "border-[#f0f0f0] bg-white"
-              }`}
-            >
-              {/* Plan header */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-3">
-                  <span className={`text-[13px] font-semibold ${plan.highlight ? "text-white" : "text-[#0f0f0f]"}`}>
-                    {plan.name}
-                  </span>
-                  {plan.highlight && (
-                    <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-white" style={{ background: "linear-gradient(90deg, #a855f7, #ec4899, #f97316)" }}>
-                      Most popular
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-baseline gap-1 mb-2">
-                  <span className={`text-[38px] font-semibold tracking-tight ${plan.highlight ? "text-white" : "text-[#0f0f0f]"}`}>
-                    {plan.price}
-                  </span>
-                  <span className={`text-[13px] ${plan.highlight ? "text-white/50" : "text-[#71717a]"}`}>
-                    /{plan.period}
-                  </span>
-                </div>
-                <p className={`text-[13px] leading-relaxed ${plan.highlight ? "text-white/60" : "text-[#4b5563]"}`}>
-                  {plan.desc}
-                </p>
+      <section className="max-w-3xl mx-auto px-6 pb-20">
+        <div className="grid grid-cols-2 gap-5">
+          {/* Free */}
+          <div className="rounded-2xl border border-[#f0f0f0] bg-white p-6 flex flex-col">
+            <div className="mb-6">
+              <div className="mb-3">
+                <span className="text-[13px] font-semibold text-[#0f0f0f]">Free trial</span>
               </div>
-
-              {/* CTA */}
-              <Link
-                href={plan.ctaHref}
-                className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium mb-6 transition-colors ${
-                  plan.highlight
-                    ? "bg-white text-[#0f0f0f] hover:bg-[#f5f5f5]"
-                    : "bg-[#0f0f0f] text-white hover:bg-[#1a1a1a]"
-                }`}
-              >
-                {plan.cta} <ArrowRight size={13} />
-              </Link>
-
-              {/* Features */}
-              <div className="space-y-2.5 flex-1">
-                {plan.features.map(f => (
-                  <div key={f} className="flex items-start gap-2.5">
-                    <Check size={13} className={`mt-0.5 shrink-0 ${plan.highlight ? "text-emerald-400" : "text-emerald-500"}`} />
-                    <span className={`text-[13px] ${plan.highlight ? "text-white/80" : "text-[#3f3f46]"}`}>{f}</span>
-                  </div>
-                ))}
-                {plan.missing.map(f => (
-                  <div key={f} className="flex items-start gap-2.5 opacity-30">
-                    <div className="mt-0.5 shrink-0 h-[13px] w-[13px] flex items-center justify-center">
-                      <div className={`h-px w-2.5 ${plan.highlight ? "bg-white" : "bg-[#71717a]"}`} />
-                    </div>
-                    <span className={`text-[13px] ${plan.highlight ? "text-white" : "text-[#71717a]"}`}>{f}</span>
-                  </div>
-                ))}
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-[38px] font-semibold tracking-tight text-[#0f0f0f]">$0</span>
+                <span className="text-[13px] text-[#71717a]">/ 15 days</span>
               </div>
+              <p className="text-[13px] leading-relaxed text-[#4b5563]">
+                For individuals trying it out. 3 runs per day.
+              </p>
             </div>
-          ))}
+
+            <Link
+              href="/login"
+              className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium mb-6 transition-colors bg-[#0f0f0f] text-white hover:bg-[#1a1a1a]"
+            >
+              Get started <ArrowRight size={13} />
+            </Link>
+
+            <div className="space-y-2.5 flex-1">
+              {FREE_FEATURES.map(f => (
+                <div key={f} className="flex items-start gap-2.5">
+                  <Check size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+                  <span className="text-[13px] text-[#3f3f46]">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Pro */}
+          <div className="rounded-2xl border border-[#0f0f0f] bg-[#0f0f0f] text-white p-6 flex flex-col">
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-[13px] font-semibold text-white">Pro</span>
+                <span className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-white" style={{ background: "linear-gradient(90deg, #a855f7, #ec4899, #f97316)" }}>
+                  Most popular
+                </span>
+              </div>
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-[38px] font-semibold tracking-tight text-white">${MONTHLY_PRICE}</span>
+                <span className="text-[13px] text-white/50">/month</span>
+              </div>
+              <p className="text-[13px] leading-relaxed text-white/60">
+                For designers and teams who ship continuously.
+              </p>
+            </div>
+
+            <Link
+              href="/login"
+              className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium mb-6 transition-colors bg-white text-[#0f0f0f] hover:bg-[#f5f5f5]"
+            >
+              Start Pro <ArrowRight size={13} />
+            </Link>
+
+            <div className="space-y-2.5 flex-1">
+              {PRO_FEATURES.map(f => (
+                <div key={f} className="flex items-start gap-2.5">
+                  <Check size={13} className="mt-0.5 shrink-0 text-emerald-400" />
+                  <span className="text-[13px] text-white/80">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Compare at a glance */}
       <section className="border-t border-[#f5f5f7] py-16">
-        <div className="max-w-4xl mx-auto px-6">
+        <div className="max-w-3xl mx-auto px-6">
           <h2 className="text-[24px] font-semibold text-[#0f0f0f] mb-8 text-center">Compare plans</h2>
           <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
                 <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
                   <th className="px-5 py-3 text-left font-medium text-[#71717a]">Feature</th>
-                  <th className="px-5 py-3 text-center font-medium text-[#71717a]">Free</th>
+                  <th className="px-5 py-3 text-center font-medium text-[#71717a]">Free trial</th>
                   <th className="px-5 py-3 text-center font-medium text-[#0f0f0f]">Pro</th>
-                  <th className="px-5 py-3 text-center font-medium text-[#71717a]">Team</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  ["Runs per month",       "10",        "Unlimited",  "Unlimited"],
-                  ["Projects",            "1",         "5",          "Unlimited"],
-                  ["Run history",         "7 days",    "Full",       "Full"],
-                  ["Share links",         "✓",         "✓",          "✓"],
-                  ["All check types",     "—",         "✓",          "✓"],
-                  ["Figma comments",      "—",         "✓",          "✓"],
-                  ["Team seats",          "1",         "1",          "5"],
-                  ["Scheduled runs",      "—",         "—",          "✓"],
-                  ["Email digests",       "—",         "—",          "✓"],
-                ].map(([feature, free, pro, team], i) => (
+                  ["Runs",                 "3 / day for 15 days", "Unlimited"],
+                  ["Figma vs Live",        "✓",                   "✓"],
+                  ["Brand Check",          "✓",                   "✓"],
+                  ["Accessibility QA",     "✓",                   "✓"],
+                  ["Responsive Check",     "✓",                   "✓"],
+                  ["Chrome extension",     "✓",                   "✓"],
+                  ["Share links",          "✓",                   "✓"],
+                  ["Run history",          "7 days",              "Full"],
+                  ["Publish to Figma comments", "—",              "✓"],
+                  ["Priority support",     "—",                   "✓"],
+                ].map(([feature, free, pro], i) => (
                   <tr key={feature} className={`border-b border-[#f7f7f8] last:border-0 ${i % 2 === 0 ? "" : "bg-[#fafafa]/50"}`}>
                     <td className="px-5 py-3 text-[#17171c] font-medium">{feature}</td>
                     <td className="px-5 py-3 text-center text-[#71717a]">{free}</td>
                     <td className="px-5 py-3 text-center text-[#0f0f0f] font-medium">{pro}</td>
-                    <td className="px-5 py-3 text-center text-[#71717a]">{team}</td>
                   </tr>
                 ))}
               </tbody>
@@ -257,7 +213,7 @@ export default function PricingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
             <h2 className="text-[28px] font-semibold text-white mb-3">Start for free today</h2>
-            <p className="text-[14px] text-[#71717a] mb-7">No credit card. No setup. Just install the extension and run.</p>
+            <p className="text-[14px] text-[#71717a] mb-7">No credit card. 3 runs a day, free for 15 days.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[13px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={13} />
             </Link>

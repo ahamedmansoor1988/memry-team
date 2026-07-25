@@ -5,7 +5,7 @@ export const metadata = {
   description: "Terms of Service for Loupe design QA tool.",
 };
 
-const EFFECTIVE = "27 June 2026";
+const EFFECTIVE = "25 July 2026";
 
 export default function TermsPage() {
   return (
@@ -37,7 +37,7 @@ export default function TermsPage() {
 
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">2. What Loupe is</h2>
-            <p>Loupe is a design QA tool that compares Figma design frames against live websites and surfaces visual discrepancies. It is provided as a web application and Chrome browser extension.</p>
+            <p>Loupe is a design QA tool suite for live websites. It includes Figma vs Live comparison, Brand Consistency checking, Accessibility (WCAG) scanning, and Responsive Check device previews. It is provided as a web application and Chrome browser extension.</p>
           </section>
 
           <section className="space-y-3">
@@ -65,7 +65,7 @@ export default function TermsPage() {
 
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">6. Plans and billing</h2>
-            <p>The Free plan is available at no cost subject to usage limits. Paid plans (Pro, Team) are billed monthly. You may cancel at any time and your access continues until the end of the billing period. We do not offer refunds for partial months.</p>
+            <p>New accounts get a 15-day free trial with up to 3 runs per day, at no cost. The Pro plan ($20/month) removes the daily run limit and is billed monthly. You may cancel at any time and your access continues until the end of the billing period. We do not offer refunds for partial months.</p>
             <p>We reserve the right to change pricing with 30 days' notice to active subscribers.</p>
           </section>
 

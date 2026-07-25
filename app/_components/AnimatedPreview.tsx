@@ -1,20 +1,100 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ScanSearch } from "lucide-react";
+import { ScanSearch, Palette, Accessibility, MonitorCheck } from "lucide-react";
 
-const STEPS = [
-  "Extension captured 112 live styles from real Chrome.",
-  "Snapshot loaded — 9 nodes. Zero Figma API calls.",
-  "Matching Figma nodes to live elements…",
-  "Sending to Groq AI — checking: missing elements, color…",
-  "AI identified 8 discrepancies.",
-];
+interface Row {
+  el: string;
+  type: string;
+  bg: string;
+  c: string;
+  issue: string;
+}
 
-const ROWS = [
-  { el: "Solutions",   type: "Missing Comps", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
-  { el: "Pricing",     type: "Missing Comps", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
-  { el: "Book a demo", type: "Color",   bg: "#fdf2f8", c: "#db2777", issue: "Figma: #030407 → #FCFCFD" },
+interface Scene {
+  icon: typeof ScanSearch;
+  label: string;
+  badge: string;
+  steps: string[];
+  summaryTitle: string;
+  summarySub: string;
+  rows: Row[];
+}
+
+const SCENES: Scene[] = [
+  {
+    icon: ScanSearch,
+    label: "Figma vs Live",
+    badge: "9 nodes · depth=5",
+    steps: [
+      "Extension captured 112 live styles from real Chrome.",
+      "Snapshot loaded — 9 nodes. Zero Figma API calls.",
+      "Matching Figma nodes to live elements…",
+      "Sending to Groq AI — checking: missing elements, color…",
+      "AI identified 8 discrepancies.",
+    ],
+    summaryTitle: "8 issues found",
+    summarySub: "6 missing, 2 color",
+    rows: [
+      { el: "Solutions", type: "Missing Comps", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
+      { el: "Pricing", type: "Missing Comps", bg: "#fef2f2", c: "#dc2626", issue: "Missing on live page" },
+      { el: "Book a demo", type: "Color", bg: "#fdf2f8", c: "#db2777", issue: "Figma: #030407 → #FCFCFD" },
+    ],
+  },
+  {
+    icon: Palette,
+    label: "Brand Check",
+    badge: "6 colors · 3 fonts",
+    steps: [
+      "Loading brand guide — 6 colors, 3 fonts, spacing rules.",
+      "Scanning the live page for colors, fonts, and spacing…",
+      "Comparing every match against the brand guide…",
+      "Found 5 mismatches.",
+    ],
+    summaryTitle: "5 issues found",
+    summarySub: "3 color drift, 2 font",
+    rows: [
+      { el: "Hero heading", type: "Font", bg: "#fdf2f8", c: "#db2777", issue: "Inter → Söhne" },
+      { el: "CTA button", type: "Color", bg: "#fdf2f8", c: "#db2777", issue: "#111827 → #0F0F13" },
+      { el: "Section spacing", type: "Spacing", bg: "#fefce8", c: "#a16207", issue: "48px → 64px" },
+    ],
+  },
+  {
+    icon: Accessibility,
+    label: "Accessibility QA",
+    badge: "WCAG AA",
+    steps: [
+      "Rendering the page in a headless browser…",
+      "Walking 340 text nodes for contrast ratio…",
+      "Checking labels, headings, and focus order…",
+      "Found 4 WCAG issues.",
+    ],
+    summaryTitle: "4 issues found",
+    summarySub: "1 contrast, 2 labels, 1 heading",
+    rows: [
+      { el: "Search input", type: "Missing label", bg: "#fef2f2", c: "#dc2626", issue: "No aria-label or <label>" },
+      { el: "Hero CTA", type: "Contrast", bg: "#fef2f2", c: "#dc2626", issue: "2.1:1 — needs 4.5:1" },
+      { el: "Section", type: "Heading order", bg: "#fefce8", c: "#a16207", issue: "H3 follows H1, skips H2" },
+    ],
+  },
+  {
+    icon: MonitorCheck,
+    label: "Responsive Check",
+    badge: "3 viewports",
+    steps: [
+      "Loading the page at mobile, tablet, and desktop…",
+      "Measuring layout boxes at each breakpoint…",
+      "Checking for overflow and touch target size…",
+      "Found 3 layout issues.",
+    ],
+    summaryTitle: "3 issues found",
+    summarySub: "1 overflow, 2 touch targets",
+    rows: [
+      { el: "Nav menu", type: "Overflow", bg: "#fef2f2", c: "#dc2626", issue: "Causes horizontal scroll at 375px" },
+      { el: "Icon button", type: "Touch target", bg: "#fefce8", c: "#a16207", issue: "28×28px — needs 44×44px" },
+      { el: "Footer link", type: "Touch target", bg: "#fefce8", c: "#a16207", issue: "32×24px — needs 44×44px" },
+    ],
+  },
 ];
 
 const STEP_DELAY   = 900;   // ms between each step
@@ -24,6 +104,7 @@ const HOLD         = 3000;  // ms to hold final state before reset
 const RESET_PAUSE  = 600;   // ms blank before next cycle
 
 export function AnimatedPreview() {
+  const [sceneIndex,   setSceneIndex]   = useState(0);
   const [visibleSteps, setVisibleSteps] = useState(0);
   const [showResults,  setShowResults]  = useState(false);
   const [visibleRows,  setVisibleRows]  = useState(0);
@@ -32,56 +113,77 @@ export function AnimatedPreview() {
     let cancelled = false;
 
     async function run() {
-      // reset
-      setVisibleSteps(0);
-      setShowResults(false);
-      setVisibleRows(0);
+      let scene = 0;
 
-      await delay(400);
+      while (!cancelled) {
+        const { steps, rows } = SCENES[scene];
 
-      // reveal steps one by one
-      for (let i = 1; i <= STEPS.length; i++) {
+        setSceneIndex(scene);
+        setVisibleSteps(0);
+        setShowResults(false);
+        setVisibleRows(0);
+
+        await delay(400);
+
+        for (let i = 1; i <= steps.length; i++) {
+          if (cancelled) return;
+          setVisibleSteps(i);
+          await delay(STEP_DELAY);
+        }
+
+        await delay(RESULT_DELAY);
         if (cancelled) return;
-        setVisibleSteps(i);
-        await delay(STEP_DELAY);
-      }
+        setShowResults(true);
 
-      await delay(RESULT_DELAY);
-      if (cancelled) return;
-      setShowResults(true);
+        for (let i = 1; i <= rows.length; i++) {
+          if (cancelled) return;
+          await delay(ROW_DELAY);
+          setVisibleRows(i);
+        }
 
-      // reveal rows one by one
-      for (let i = 1; i <= ROWS.length; i++) {
+        await delay(HOLD);
         if (cancelled) return;
-        await delay(ROW_DELAY);
-        setVisibleRows(i);
+
+        setVisibleSteps(0);
+        setShowResults(false);
+        setVisibleRows(0);
+        await delay(RESET_PAUSE);
+
+        scene = (scene + 1) % SCENES.length;
       }
-
-      await delay(HOLD);
-      if (cancelled) return;
-
-      // fade out
-      setVisibleSteps(0);
-      setShowResults(false);
-      setVisibleRows(0);
-      await delay(RESET_PAUSE);
-      if (!cancelled) run();
     }
 
     run();
     return () => { cancelled = true; };
   }, []);
 
+  const scene = SCENES[sceneIndex];
+  const Icon = scene.icon;
+
   return (
     <div className="rounded-2xl border border-[#e8e8ec] bg-[#fafafa] overflow-hidden shadow-sm">
       {/* Title bar */}
       <div className="border-b border-[#f0f0f0] bg-white px-5 h-[45px] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <ScanSearch size={13} className="text-[#71717a]" />
-          <span className="text-[13px] font-medium text-[#17171c]">Figma vs Live</span>
+          <Icon size={13} className="text-[#71717a]" />
+          <span className="text-[13px] font-medium text-[#17171c]">{scene.label}</span>
           <span className="rounded-full bg-[#f0f0f0] px-2 py-0.5 text-[10px] font-medium text-[#71717a]">Design QA</span>
         </div>
-        <span className="rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">9 nodes · depth=5</span>
+        <span className="rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">{scene.badge}</span>
+      </div>
+
+      {/* Scene dots */}
+      <div className="flex items-center justify-center gap-1.5 border-b border-[#f0f0f0] bg-white py-2">
+        {SCENES.map((s, i) => (
+          <span
+            key={s.label}
+            className="h-1.5 rounded-full transition-all duration-300"
+            style={{
+              width: i === sceneIndex ? 16 : 6,
+              backgroundColor: i === sceneIndex ? "#a855f7" : "#e4e4e7",
+            }}
+          />
+        ))}
       </div>
 
       <div className="flex min-h-[280px]">
@@ -89,7 +191,7 @@ export function AnimatedPreview() {
         <div className="w-[38%] border-r border-[#f0f0f0] px-5 py-4">
           <p className="text-[9px] font-semibold uppercase tracking-widest text-[#d0d0d8] mb-3">Steps</p>
           <div className="space-y-2">
-            {STEPS.map((text, i) => (
+            {scene.steps.map((text, i) => (
               <div
                 key={i}
                 style={{
@@ -101,7 +203,7 @@ export function AnimatedPreview() {
               >
                 <span
                   style={{
-                    color: i === visibleSteps - 1 && visibleSteps < STEPS.length
+                    color: i === visibleSteps - 1 && visibleSteps < scene.steps.length
                       ? "#a855f7"
                       : "#d0d0d8",
                     transition: "color 0.3s",
@@ -130,8 +232,8 @@ export function AnimatedPreview() {
               <div className="h-1.5 w-1.5 rounded-full bg-orange-400" />
             </div>
             <div>
-              <p className="text-[13px] font-semibold text-orange-800">8 issues found</p>
-              <p className="text-[11px] text-orange-600">6 missing, 2 color</p>
+              <p className="text-[13px] font-semibold text-orange-800">{scene.summaryTitle}</p>
+              <p className="text-[11px] text-orange-600">{scene.summarySub}</p>
             </div>
           </div>
 
@@ -146,7 +248,7 @@ export function AnimatedPreview() {
                 </tr>
               </thead>
               <tbody>
-                {ROWS.map((row, i) => (
+                {scene.rows.map((row, i) => (
                   <tr
                     key={i}
                     className="border-b border-[#f7f7f8] last:border-0"
