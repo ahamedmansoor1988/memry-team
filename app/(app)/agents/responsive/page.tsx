@@ -101,18 +101,16 @@ export default function ResponsiveAgentPage() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#f7f7f8]">
-      <header className="flex h-[64px] shrink-0 items-center justify-between border-b border-black/[0.06] bg-white px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#111113] text-white">
-            <MonitorCheck size={17} strokeWidth={1.9} />
+    <div className="flex h-full flex-col overflow-hidden bg-[#fafafa]">
+      <header className="shrink-0 border-b border-black/[0.06] bg-white">
+        <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between gap-4 px-8">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+            <MonitorCheck size={18} strokeWidth={1.9} />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="truncate text-[17px] font-semibold leading-tight text-[#111113]">Responsive Check</h1>
-              <span className="rounded-full bg-[#f4f4f5] px-2 py-0.5 text-[10px] font-semibold text-[#71717a]">Preview</span>
-            </div>
-            <p className="mt-0.5 truncate text-[12px] leading-snug text-[#71717a]">Test the current site inside device presets and custom screen sizes.</p>
+            <h1 className="truncate text-[24px] font-semibold leading-tight text-[#111113]">Responsive Check</h1>
+            <p className="mt-1 truncate text-[14px] leading-snug text-[#71717a]">Test the current site inside device presets and custom screen sizes.</p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -123,16 +121,17 @@ export default function ResponsiveAgentPage() {
             {studioViewport.width} x {studioViewport.height}
           </span>
         </div>
+        </div>
       </header>
 
       <section className="min-h-0 flex-1">
         <div className="flex h-full min-h-0 overflow-hidden">
           {panelOpen && (
-            <aside className="w-[256px] shrink-0 overflow-y-auto border-r border-black/[0.06] bg-white p-4">
-              <div className="mb-4 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-3">
+            <aside className="w-[280px] shrink-0 overflow-y-auto border-r border-black/[0.06] bg-white p-6">
+              <div className="mb-5 flex items-center justify-between gap-2 border-b border-black/[0.06] pb-4">
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-semibold text-[#111113]">Controls</p>
-                  <p className="mt-0.5 truncate text-[11px] text-[#71717a]">URL, device, zoom</p>
+                  <p className="truncate text-[18px] font-semibold text-[#111113]">Controls</p>
+                  <p className="mt-1 truncate text-[13px] text-[#71717a]">URL, device, zoom</p>
                 </div>
                 <button
                   onClick={() => setPanelOpen(false)}
@@ -143,8 +142,8 @@ export default function ResponsiveAgentPage() {
                 </button>
               </div>
 
-              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717a]">Page URL</label>
-              <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 py-2.5">
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">Page URL</label>
+              <div className="mb-5 rounded-xl border border-black/[0.10] bg-white px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Globe2 size={14} className="shrink-0 text-[#a1a1aa]" />
                   <input
@@ -152,16 +151,16 @@ export default function ResponsiveAgentPage() {
                     onChange={e => setUrl(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && setFrameKey(key => key + 1)}
                     placeholder="https://example.com"
-                    className="min-w-0 flex-1 bg-transparent text-[12px] font-medium text-[#17171c] outline-none placeholder:text-[#c4c4cc]"
+                    className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#17171c] outline-none placeholder:text-[#c4c4cc]"
                   />
                 </div>
               </div>
 
-              <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717a]">Device</label>
+              <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">Device</label>
               <select
                 value={activePresetId}
                 onChange={e => setActivePresetId(e.target.value)}
-                className="mb-5 h-10 w-full rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 text-[12px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
               >
                 {PRESET_GROUPS.map(group => (
                   <optgroup key={group} label={group}>
@@ -208,11 +207,11 @@ export default function ResponsiveAgentPage() {
                 </>
               )}
 
-              <label className="mb-2 mt-5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717a]">Zoom</label>
+              <label className="mb-2 mt-5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">Zoom</label>
               <select
                 value={zoomMode}
                 onChange={e => setZoomMode(e.target.value)}
-                className="mb-5 h-10 w-full rounded-xl border border-black/[0.08] bg-[#fafafa] px-3 text-[12px] font-semibold text-[#17171c] outline-none focus:border-black/20"
+                className="mb-5 h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] font-semibold text-[#17171c] outline-none focus:border-black/20"
               >
                 {ZOOM_OPTIONS.map(opt => (
                   <option key={opt.id} value={opt.id}>{opt.label}</option>
@@ -223,7 +222,7 @@ export default function ResponsiveAgentPage() {
                 <button
                   onClick={() => setFrameKey(key => key + 1)}
                   disabled={!canPreview}
-                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                 >
                   <RefreshCw size={14} /> Refresh preview
                 </button>

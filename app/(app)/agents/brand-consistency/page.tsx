@@ -279,35 +279,39 @@ export default function BrandConsistencyPage() {
   const issueIndex = new Map(orderedFindings.map((f, i) => [f.id, i + 1]));
 
   return (
-    <div className="h-full overflow-y-auto bg-white text-[#0f0f0f]">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="mb-5 flex items-center gap-3 border-b border-black/[0.06] pb-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04]">
-            <Palette size={17} strokeWidth={1.8} />
+    <div className="h-full overflow-y-auto bg-[#fafafa] text-[#0f0f0f]">
+      <header className="border-b border-black/[0.06] bg-white">
+        <div className="mx-auto flex h-20 max-w-[1280px] items-center px-8">
+          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+            <Palette size={18} strokeWidth={1.9} />
           </div>
-          <div>
-            <h1 className="text-[17px] font-semibold">Brand Consistency</h1>
-            <p className="mt-0.5 text-[12px] text-[#71717a]">Check a Figma file or a live webpage for colors, fonts, spacing, and logo usage that don't match your brand guide.</p>
+          <div className="min-w-0">
+            <h1 className="truncate text-[24px] font-semibold leading-tight text-[#111113]">Brand Check</h1>
+            <p className="mt-1 truncate text-[14px] text-[#71717a]">Check a Figma file or live webpage for colors, fonts, spacing, and logo usage that don't match your guide.</p>
+          </div>
           </div>
         </div>
+      </header>
 
+      <div className="mx-auto max-w-[1280px] px-8 py-6">
         <ScanHelpToggle>
           <OnboardingPanels />
         </ScanHelpToggle>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="space-y-4">
-            <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-              <div className="mb-3 inline-flex rounded-lg border border-black/[0.1] bg-white p-0.5">
+            <div className="rounded-2xl border border-black/[0.08] bg-white p-6">
+              <div className="mb-5 inline-flex h-10 rounded-xl border border-black/[0.08] bg-[#f7f7f8] p-1">
                 <button
                   onClick={() => setSource("figma")}
-                  className={`rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors ${source === "figma" ? "bg-[#0f0f0f] text-white" : "text-[#71717a] hover:text-[#0f0f0f]"}`}
+                  className={`rounded-lg px-4 text-[13px] font-semibold transition-colors ${source === "figma" ? "bg-[#111113] text-white" : "text-[#71717a] hover:text-[#0f0f0f]"}`}
                 >
                   Figma file
                 </button>
                 <button
                   onClick={() => setSource("url")}
-                  className={`rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors ${source === "url" ? "bg-[#0f0f0f] text-white" : "text-[#71717a] hover:text-[#0f0f0f]"}`}
+                  className={`rounded-lg px-4 text-[13px] font-semibold transition-colors ${source === "url" ? "bg-[#111113] text-white" : "text-[#71717a] hover:text-[#0f0f0f]"}`}
                 >
                   Live URL
                 </button>
@@ -320,7 +324,7 @@ export default function BrandConsistencyPage() {
                     value={figmaUrl}
                     onChange={e => setFigmaUrl(e.target.value)}
                     placeholder="https://www.figma.com/design/abc123/My-File"
-                    className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
+                    className="h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/30"
                   />
                   <p className="mt-1.5 text-[11px] text-[#71717a]">Paste a link to a specific frame, or the whole file to check everything. Checks colors, fonts, spacing, and logo usage against the design.</p>
                 </>
@@ -331,7 +335,7 @@ export default function BrandConsistencyPage() {
                     value={liveUrl}
                     onChange={e => setLiveUrl(e.target.value)}
                     placeholder="https://example.com"
-                    className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
+                    className="h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/30"
                   />
                   <p className="mt-1.5 text-[11px] text-[#71717a]">Checks colors and fonts as actually rendered. Spacing and logo clear-space are less standardized on the web, so results there are best-effort.</p>
                 </>
@@ -339,7 +343,7 @@ export default function BrandConsistencyPage() {
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {source === "figma" && (
-                  <div className="rounded-lg border border-black/[0.1] bg-white px-3 py-2.5">
+                  <div className="rounded-xl border border-black/[0.08] bg-[#fafafa] px-4 py-3">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Figma token</p>
                     <p className="mt-0.5 flex items-center gap-1.5 text-[13px]">
                       {pat ? (
@@ -350,7 +354,7 @@ export default function BrandConsistencyPage() {
                     </p>
                   </div>
                 )}
-                <div className={`rounded-lg border border-black/[0.1] bg-white px-3 py-2.5 ${source === "url" ? "sm:col-span-2" : ""}`}>
+                <div className={`rounded-xl border border-black/[0.08] bg-[#fafafa] px-4 py-3 ${source === "url" ? "sm:col-span-2" : ""}`}>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Brand guide</p>
                   <p className="mt-0.5 flex items-center gap-1.5 truncate text-[13px]">
                     {brandGuideName ? (
@@ -368,9 +372,9 @@ export default function BrandConsistencyPage() {
               <button
                 onClick={run}
                 disabled={!canRun}
-                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-6 inline-flex h-12 min-w-[240px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-40"
               >
-                {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+                {running ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
                 Check brand consistency
               </button>
               {source === "figma" && figmaUrl && !parsed && <p className="mt-2 text-[11px] text-amber-700">That doesn't look like a Figma file URL.</p>}
@@ -434,7 +438,7 @@ export default function BrandConsistencyPage() {
             )}
           </section>
 
-          <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+          <aside className="h-fit rounded-2xl border border-black/[0.08] bg-white p-6">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Summary</p>
             <div className="grid grid-cols-2 gap-2">
               <div className="col-span-2 rounded-lg bg-white p-3">

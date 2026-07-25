@@ -490,22 +490,23 @@ export default function FigmaComparePage() {
   const figmaAccessLabel = figmaAccessReady ? "Figma access ready" : tokenExpired ? "Token expired" : "Token needed";
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-1 flex-col bg-[#fafafa]">
 
       {/* ── CENTER: Execution ──────────────────────────────────────── */}
       <div className="flex flex-1 flex-col min-h-0 min-w-0">
         {/* Top bar */}
-        <div className="flex h-[58px] items-center justify-between border-b border-[#f0f0f0] bg-white px-6 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04]">
-              <Sparkles size={17} strokeWidth={1.8} />
+        <div className="shrink-0 border-b border-black/[0.06] bg-white">
+          <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+              <Sparkles size={18} strokeWidth={1.9} />
             </div>
-            <div>
-              <p className="text-[17px] font-semibold text-[#17171c]">Figma vs Live</p>
-              <p className="mt-0.5 text-[12px] text-[#71717a]">Missing comps, fonts, weights, sizes, and color</p>
+            <div className="min-w-0">
+              <p className="truncate text-[24px] font-semibold leading-tight text-[#111113]">Figma vs Live</p>
+              <p className="mt-1 truncate text-[14px] text-[#71717a]">Missing comps, fonts, weights, sizes, and color</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 lg:flex">
             {/* Snapshot status */}
             {snapshot ? (
               <span className="flex items-center gap-1.5 rounded-full bg-[#e8f6ee] px-2.5 py-1 text-[11px] font-medium text-[#1a9457]">
@@ -536,24 +537,25 @@ export default function FigmaComparePage() {
               </button>
             )}
           </div>
+          </div>
         </div>
 
 
         {/* Execution area */}
         {runMsgs.length === 0 ? (
-          <div className="flex-1 overflow-y-auto bg-[#fafafa] px-6 py-4">
-            <section className="mx-auto max-w-[900px] rounded-2xl border border-[#ececf0] bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="flex-1 overflow-y-auto bg-[#fafafa] px-8 py-6">
+            <section className="mx-auto max-w-[1280px] rounded-2xl border border-black/[0.08] bg-white p-6">
+              <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-[15px] font-semibold text-[#17171c]">Run comparison</p>
-                  <p className="mt-1 text-[12px] leading-relaxed text-[#71717a]">One selected Figma frame, one live page, one focused QA report.</p>
+                  <p className="text-[18px] font-semibold text-[#17171c]">Run comparison</p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-[#71717a]">One selected Figma frame, one live page, one focused QA report.</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${canRun ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
+                <span className={`shrink-0 rounded-full px-3 py-1.5 text-[12px] font-medium ${canRun ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
                   {canRun ? "Ready to run" : "Needs setup"}
                 </span>
               </div>
 
-              <div className="mb-3 grid gap-2 md:grid-cols-3">
+              <div className="mb-4 grid gap-3 md:grid-cols-3">
                 <FlowStep
                   step="1"
                   icon={FileCode2}
@@ -577,8 +579,8 @@ export default function FigmaComparePage() {
                 />
               </div>
 
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.85fr)]">
-                <div className="rounded-xl border border-[#f0f0f0] bg-[#fcfcfd] p-3">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+                <div className="rounded-2xl border border-black/[0.08] bg-[#fcfcfd] p-4">
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Sources</p>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${figmaAccessReady ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff8e6] text-[#b07d00]"}`}>
@@ -591,14 +593,14 @@ export default function FigmaComparePage() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-[#f0f0f0] bg-white px-3 py-3">
+                <div className="rounded-2xl border border-black/[0.08] bg-white p-4">
                   <ChecklistPanel checks={checks} onToggle={toggleCheck} />
                 </div>
               </div>
 
               <button id="loupe-run-btn" onClick={() => run(false)} disabled={!canRun}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:shadow-none disabled:opacity-40">
-                {running ? <><Loader2 size={13} className="animate-spin" />Running…</> : <><Play size={13} />Run comparison</>}
+                className="mt-6 inline-flex h-12 min-w-[220px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-40">
+                {running ? <><Loader2 size={15} className="animate-spin" />Running…</> : <><Play size={15} />Run comparison</>}
               </button>
               {!canRun && (
                 <p className="mt-2 text-center text-[11px] text-[#a1a1aa]">Complete the highlighted items above to run.</p>
@@ -767,17 +769,17 @@ function FlowStep({ step, icon: Icon, title, detail, ready }: {
   ready: boolean;
 }) {
   return (
-    <div className={`rounded-xl border p-2.5 ${ready ? "border-[#dff2e6] bg-[#f8fffb]" : "border-[#f3e7c6] bg-[#fffaf0]"}`}>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <div className={`flex h-6 w-6 items-center justify-center rounded-lg ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
-          <Icon size={13} />
+    <div className={`rounded-2xl border p-4 ${ready ? "border-[#dff2e6] bg-[#f8fffb]" : "border-[#f3e7c6] bg-[#fffaf0]"}`}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
+          <Icon size={15} />
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
+        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${ready ? "bg-[#e8f6ee] text-[#1a9457]" : "bg-[#fff2ce] text-[#b07d00]"}`}>
           {ready ? "Ready" : "Needed"}
         </span>
       </div>
-      <p className="text-[11px] font-semibold text-[#17171c]">{step}. {title}</p>
-      <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{detail}</p>
+      <p className="text-[14px] font-semibold text-[#17171c]">{step}. {title}</p>
+      <p className="mt-1 text-[13px] leading-snug text-[#71717a]">{detail}</p>
     </div>
   );
 }
@@ -819,18 +821,18 @@ function StatusPill({ ready, label, value }: { ready: boolean; label: string; va
 function ChecklistPanel({ checks, onToggle }: { checks: Set<string>; onToggle: (id: string) => void }) {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">What to check</p>
-        <span className="text-[10px] text-[#a1a1aa]">{checks.size}/{CHECK_OPTIONS.length} enabled</span>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#71717a]">What to check</p>
+        <span className="text-[12px] text-[#a1a1aa]">{checks.size}/{CHECK_OPTIONS.length} enabled</span>
       </div>
-      <div className="grid grid-cols-2 gap-1.5">
+      <div className="grid grid-cols-2 gap-3">
         {CHECK_OPTIONS.map(opt => {
           const active = checks.has(opt.id);
           return (
             <button key={opt.id} onClick={() => onToggle(opt.id)}
-              className={`flex min-h-8 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[11px] font-medium transition-all ${active ? "border-[#f4c2da] bg-[#fff7fb] text-[#17171c]" : "border-[#e8e8ec] bg-white text-[#71717a] hover:border-[#cfcfd6] hover:text-[#17171c]"}`}>
-              <span className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border ${active ? "border-transparent bg-gradient-to-br from-[#a855f7] via-[#ec4899] to-[#f97316] text-white" : "border-[#d8d8de]"}`}>
-                {active && <Check size={9} strokeWidth={3} />}
+              className={`flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 text-left text-[13px] font-medium transition-all ${active ? "border-[#f4c2da] bg-[#fff7fb] text-[#17171c]" : "border-[#e8e8ec] bg-white text-[#71717a] hover:border-[#cfcfd6] hover:text-[#17171c]"}`}>
+              <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? "border-transparent bg-gradient-to-br from-[#a855f7] via-[#ec4899] to-[#f97316] text-white" : "border-[#d8d8de]"}`}>
+                {active && <Check size={12} strokeWidth={3} />}
               </span>
               {opt.label}
             </button>
@@ -846,18 +848,18 @@ function ConfigCard({ icon: Icon, label, value, placeholder, onChange, hint, bad
   onChange: (v: string) => void; hint?: string; badge?: string; secret?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-lg border border-[#f0f0f0] bg-white px-3 py-2.5 transition-colors focus-within:border-[#cfcfd6]">
-      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#f7f7f8] text-[#71717a]">
-        <Icon size={12} />
+    <div className="flex min-h-16 items-start gap-3 rounded-xl border border-black/[0.08] bg-white px-4 py-3 transition-colors focus-within:border-black/20">
+      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#f7f7f8] text-[#71717a]">
+        <Icon size={15} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="mb-0.5 flex items-center gap-2">
-          <span className="text-[10px] font-semibold text-[#71717a] uppercase tracking-wide">{label}</span>
+          <span className="text-[11px] font-semibold text-[#71717a] uppercase tracking-[0.12em]">{label}</span>
           {badge && <span className="rounded-full bg-[#e8f6ee] px-2 py-0.5 text-[10px] font-medium text-[#1a9457]">{badge}</span>}
         </div>
         <input type={secret ? "password" : "text"} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-          className="w-full bg-transparent text-[12px] text-[#17171c] placeholder:text-[#a1a1aa] outline-none" />
-        {hint && <p className="mt-0.5 text-[10px] text-[#a1a1aa]">{hint}</p>}
+          className="w-full bg-transparent text-[14px] text-[#17171c] placeholder:text-[#a1a1aa] outline-none" />
+        {hint && <p className="mt-1 text-[12px] text-[#a1a1aa]">{hint}</p>}
       </div>
     </div>
   );

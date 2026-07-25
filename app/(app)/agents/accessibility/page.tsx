@@ -415,16 +415,16 @@ export default function AccessibilityAgentPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-white text-[#0f0f0f]">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="mb-5 flex items-center justify-between gap-4 border-b border-black/[0.06] pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04]">
-              <Accessibility size={17} strokeWidth={1.8} />
+    <div className="h-full overflow-y-auto bg-[#fafafa] text-[#0f0f0f]">
+      <header className="border-b border-black/[0.06] bg-white">
+        <div className="mx-auto flex h-20 max-w-[1280px] items-center justify-between gap-4 px-8">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#111113] text-white">
+              <Accessibility size={18} strokeWidth={1.9} />
             </div>
-            <div>
-              <h1 className="flex items-center gap-2 text-[17px] font-semibold">Accessibility QA <BetaTag /></h1>
-              <p className="mt-0.5 text-[12px] text-[#71717a]">WCAG checks for contrast, labels, headings, focus, ARIA, and tap targets on a live page.</p>
+            <div className="min-w-0">
+              <h1 className="flex items-center gap-2 truncate text-[24px] font-semibold leading-tight text-[#111113]">Accessibility QA <BetaTag /></h1>
+              <p className="mt-1 truncate text-[14px] text-[#71717a]">WCAG checks for contrast, labels, headings, focus, ARIA, and tap targets on a live page.</p>
             </div>
           </div>
           {result?.url && (
@@ -433,9 +433,11 @@ export default function AccessibilityAgentPage() {
             </a>
           )}
         </div>
+      </header>
 
-        <div className="mb-5 rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+      <div className="mx-auto max-w-[1280px] px-8 py-6">
+        <div className="mb-5 rounded-2xl border border-black/[0.08] bg-white p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
             <div className="min-w-0 flex-1">
               <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-[#71717a]">Page to test</label>
               <input
@@ -443,15 +445,15 @@ export default function AccessibilityAgentPage() {
                 onChange={e => setUrl(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && canRun && run()}
                 placeholder="https://example.com"
-                className="h-10 w-full rounded-lg border border-black/[0.12] bg-white px-3 text-[13px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/40"
+                className="h-12 w-full rounded-xl border border-black/[0.10] bg-white px-4 text-[14px] outline-none transition-colors placeholder:text-[#a1a1aa] focus:border-black/30"
               />
             </div>
             <button
               onClick={run}
               disabled={!canRun}
-              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-12 min-w-[240px] shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#a855f7] via-[#ec4899] to-[#f97316] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(236,72,153,0.22)] transition-all hover:brightness-[0.98] disabled:cursor-not-allowed disabled:shadow-none disabled:opacity-40"
             >
-              {running ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />}
+              {running ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
               {browserScannerConnected ? "Run accessibility scan" : "Preview HTML"}
             </button>
           </div>
@@ -485,7 +487,7 @@ export default function AccessibilityAgentPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="space-y-4">
             {browserScannerConnected === false && !result && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
@@ -563,7 +565,7 @@ export default function AccessibilityAgentPage() {
             )}
           </section>
 
-          <aside className="h-fit rounded-xl border border-black/[0.08] bg-[#fafafa] p-4">
+          <aside className="h-fit rounded-2xl border border-black/[0.08] bg-white p-6">
             {score !== null && result && (
               <div className="mb-4 space-y-2">
                 <ScoreBadge score={score} label="Accessibility QA score" />
