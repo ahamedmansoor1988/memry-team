@@ -1,9 +1,12 @@
 const LOUPE_API = "https://getloupe.vercel.app/api/extension-styles";
 const LOUPE_APP = "https://getloupe.vercel.app/agents/figma-compare";
+const RESPONSIVE_APP = "https://getloupe.vercel.app/agents/responsive";
 
 const figmaInput  = document.getElementById("figmaUrl");
 const btn         = document.getElementById("btn");
+const responsiveBtn = document.getElementById("responsiveBtn");
 const status      = document.getElementById("status");
+const currentUrl  = document.getElementById("currentUrl");
 
 const CHECK_IDS = ["missing", "family", "size", "weight", "color"];
 const CHECK_MAP = {
@@ -25,6 +28,8 @@ chrome.storage.local.get(["figmaUrl", "checks"], ({ figmaUrl, checks }) => {
   }
 });
 
+refreshCurrentTab();
+
 btn.addEventListener("click", async () => {
   const figmaUrl = figmaInput.value.trim();
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
@@ -36,11 +41,8 @@ btn.addEventListener("click", async () => {
   btn.disabled = true;
   setStatus("Extracting styles…");
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) { setStatus("No active tab.", "error"); btn.disabled = false; return; }
-  const tabUrl = tab.url ?? "";
-  if (/^https:\/\/(?:getloupe\.vercel\.app|loupe-[^.]+\.vercel\.app)\//.test(tabUrl)) {
-    setStatus("Open the live site tab, not Loupe.", "error");
+  const tab = await getLiveTab();
+  if (!tab) {
     btn.disabled = false;
     return;
   }
@@ -87,14 +89,75 @@ btn.addEventListener("click", async () => {
     checks:   checkKeys.join(","),
   });
   const loupeUrl = `${LOUPE_APP}?${params}`;
-  const existing = await chrome.tabs.query({ url: `${LOUPE_APP}*` });
-  if (existing.length) {
-    chrome.tabs.update(existing[0].id, { active: true, url: loupeUrl });
-  } else {
-    chrome.tabs.create({ url: loupeUrl });
-  }
+  await openOrFocusLoupe(loupeUrl, `${LOUPE_APP}*`);
   window.close();
 });
+
+responsiveBtn.addEventListener("click", async () => {
+  responsiveBtn.disabled = true;
+  setStatus("Opening responsive check…");
+  const tab = await getLiveTab();
+  if (!tab) {
+    responsiveBtn.disabled = false;
+    return;
+  }
+
+  const params = new URLSearchParams({
+    url: tab.url,
+    autorun: "1",
+  });
+  await openOrFocusLoupe(`${RESPONSIVE_APP}?${params}`, `${RESPONSIVE_APP}*`);
+  window.close();
+});
+
+async function refreshCurrentTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tabUrl = tab?.url ?? "";
+  if (!tabUrl) {
+    currentUrl.textContent = "No active page detected";
+    return;
+  }
+  if (!tabUrl.startsWith("http")) {
+    currentUrl.textContent = "Open a website tab to scan";
+    return;
+  }
+  if (isLoupeUrl(tabUrl)) {
+    currentUrl.textContent = "Open the live site tab, not Loupe";
+    return;
+  }
+  currentUrl.textContent = tabUrl.replace(/^https?:\/\//, "");
+}
+
+async function getLiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab?.url) {
+    setStatus("No active tab found.", "error");
+    return null;
+  }
+  const tabUrl = tab.url;
+  if (!tabUrl.startsWith("http")) {
+    setStatus("Open a website tab first.", "error");
+    return null;
+  }
+  if (isLoupeUrl(tabUrl)) {
+    setStatus("Open the live site tab, not Loupe.", "error");
+    return null;
+  }
+  return tab;
+}
+
+function isLoupeUrl(url) {
+  return /^https:\/\/(?:getloupe\.vercel\.app|loupe-[^.]+\.vercel\.app)\//.test(url);
+}
+
+async function openOrFocusLoupe(url, matchUrl) {
+  const existing = await chrome.tabs.query({ url: matchUrl });
+  if (existing.length) {
+    await chrome.tabs.update(existing[0].id, { active: true, url });
+  } else {
+    await chrome.tabs.create({ url });
+  }
+}
 
 function setStatus(msg, type = "") {
   status.textContent = msg;

@@ -520,6 +520,18 @@ export default function ResponsiveAgentPage() {
     ).catch(() => setSignedIn(false));
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlParam = params.get("url");
+    const shouldAutorun = params.get("autorun") === "1";
+    if (!urlParam?.startsWith("http")) return;
+
+    setUrl(urlParam);
+    if (shouldAutorun) {
+      window.setTimeout(() => document.getElementById("responsive-run-btn")?.click(), 500);
+    }
+  }, []);
+
 
   function displayFinding(issue: ResponsiveIssue) {
     const analysis = analyzeLayoutIssue(issue.type, issue.css, issue.metrics);
@@ -677,6 +689,7 @@ export default function ResponsiveAgentPage() {
               />
             </div>
             <button
+              id="responsive-run-btn"
               onClick={run}
               disabled={!canRun}
               className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#1f1f23] disabled:cursor-not-allowed disabled:opacity-40"
