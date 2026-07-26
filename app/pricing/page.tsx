@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
+import { StartProButton } from "./StartProButton";
 
 const MONTHLY_PRICE = 20;
 
@@ -136,12 +137,7 @@ export default function PricingPage() {
               </p>
             </div>
 
-            <Link
-              href="/login"
-              className="flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-medium mb-6 transition-colors bg-white text-[#0f0f0f] hover:bg-[#f5f5f5]"
-            >
-              Start Pro <ArrowRight size={13} />
-            </Link>
+            <StartProButton />
 
             <div className="space-y-2.5 flex-1">
               {PRO_FEATURES.map(f => (
