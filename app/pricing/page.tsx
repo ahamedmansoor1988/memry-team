@@ -85,7 +85,7 @@ export default function PricingPage() {
 
       {/* Plans */}
       <section className="max-w-3xl mx-auto px-6 pb-20">
-        <div className="grid grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {/* Free */}
           <div className="rounded-2xl border border-[#f0f0f0] bg-white p-6 flex flex-col">
             <div className="mb-6">
@@ -159,8 +159,8 @@ export default function PricingPage() {
       <section className="border-t border-[#f5f5f7] py-16">
         <div className="max-w-3xl mx-auto px-6">
           <h2 className="text-[24px] font-semibold text-[#0f0f0f] mb-8 text-center">Compare plans</h2>
-          <div className="rounded-2xl border border-[#f0f0f0] overflow-hidden">
-            <table className="w-full text-[13px]">
+          <div className="rounded-2xl border border-[#f0f0f0] overflow-x-auto">
+            <table className="w-full min-w-[480px] text-[13px]">
               <thead>
                 <tr className="border-b border-[#f0f0f0] bg-[#fafafa]">
                   <th className="px-5 py-3 text-left font-medium text-[#71717a]">Feature</th>

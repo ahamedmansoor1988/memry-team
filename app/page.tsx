@@ -140,7 +140,7 @@ export default function LandingPage() {
           <p className="text-[11px] font-semibold uppercase tracking-widest text-[#71717a] mb-3 text-center">How it works</p>
           <h2 className="text-[32px] font-semibold text-[#0f0f0f] mb-2 text-center">From Figma to QA in 60 seconds</h2>
           <p className="text-[13px] text-[#71717a] mb-12 text-center">Shown for Figma vs Live — Brand Check, Accessibility, and Responsive Check skip the Figma step and run straight off a live URL.</p>
-          <div className="grid grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
             {HOW.map(h => (
               <div key={h.step} className="space-y-3">
                 <span className="text-[11px] font-semibold text-[#d0d0d8] font-mono">{h.step}</span>
@@ -154,7 +154,7 @@ export default function LandingPage() {
 
       {/* Features */}
       <section className="border-t border-[#f5f5f7] py-16">
-        <div className="max-w-6xl mx-auto px-6 grid grid-cols-3 gap-6">
+        <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 gap-6 sm:grid-cols-3">
           {FEATURES.map(f => (
             <div key={f.title} className="rounded-2xl border border-[#f0f0f0] p-5 space-y-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f5f5f7]">
