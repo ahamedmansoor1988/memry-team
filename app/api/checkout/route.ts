@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
-import { createClient as createAdminClient } from "@supabase/supabase-js";
-import { createSubscription } from "@/lib/paypal";
+import { createOrder } from "@/lib/paypal";
 
 export const dynamic = "force-dynamic";
 
-function admin() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  );
-}
+const CREDIT_PACK_PRICE_USD = "20.00";
 
 export async function POST(req: Request) {
   const supabase = await createAuthClient();
@@ -21,17 +14,11 @@ export async function POST(req: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
 
   try {
-    const { subscriptionId, approveUrl } = await createSubscription({
+    const { approveUrl } = await createOrder({
       userId: user.id,
-      returnUrl: `${appUrl}/agents/settings?checkout=success`,
+      amountUsd: CREDIT_PACK_PRICE_USD,
+      returnUrl: `${appUrl}/api/paypal-capture`,
       cancelUrl: `${appUrl}/pricing?checkout=cancelled`,
-    });
-
-    await admin().from("subscriptions").insert({
-      user_id: user.id,
-      paypal_subscription_id: subscriptionId,
-      status: "pending",
-      plan_id: process.env.PAYPAL_PLAN_ID!,
     });
 
     return NextResponse.json({ approveUrl });

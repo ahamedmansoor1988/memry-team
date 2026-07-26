@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
 import { StartProButton } from "./StartProButton";
 
-const MONTHLY_PRICE = 20;
+const CREDIT_PACK_PRICE = 20;
+const CREDITS_PER_PACK = 1000;
 
 const FREE_FEATURES = [
   "3 runs / day for 15 days",
@@ -15,7 +16,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "Unlimited runs",
+  `${CREDITS_PER_PACK.toLocaleString()} scan credits — no expiry`,
   "Figma vs Live",
   "Brand Check",
   "Accessibility QA",
@@ -30,11 +31,19 @@ const PRO_FEATURES = [
 const FAQ = [
   {
     q: "What counts as a run?",
-    a: "A run is one scan — a Figma vs Live comparison, a Brand Check, an Accessibility scan, or a Responsive Check. Every time you click run or the extension triggers a scan, that's one run.",
+    a: "A run is one scan — a Figma vs Live comparison, a Brand Check, an Accessibility scan, or a Responsive Check. Every time you click run or the extension triggers a scan, that's one credit used.",
   },
   {
     q: "What happens after the 15-day free trial?",
-    a: "Your account stays open, but scans pause until you upgrade to Pro. Nothing you've already run gets deleted.",
+    a: "Your account stays open, but scans pause until you buy a credit pack. Nothing you've already run gets deleted.",
+  },
+  {
+    q: "Is this a subscription?",
+    a: "No — it's a one-time purchase of 1,000 scan credits. There's no auto-renewal and nothing recurring; buy another pack whenever you run low.",
+  },
+  {
+    q: "Do credits expire?",
+    a: "No. Credits stay on your account until you use them, however long that takes.",
   },
   {
     q: "Do I need a Figma paid plan?",
@@ -47,10 +56,6 @@ const FAQ = [
   {
     q: "Can I share results without the recipient logging in?",
     a: "Yes. Every run generates a public shareable link. Anyone with the link can view the results — no account needed.",
-  },
-  {
-    q: "Can I cancel anytime?",
-    a: "Yes. No contracts, no commitments. Cancel from your account settings and you won't be charged again.",
   },
 ];
 
@@ -80,7 +85,7 @@ export default function PricingPage() {
           Pay for what you ship,<br />not what you try
         </h1>
         <p className="text-[17px] text-[#4b5563] max-w-lg mx-auto">
-          Try every check free for 15 days. Upgrade when you need unlimited runs.
+          Try every check free for 15 days. Buy a credit pack — one-time, no subscription — when you need more scans.
         </p>
       </section>
 
@@ -129,11 +134,11 @@ export default function PricingPage() {
                 </span>
               </div>
               <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-[38px] font-semibold tracking-tight text-white">${MONTHLY_PRICE}</span>
-                <span className="text-[13px] text-white/50">/month</span>
+                <span className="text-[38px] font-semibold tracking-tight text-white">${CREDIT_PACK_PRICE}</span>
+                <span className="text-[13px] text-white/50">one-time</span>
               </div>
               <p className="text-[13px] leading-relaxed text-white/60">
-                For designers and teams who ship continuously.
+                {CREDITS_PER_PACK.toLocaleString()} scan credits. No subscription — buy another pack anytime.
               </p>
             </div>
 
@@ -166,7 +171,7 @@ export default function PricingPage() {
               </thead>
               <tbody>
                 {[
-                  ["Runs",                 "3 / day for 15 days", "Unlimited"],
+                  ["Runs",                 "3 / day for 15 days", "1,000 credits (buy more anytime)"],
                   ["Figma vs Live",        "✓",                   "✓"],
                   ["Brand Check",          "✓",                   "✓"],
                   ["Accessibility QA",     "✓",                   "✓"],

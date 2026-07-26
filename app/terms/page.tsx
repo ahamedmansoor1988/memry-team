@@ -65,8 +65,9 @@ export default function TermsPage() {
 
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">6. Plans and billing</h2>
-            <p>New accounts get a 15-day free trial with up to 3 runs per day, at no cost. The Pro plan ($20/month) removes the daily run limit and is billed monthly. You may cancel at any time and your access continues until the end of the billing period. We do not offer refunds for partial months.</p>
-            <p>We reserve the right to change pricing with 30 days' notice to active subscribers.</p>
+            <p>New accounts get a 15-day free trial with up to 3 runs per day, at no cost. Additional usage is available as a one-time credit pack (1,000 scan credits for $20) — this is a single purchase, not a subscription, and credits do not expire. There is no auto-renewal and nothing is billed recurringly.</p>
+            <p>Credit pack purchases are processed by PayPal. Once credits are applied to your account we do not offer refunds, except where required by law.</p>
+            <p>We reserve the right to change pricing at any time; the price shown at checkout is the price you pay for that purchase.</p>
           </section>
 
           <section className="space-y-3">
