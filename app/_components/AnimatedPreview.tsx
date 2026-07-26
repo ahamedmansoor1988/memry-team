@@ -18,10 +18,13 @@ interface Card {
   headline: string;
   detail: string;
   location: string;
+  swatch?: string;
+  swatchTo?: string;
 }
 
 interface Device {
   label: string;
+  size: string;
   w: number;
   h: number;
 }
@@ -90,8 +93,9 @@ const SCENES: Scene[] = [
       "Found 5 mismatches.",
     ],
     cards: [
-      { badge: "Font Family", badgeBg: "#f5f3ff", badgeColor: "#7c3aed", headline: "Hero heading", detail: "Inter → Söhne", location: "Where to inspect: Top of page" },
-      { badge: "Color", badgeBg: "#fdf2f8", badgeColor: "#db2777", headline: "CTA button", detail: "#111827 → #0F0F13", location: "Where to inspect: Above the fold" },
+      { badge: "Color", badgeBg: "#fdf2f8", badgeColor: "#db2777", headline: "CTA button uses an off-brand color", detail: "#111827 → #0F0F13", location: "Above the fold", swatch: "#111827", swatchTo: "#0F0F13" },
+      { badge: "Font Family", badgeBg: "#f5f3ff", badgeColor: "#7c3aed", headline: "\"Inter\" is not an approved font", detail: "Brand guide specifies: Söhne", location: "Top of page" },
+      { badge: "Spacing", badgeBg: "#fefce8", badgeColor: "#a16207", headline: "48px spacing is not on the approved grid", detail: "Nearest approved value: 64px", location: "Middle of page" },
     ],
   },
   {
@@ -106,8 +110,9 @@ const SCENES: Scene[] = [
       "Found 4 WCAG issues.",
     ],
     cards: [
-      { badge: "High · Contrast", badgeBg: "#fef2f2", badgeColor: "#dc2626", headline: "Text contrast is below the WCAG AA minimum", detail: "2.1:1 — needs 4.5:1", location: "Where to inspect: Hero CTA button" },
-      { badge: "Medium · Missing label", badgeBg: "#fefce8", badgeColor: "#a16207", headline: "Input has no accessible name", detail: "No aria-label or <label>", location: "Where to inspect: Search bar" },
+      { badge: "High", badgeBg: "#fef2f2", badgeColor: "#dc2626", headline: "Text contrast is below the WCAG AA minimum", detail: "Measured 2.1:1 — needs at least 4.5:1", location: "Hero CTA button" },
+      { badge: "Medium", badgeBg: "#fffbeb", badgeColor: "#b45309", headline: "Input has no accessible name", detail: "No aria-label, aria-labelledby, or <label>", location: "Search bar in the header" },
+      { badge: "Medium", badgeBg: "#fffbeb", badgeColor: "#b45309", headline: "Heading levels skip from H1 to H3", detail: "Expected an H2 between them", location: "Features section" },
     ],
   },
   {
@@ -122,9 +127,9 @@ const SCENES: Scene[] = [
       "Switching to MacBook Pro (1440 × 900)…",
     ],
     devices: [
-      { label: "iPhone 15 Pro", w: 130, h: 230 },
-      { label: "iPad Pro", w: 190, h: 220 },
-      { label: "MacBook Pro", w: 240, h: 155 },
+      { label: "iPhone 15 Pro", size: "393 × 852", w: 182, h: 322 },
+      { label: "iPad Pro", size: "1024 × 1366", w: 266, h: 308 },
+      { label: "MacBook Pro", size: "1440 × 900", w: 340, h: 215 },
     ],
   },
 ];
@@ -235,7 +240,7 @@ export function AnimatedPreview() {
         ))}
       </div>
 
-      <div className="flex min-h-[280px]">
+      <div className="flex min-h-[420px]">
         {/* Steps panel */}
         <div className="w-[38%] border-r border-[#f0f0f0] px-5 py-4">
           <p className="text-[9px] font-semibold uppercase tracking-widest text-[#d0d0d8] mb-3">Steps</p>
@@ -326,40 +331,60 @@ export function AnimatedPreview() {
           )}
 
           {scene.kind === "cards" && (
-            <div className="space-y-2.5">
+            <div className="space-y-3">
               {scene.cards.map((card, i) => (
                 <div
                   key={card.headline}
-                  className="rounded-xl border border-[#f0f0f0] bg-white px-3.5 py-3"
+                  className="rounded-xl border border-black/[0.08] bg-white p-4"
                   style={{
                     opacity:    visibleRows > i ? 1 : 0,
                     transform:  visibleRows > i ? "translateY(0)" : "translateY(4px)",
                     transition: "opacity 0.3s ease, transform 0.3s ease",
                   }}
                 >
-                  <div className="mb-1.5 flex items-center gap-1.5">
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[9px] font-bold text-white">{i + 1}</span>
-                    <span style={{ backgroundColor: card.badgeBg, color: card.badgeColor }} className="rounded-full px-2 py-0.5 text-[9px] font-semibold">
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#0f0f0f] px-1 text-[10px] font-bold text-white">{i + 1}</span>
+                    <span style={{ backgroundColor: card.badgeBg, color: card.badgeColor }} className="rounded-full border border-black/[0.04] px-2 py-0.5 text-[10px] font-semibold">
                       {card.badge}
                     </span>
                   </div>
-                  <p className="text-[12px] font-semibold text-[#17171c]">{card.headline}</p>
-                  <p className="mt-0.5 font-mono text-[11px] text-[#3f3f46]">{card.detail}</p>
-                  <p className="mt-1 text-[10px] text-[#a1a1aa]">{card.location}</p>
+
+                  {card.swatch ? (
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-black/[0.1]">
+                        <span className="h-full w-1/2" style={{ backgroundColor: card.swatch }} />
+                        <span className="h-full w-1/2" style={{ backgroundColor: card.swatchTo }} />
+                      </span>
+                      <div>
+                        <p className="text-[13px] font-semibold text-[#17171c]">{card.headline}</p>
+                        <p className="mt-0.5 font-mono text-[12px] text-[#4b5563]">{card.detail}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-[13px] font-semibold text-[#17171c]">{card.headline}</p>
+                      <p className="mt-0.5 text-[12px] text-[#4b5563]">{card.detail}</p>
+                    </div>
+                  )}
+
+                  <div className="mt-3 rounded-lg bg-[#fafafa] px-3 py-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where to inspect</p>
+                    <p className="mt-0.5 text-[11px] text-[#17171c]">{card.location}</p>
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
           {scene.kind === "devices" && (
-            <div className="relative flex h-[220px] items-center justify-center rounded-xl bg-[#242426] overflow-hidden">
-              <span className="absolute right-3 top-3 rounded-lg bg-black/60 px-2.5 py-1 font-mono text-[10px] font-semibold text-white/75">
-                {scene.devices[deviceIndex].label}
+            <div className="relative flex h-[380px] items-center justify-center rounded-xl bg-[#242426] overflow-hidden">
+              <span className="absolute right-3 top-3 rounded-lg bg-black/60 px-2.5 py-1 font-mono text-[11px] font-semibold text-white/75">
+                {scene.devices[deviceIndex].label} · {scene.devices[deviceIndex].w === 182 ? "393×852" : scene.devices[deviceIndex].w === 266 ? "1024×1366" : "1440×900"}
               </span>
               {scene.devices.map((d, i) => (
                 <div
                   key={d.label}
-                  className="absolute overflow-hidden rounded-[10px] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.35)]"
+                  className="absolute overflow-hidden rounded-[12px] bg-white shadow-[0_16px_50px_rgba(0,0,0,0.4)] ring-1 ring-black/[0.06]"
                   style={{
                     width: d.w,
                     height: d.h,
@@ -368,15 +393,20 @@ export function AnimatedPreview() {
                     transition: "opacity 0.4s ease, transform 0.4s ease",
                   }}
                 >
-                  <div className="flex h-5 items-center gap-1 border-b border-black/[0.06] bg-[#f5f5f7] px-2">
-                    <Globe2 size={8} className="text-[#a1a1aa]" />
-                    <span className="text-[7px] font-medium text-[#a1a1aa]">acme.com</span>
+                  <div className="flex h-6 items-center gap-1.5 border-b border-black/[0.06] bg-[#f5f5f7] px-2.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#e4e4e7]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#e4e4e7]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#e4e4e7]" />
+                    <div className="ml-1.5 flex flex-1 items-center gap-1 rounded-md bg-white px-1.5 py-0.5">
+                      <Globe2 size={9} className="text-[#a1a1aa]" />
+                      <span className="text-[9px] font-medium text-[#a1a1aa]">acme.com</span>
+                    </div>
                   </div>
-                  <div className="space-y-1.5 p-2.5">
-                    <div className="h-2 w-3/4 rounded bg-[#ececf0]" />
-                    <div className="h-1.5 w-full rounded bg-[#f2f2f4]" />
-                    <div className="h-1.5 w-5/6 rounded bg-[#f2f2f4]" />
-                    <div className="mt-2 h-6 w-1/2 rounded bg-[#e4e4e7]" />
+                  <div className="space-y-2 p-3.5">
+                    <div className="h-2.5 w-3/4 rounded bg-[#ececf0]" />
+                    <div className="h-2 w-full rounded bg-[#f2f2f4]" />
+                    <div className="h-2 w-5/6 rounded bg-[#f2f2f4]" />
+                    <div className="mt-3 h-8 w-1/2 rounded-md bg-gradient-to-r from-[#a855f7] to-[#ec4899] opacity-90" />
                   </div>
                 </div>
               ))}

@@ -35,8 +35,8 @@ function resolveAiConfig(ai: AiSettings | undefined) {
   const envEnabled = /^(1|true|yes)$/i.test(process.env.LOUPE_AI_ENABLED ?? "");
   const envProvider = process.env.LOUPE_AI_PROVIDER ?? "";
   const enabled = envEnabled || ai?.enabled === true;
-  const providerCandidate = envProvider || ai?.provider || "groq";
-  const provider = AI_PROVIDERS.has(providerCandidate) ? providerCandidate : "groq";
+  const providerCandidate = envProvider || ai?.provider || "openai";
+  const provider = AI_PROVIDERS.has(providerCandidate) ? providerCandidate : "openai";
   const keyFromEnv = provider === "openai" ? process.env.OPENAI_API_KEY : process.env.GROQ_API_KEY;
   const apiKey = keyFromEnv || "";
   const defaultModel = provider === "openai" ? "gpt-4o-mini" : "llama-3.3-70b-versatile";

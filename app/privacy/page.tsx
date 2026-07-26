@@ -5,7 +5,7 @@ export const metadata = {
   description: "Privacy Policy for Loupe design QA tool.",
 };
 
-const EFFECTIVE = "27 June 2026";
+const EFFECTIVE = "25 July 2026";
 
 export default function PrivacyPage() {
   return (
@@ -86,7 +86,8 @@ export default function PrivacyPage() {
                   {[
                     ["Supabase", "Database & authentication", "Email, scan results, URLs"],
                     ["Vercel", "Hosting", "Request logs"],
-                    ["Groq AI", "AI comparison of design vs live", "Matched element pairs (no PII)"],
+                    ["Render", "Headless browser scanning for Brand Check, Accessibility, and Responsive Check", "The live page URL you submit"],
+                    ["OpenAI / Groq", "AI comparison of design vs live", "Matched element pairs (no PII)"],
                     ["Figma", "Design data retrieval", "Your Figma token (browser-direct)"],
                   ].map(([svc, purpose, shared]) => (
                     <tr key={svc} className="border-b border-[#f7f7f8] last:border-0">
@@ -114,9 +115,9 @@ export default function PrivacyPage() {
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">6. Data retention</h2>
             <ul className="list-disc pl-5 space-y-1.5 text-[#3f3f46]">
-              <li>Free accounts: run history kept for 7 days</li>
-              <li>Pro / Team accounts: run history kept indefinitely while your account is active</li>
-              <li>On account deletion: all data removed within 30 days</li>
+              <li>Free trial accounts: run history kept for 7 days</li>
+              <li>Pro accounts: run history kept indefinitely while your account is active</li>
+              <li>On account deletion: all data permanently removed within 30 days, with no backup retained after that window</li>
             </ul>
           </section>
 
@@ -127,9 +128,9 @@ export default function PrivacyPage() {
               <li>Access the personal data we hold about you</li>
               <li>Request correction of inaccurate data</li>
               <li>Request deletion of your data</li>
-              <li>Export your run history</li>
+              <li>Request a copy of your run history in a portable format</li>
             </ul>
-            <p>To exercise these rights, email <a href="mailto:hello@useloupe.io" className="text-[#0f0f0f] underline underline-offset-2">hello@useloupe.io</a>.</p>
+            <p>There is no self-serve export button yet — email <a href="mailto:hello@useloupe.io" className="text-[#0f0f0f] underline underline-offset-2">hello@useloupe.io</a> for any of the above and we will handle it manually.</p>
           </section>
 
           <section className="space-y-3">

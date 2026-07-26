@@ -63,12 +63,12 @@ async function writeCache(key: string, analysis: AiAnalysis) {
   } catch {}
 }
 
-async function callGroq(finding: FindingInput, url: string): Promise<AiAnalysis> {
-  const apiKey = process.env.GROQ_API_KEY;
+async function callOpenAI(finding: FindingInput, url: string): Promise<AiAnalysis> {
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("AI is not configured.");
-  const model = process.env.LOUPE_AI_MODEL?.trim() || "llama-3.3-70b-versatile";
+  const model = process.env.LOUPE_AI_MODEL?.trim() || "gpt-4o-mini";
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(25_000),
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const analysis = await callGroq(body.finding, body.url);
+    const analysis = await callOpenAI(body.finding, body.url);
     await writeCache(cacheKey, analysis);
     return NextResponse.json({ ...analysis, cached: false });
   } catch (e) {
