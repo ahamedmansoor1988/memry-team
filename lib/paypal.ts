@@ -41,6 +41,7 @@ export async function createSubscription(params: { returnUrl: string; cancelUrl:
         return_url: params.returnUrl,
         cancel_url: params.cancelUrl,
         user_action: "SUBSCRIBE_NOW",
+        shipping_preference: "NO_SHIPPING", // digital product — never ask for an address
       },
     }),
   });
