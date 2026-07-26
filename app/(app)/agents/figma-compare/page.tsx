@@ -7,6 +7,7 @@ import {
   Check, RefreshCw, Upload, Database,
 } from "lucide-react";
 import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
+import { isUsableUrl, normalizeUrl } from "@/lib/normalize-url";
 
 /* ── Types ───────────────────────────────────────────────────────── */
 interface ApiCallEntry { method: string; path: string; status: number; ms: number; kb: number | null; retried: boolean; }
@@ -181,9 +182,9 @@ export default function FigmaComparePage() {
   const setLiveUrl = useCallback((v: string) => {
     setLiveUrlRaw(v);
     localStorage.setItem("loupe_live_url", v);
-    if (v.trim().startsWith("http")) {
+    if (isUsableUrl(v)) {
       setScrapeStatus("fetching");
-      localStorage.setItem("loupe_scrape_request", JSON.stringify({ url: v.trim(), timestamp: Date.now() }));
+      localStorage.setItem("loupe_scrape_request", JSON.stringify({ url: normalizeUrl(v), timestamp: Date.now() }));
     } else {
       setScrapeStatus("idle");
     }
@@ -307,8 +308,9 @@ export default function FigmaComparePage() {
     setRunning(true);
     setCurrentResult(null);
     setConfigOpen(false);
+    const normalizedLiveUrl = normalizeUrl(liveUrl);
     const checkLabels = CHECK_OPTIONS.filter(c => checks.has(c.id)).map(c => c.label).join(", ");
-    addRun({ type: "user", text: `Check ${checkLabels} — Figma vs ${liveUrl.trim()}` });
+    addRun({ type: "user", text: `Check ${checkLabels} — Figma vs ${normalizedLiveUrl}` });
 
     try {
       const parsed = parseFigmaUrl(figmaUrl);
@@ -378,13 +380,13 @@ export default function FigmaComparePage() {
       // 1. Try extension styles captured from real Chrome (most accurate)
       let effectiveLiveStyles: any[] = [];
 
-      const extRes = await fetch(`/api/extension-styles?url=${encodeURIComponent(liveUrl.trim())}`).catch(() => null);
+      const extRes = await fetch(`/api/extension-styles?url=${encodeURIComponent(normalizedLiveUrl)}`).catch(() => null);
       if (extRes?.ok) {
         const extData = await extRes.json();
         if (Array.isArray(extData.styles) && extData.styles.length > 0) {
           const capturedAt = extData.captured_at ? Date.parse(extData.captured_at) : 0;
           const isFresh = capturedAt > 0 && Date.now() - capturedAt <= EXTENSION_STYLE_MAX_AGE_MS;
-          const sameUrl = normalizeUrlForCompare(extData.url ?? liveUrl.trim()) === normalizeUrlForCompare(liveUrl.trim());
+          const sameUrl = normalizeUrlForCompare(extData.url ?? normalizedLiveUrl) === normalizeUrlForCompare(normalizedLiveUrl);
           const polluted = hasLoupeUiText(extData.styles);
           if (!isFresh) {
             addRun({ type: "step", text: "Extension styles are stale — using fallback scraper. Recapture the live page for best accuracy." });
@@ -406,7 +408,7 @@ export default function FigmaComparePage() {
           const scraperRes = await fetch("/api/scrape-styles", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: liveUrl.trim() }),
+            body: JSON.stringify({ url: normalizedLiveUrl }),
             signal: AbortSignal.timeout(30_000),
           });
           if (scraperRes.ok) {
@@ -429,7 +431,7 @@ export default function FigmaComparePage() {
           figmaNodes:   hasSnapshot ? null : (forceRefresh ? null : figmaNodes),
           styleNameMap: hasSnapshot ? {} : (forceRefresh ? {} : styleNameMap),
           fileKey, nodeId,
-          liveUrl:    liveUrl.trim(),
+          liveUrl:    normalizedLiveUrl,
           liveData:   liveDataRef.current ?? null,
           liveStyles: effectiveLiveStyles,
           pat: pat.trim(),
@@ -481,7 +483,7 @@ export default function FigmaComparePage() {
 
   const parsedFigmaForRun = figmaUrl.trim() ? parseFigmaUrl(figmaUrl) : null;
   const frameReady = Boolean(parsedFigmaForRun);
-  const liveReady = liveUrl.trim().startsWith("http");
+  const liveReady = isUsableUrl(liveUrl);
   const checksReady = checks.size > 0;
   const tokenExpired = Boolean(pat.trim()) && patExpiry.state === "expired";
   const figmaAccessReady = Boolean(snapshot) || (Boolean(pat.trim()) && !tokenExpired);

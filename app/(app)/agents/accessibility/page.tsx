@@ -21,6 +21,7 @@ import { AnnotatedScreenshot, FocusedIssueView, ScoreBadge, type Screenshot } fr
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
 import { BetaTag } from "@/app/(app)/_sidebar";
 import { loadCachedScan, saveCachedScan } from "@/lib/scan-cache";
+import { isUsableUrl, normalizeUrl } from "@/lib/normalize-url";
 
 const SCAN_CACHE_KEY = "loupe.accessibility.last-scan";
 
@@ -272,7 +273,7 @@ export default function AccessibilityAgentPage() {
   const [browserScannerConnected, setBrowserScannerConnected] = useState<boolean | null>(null);
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
 
-  const canRun = url.trim().startsWith("http") && !running;
+  const canRun = isUsableUrl(url) && !running;
 
   useEffect(() => {
     fetch("/api/agents/accessibility")
@@ -398,15 +399,16 @@ export default function AccessibilityAgentPage() {
     setError(null);
     setResult(null);
     try {
+      const normalizedUrl = normalizeUrl(url);
       const res = await fetch("/api/agents/accessibility", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url.trim() }),
+        body: JSON.stringify({ url: normalizedUrl }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
       setResult(data);
-      saveCachedScan(SCAN_CACHE_KEY, url.trim(), data);
+      saveCachedScan(SCAN_CACHE_KEY, normalizedUrl, data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

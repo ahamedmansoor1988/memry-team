@@ -13,6 +13,7 @@ import {
   Type,
 } from "lucide-react";
 import { ScanHelpToggle } from "@/components/scan-help-toggle";
+import { isUsableUrl, normalizeUrl } from "@/lib/normalize-url";
 
 interface BrandFinding {
   id: string;
@@ -242,7 +243,7 @@ export default function BrandConsistencyPage() {
   const parsed = parseFigmaUrl(figmaUrl);
   const canRun = Boolean(
     brandGuideText.trim() && !running &&
-    (source === "figma" ? parsed && pat.trim() : liveUrl.trim().startsWith("http"))
+    (source === "figma" ? parsed && pat.trim() : isUsableUrl(liveUrl))
   );
 
   async function run() {
@@ -252,7 +253,7 @@ export default function BrandConsistencyPage() {
     setResult(null);
     try {
       const body = source === "url"
-        ? { url: liveUrl.trim(), brandGuide: brandGuideText }
+        ? { url: normalizeUrl(liveUrl), brandGuide: brandGuideText }
         : { fileKey: parsed!.fileKey, nodeId: parsed!.nodeId, pat: pat.trim(), brandGuide: brandGuideText };
       const res = await fetch("/api/agents/brand-check", {
         method: "POST",

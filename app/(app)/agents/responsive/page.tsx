@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Globe2, MonitorCheck, RefreshCw, RotateCw } from "lucide-react";
+import { isUsableUrl, normalizeUrl } from "@/lib/normalize-url";
 
 const STUDIO_PRESETS = [
   { id: "iphone-se", label: "iPhone SE", width: 375, height: 667, group: "Phone" },
@@ -41,12 +42,8 @@ export default function ResponsiveAgentPage() {
     width: Math.max(customWidth, 280),
     height: Math.max(customHeight, 280),
   };
-  const previewUrl = useMemo(() => {
-    const trimmed = url.trim();
-    if (!trimmed) return "";
-    return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  }, [url]);
-  const canPreview = previewUrl.startsWith("http") && previewUrl.includes(".");
+  const previewUrl = useMemo(() => normalizeUrl(url), [url]);
+  const canPreview = isUsableUrl(url);
   const previewHost = useMemo(() => {
     try {
       return canPreview ? new URL(previewUrl).hostname : "";
