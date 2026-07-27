@@ -13,7 +13,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  "Scan credits — no expiry, buy more anytime",
+  "Scan credits, valid for 3 months — buy more anytime",
   "Figma vs Live",
   "Brand Check",
   "Accessibility QA",
@@ -36,11 +36,11 @@ const FAQ = [
   },
   {
     q: "Is this a subscription?",
-    a: "No — it's a one-time purchase of 1,000 scan credits. There's no auto-renewal and nothing recurring; buy another pack whenever you run low.",
+    a: "No — it's a one-time purchase of a credit pack. There's no auto-renewal and nothing recurring; buy another pack whenever you run low.",
   },
   {
     q: "Do credits expire?",
-    a: "No. Credits stay on your account until you use them, however long that takes.",
+    a: "Yes — each credit pack is valid for 3 months from the date you buy it. If you buy more than one pack, each has its own 3-month clock, and the credits closest to expiring are always used first.",
   },
   {
     q: "Do I need a Figma paid plan?",

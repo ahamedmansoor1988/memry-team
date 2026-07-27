@@ -14,7 +14,7 @@ export function CreditTierPicker() {
         <span className="text-[13px] text-white/50">one-time</span>
       </div>
       <p className="mb-4 text-[13px] leading-relaxed text-white/60">
-        {selected.credits.toLocaleString()} scan credits. No subscription — buy another pack anytime.
+        {selected.credits.toLocaleString()} scan credits, valid for 3 months. No subscription — buy another pack anytime.
       </p>
 
       <div className="mb-5 grid grid-cols-4 gap-1.5">
