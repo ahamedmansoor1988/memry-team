@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
 import { captureOrder } from "@/lib/paypal";
-import { mintApiKey } from "@/lib/api-keys";
+import { mintApiKey, grantCredits } from "@/lib/api-keys";
 import { CREDIT_TIERS } from "@/lib/credit-tiers";
 
 export const dynamic = "force-dynamic";
@@ -80,10 +80,11 @@ export async function GET(req: NextRequest) {
     status: "completed",
   });
 
-  // Top up an existing active key, or mint a new one if the user has none yet.
+  // Top up an existing active key with a new (independently expiring) credit
+  // batch, or mint a new key first if the user has none yet.
   const { data: existingKey } = await db
     .from("api_keys")
-    .select("id, credits_remaining, credits_granted")
+    .select("id")
     .eq("user_id", user.id)
     .is("revoked_at", null)
     .order("created_at", { ascending: false })
@@ -93,15 +94,10 @@ export async function GET(req: NextRequest) {
   const res = NextResponse.redirect(`${appUrl}/agents/settings?checkout=success`);
 
   if (existingKey) {
-    await db
-      .from("api_keys")
-      .update({
-        credits_remaining: existingKey.credits_remaining + credits,
-        credits_granted: existingKey.credits_granted + credits,
-      })
-      .eq("id", existingKey.id);
+    await grantCredits(existingKey.id, credits, "purchase");
   } else {
-    const minted = await mintApiKey(user.id, credits, "Purchased via PayPal");
+    const minted = await mintApiKey(user.id, "Purchased via PayPal");
+    await grantCredits(minted.id, credits, "purchase");
     // Shown once: stash the raw key in a short-lived httpOnly cookie so the
     // settings page can reveal it exactly once, then it's gone for good.
     res.cookies.set(NEW_KEY_COOKIE, minted.rawKey, {

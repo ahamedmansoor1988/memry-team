@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { mintApiKey, revokeApiKey } from "@/lib/api-keys";
+import { mintApiKey, grantCredits, revokeApiKey } from "@/lib/api-keys";
 
 export const dynamic = "force-dynamic";
 
@@ -44,12 +44,13 @@ export async function POST(req: NextRequest) {
   const user = await findUserByEmail(email);
   if (!user) return NextResponse.json({ error: `No account found for ${email}` }, { status: 404 });
 
-  const key = await mintApiKey(user.id, credits, label);
+  const key = await mintApiKey(user.id, label);
+  await grantCredits(key.id, credits, "admin_grant");
   return NextResponse.json({
     apiKey: key.rawKey,
     keyPrefix: key.key_prefix,
-    creditsRemaining: key.credits_remaining,
-    note: "Save this key now — it will not be shown again.",
+    creditsGranted: credits,
+    note: "Save this key now — it will not be shown again. Credits expire 3 months from today.",
   });
 }
 
