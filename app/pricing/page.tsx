@@ -1,9 +1,6 @@
 import Link from "next/link";
 import { Check, ArrowRight } from "lucide-react";
-import { StartProButton } from "./StartProButton";
-
-const CREDIT_PACK_PRICE = 20;
-const CREDITS_PER_PACK = 1000;
+import { CreditTierPicker } from "./CreditTierPicker";
 
 const FREE_FEATURES = [
   "3 runs / day for 15 days",
@@ -16,7 +13,7 @@ const FREE_FEATURES = [
 ];
 
 const PRO_FEATURES = [
-  `${CREDITS_PER_PACK.toLocaleString()} scan credits — no expiry`,
+  "Scan credits — no expiry, buy more anytime",
   "Figma vs Live",
   "Brand Check",
   "Accessibility QA",
@@ -133,16 +130,9 @@ export default function PricingPage() {
                   Most popular
                 </span>
               </div>
-              <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-[38px] font-semibold tracking-tight text-white">${CREDIT_PACK_PRICE}</span>
-                <span className="text-[13px] text-white/50">one-time</span>
-              </div>
-              <p className="text-[13px] leading-relaxed text-white/60">
-                {CREDITS_PER_PACK.toLocaleString()} scan credits. No subscription — buy another pack anytime.
-              </p>
             </div>
 
-            <StartProButton />
+            <CreditTierPicker />
 
             <div className="space-y-2.5 flex-1">
               {PRO_FEATURES.map(f => (
@@ -171,7 +161,7 @@ export default function PricingPage() {
               </thead>
               <tbody>
                 {[
-                  ["Runs",                 "3 / day for 15 days", "1,000 credits (buy more anytime)"],
+                  ["Runs",                 "3 / day for 15 days", "100–1,000 credit packs"],
                   ["Figma vs Live",        "✓",                   "✓"],
                   ["Brand Check",          "✓",                   "✓"],
                   ["Accessibility QA",     "✓",                   "✓"],

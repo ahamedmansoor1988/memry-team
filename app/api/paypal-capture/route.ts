@@ -3,10 +3,10 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
 import { captureOrder } from "@/lib/paypal";
 import { mintApiKey } from "@/lib/api-keys";
+import { CREDIT_TIERS } from "@/lib/credit-tiers";
 
 export const dynamic = "force-dynamic";
 
-const CREDITS_PER_PACK = 1000;
 const NEW_KEY_COOKIE = "loupe_new_api_key";
 
 function admin() {
@@ -58,11 +58,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${appUrl}/pricing?checkout=error`);
   }
 
+  // custom_id is "<userId>|<credits>", set server-side at checkout time and
+  // echoed back untouched by PayPal — the buyer never had a way to alter it.
+  const customId = captured.purchase_units?.[0]?.custom_id ?? "";
+  const [customUserId, creditsStr] = customId.split("|");
+  const credits = Number(creditsStr);
+  const validTier = CREDIT_TIERS.some(t => t.credits === credits);
+
+  if (customUserId !== user.id || !validTier) {
+    console.error("[paypal-capture] custom_id mismatch or invalid tier:", customId, "session user:", user.id);
+    return NextResponse.redirect(`${appUrl}/pricing?checkout=error`);
+  }
+
+  const tierPrice = CREDIT_TIERS.find(t => t.credits === credits)!.priceUsd;
+
   await db.from("credit_purchases").insert({
     user_id: user.id,
     paypal_order_id: orderId,
-    credits: CREDITS_PER_PACK,
-    amount_usd: "20.00",
+    credits,
+    amount_usd: tierPrice,
     status: "completed",
   });
 
@@ -82,12 +96,12 @@ export async function GET(req: NextRequest) {
     await db
       .from("api_keys")
       .update({
-        credits_remaining: existingKey.credits_remaining + CREDITS_PER_PACK,
-        credits_granted: existingKey.credits_granted + CREDITS_PER_PACK,
+        credits_remaining: existingKey.credits_remaining + credits,
+        credits_granted: existingKey.credits_granted + credits,
       })
       .eq("id", existingKey.id);
   } else {
-    const minted = await mintApiKey(user.id, CREDITS_PER_PACK, "Purchased via PayPal");
+    const minted = await mintApiKey(user.id, credits, "Purchased via PayPal");
     // Shown once: stash the raw key in a short-lived httpOnly cookie so the
     // settings page can reveal it exactly once, then it's gone for good.
     res.cookies.set(NEW_KEY_COOKIE, minted.rawKey, {

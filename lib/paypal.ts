@@ -31,7 +31,7 @@ async function getAccessToken(): Promise<string> {
  * the original subscription flow. A one-time order sidesteps that entirely:
  * the user re-purchases a credit pack whenever they run low.
  */
-export async function createOrder(params: { amount: string; currency: string; userId: string; returnUrl: string; cancelUrl: string }) {
+export async function createOrder(params: { amount: string; currency: string; customId: string; returnUrl: string; cancelUrl: string }) {
   const token = await getAccessToken();
   const res = await fetch(`${BASE}/v2/checkout/orders`, {
     method: "POST",
@@ -40,8 +40,8 @@ export async function createOrder(params: { amount: string; currency: string; us
       intent: "CAPTURE",
       purchase_units: [
         {
-          custom_id: params.userId, // read back on capture so we know who to credit
-          description: "Loupe Pro — 1,000 scan credits",
+          custom_id: params.customId, // read back on capture — encodes both who to credit and what was purchased
+          description: "Loupe scan credits",
           amount: { currency_code: params.currency, value: params.amount },
         },
       ],

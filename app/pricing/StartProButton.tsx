@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
-export function StartProButton() {
+export function StartProButton({ credits }: { credits: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +19,11 @@ export function StartProButton() {
         return;
       }
 
-      const res = await fetch("/api/checkout", { method: "POST" });
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credits }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Checkout failed.");
       window.location.href = data.approveUrl;
@@ -37,7 +41,7 @@ export function StartProButton() {
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-medium text-[#0f0f0f] transition-colors hover:bg-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? <Loader2 size={13} className="animate-spin" /> : <ArrowRight size={13} />}
-        {loading ? "Redirecting to PayPal…" : "Buy 1,000 credits"}
+        {loading ? "Redirecting to PayPal…" : `Buy ${credits.toLocaleString()} credits`}
       </button>
       {error && <p className="mt-2 text-[11px] text-red-300">{error}</p>}
     </div>

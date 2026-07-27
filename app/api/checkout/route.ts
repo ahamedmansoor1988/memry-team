@@ -1,27 +1,35 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
 import { createOrder } from "@/lib/paypal";
+import { findCreditTier } from "@/lib/credit-tiers";
 
 export const dynamic = "force-dynamic";
 
-// USD — INR is rejected outright by PayPal's Orders API (CURRENCY_NOT_SUPPORTED),
-// so it was never a viable option. The earlier "seller doesn't accept payments
-// in your currency" error happens at payment capture, not order creation —
-// it means the India-based business account needs multi-currency receiving
-// enabled (Account Settings > Money), not a different currency code here.
-const CREDIT_PACK_PRICE_USD = "20.00";
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const supabase = await createAuthClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+
+  let body: { credits?: number };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const tier = findCreditTier(body.credits ?? NaN);
+  if (!tier) return NextResponse.json({ error: "Invalid credit pack selected." }, { status: 400 });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
 
   try {
     const { approveUrl } = await createOrder({
-      userId: user.id,
-      amount: CREDIT_PACK_PRICE_USD,
+      // custom_id round-trips through PayPal untouched — the buyer can't
+      // tamper with it — so it's the source of truth for what to grant on
+      // capture, not just who to credit. Both values are server-computed
+      // (the tier lookup above), never taken directly from client input.
+      customId: `${user.id}|${tier.credits}`,
+      amount: tier.priceUsd,
       currency: "USD",
       returnUrl: `${appUrl}/api/paypal-capture`,
       cancelUrl: `${appUrl}/pricing?checkout=cancelled`,
