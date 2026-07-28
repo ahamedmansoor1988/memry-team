@@ -114,24 +114,31 @@ export function Sidebar({ userEmail }: Props) {
             </span>
           </Link>
         )}
-        <Link
-          href="/pricing"
-          className={`mb-2 flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
-            credits && credits.credits <= 10
-              ? "border-red-200 bg-red-50 hover:bg-red-100"
-              : "border-black/[0.08] bg-[#fafafa] hover:bg-black/[0.03]"
-          }`}
-        >
-          <Zap size={14} strokeWidth={1.75} className="shrink-0 text-[#4b5563]" />
-          <span className="flex-1 min-w-0">
-            <span className="block text-[13px] font-semibold text-[#0f0f0f]">
-              {credits ? `${credits.credits} credit${credits.credits === 1 ? "" : "s"} left` : "Buy credits"}
-            </span>
-            {credits?.isTrialOnly && daysLeft !== null && (
-              <span className="block text-[11px] text-[#71717a]">Free trial · {daysLeft} day{daysLeft === 1 ? "" : "s"} left</span>
-            )}
-          </span>
-        </Link>
+        {(() => {
+          const lowCredits = !!credits && credits.credits <= 10;
+          const trialEndingSoon = !!credits?.isTrialOnly && daysLeft !== null && daysLeft <= 3;
+          const urgent = lowCredits || trialEndingSoon;
+          return (
+            <Link
+              href="/pricing"
+              className={`mb-2 flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
+                urgent ? "border-red-200 bg-red-50 hover:bg-red-100" : "border-black/[0.08] bg-[#fafafa] hover:bg-black/[0.03]"
+              }`}
+            >
+              <Zap size={14} strokeWidth={1.75} className={`shrink-0 ${urgent ? "text-red-600" : "text-[#4b5563]"}`} />
+              <span className="flex-1 min-w-0">
+                <span className={`block text-[13px] font-semibold ${urgent ? "text-red-700" : "text-[#0f0f0f]"}`}>
+                  {credits ? `${credits.credits} credit${credits.credits === 1 ? "" : "s"} left` : "Buy credits"}
+                </span>
+                {credits?.isTrialOnly && daysLeft !== null && (
+                  <span className={`block text-[11px] ${trialEndingSoon ? "text-red-600 font-medium" : "text-[#71717a]"}`}>
+                    Free trial · {daysLeft} day{daysLeft === 1 ? "" : "s"} left
+                  </span>
+                )}
+              </span>
+            </Link>
+          );
+        })()}
         <Link
           href="/agents/history"
           className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
