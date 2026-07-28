@@ -172,7 +172,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
             <h2 className="text-[32px] font-semibold text-white mb-4">Start catching bugs today</h2>
-            <p className="text-[15px] text-[#71717a] mb-8 max-w-md mx-auto">Free for 15 days, 3 runs a day. No credit card required.</p>
+            <p className="text-[15px] text-[#71717a] mb-8 max-w-md mx-auto">100 free credits, 14 days to use them. No credit card required.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[14px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={14} />
             </Link>

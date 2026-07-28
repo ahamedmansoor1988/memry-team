@@ -9,13 +9,13 @@ export function CreditTierPicker() {
 
   return (
     <>
-      <div className="flex items-baseline gap-1 mb-2">
+      <div className="mb-4 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-[38px] font-semibold tracking-tight text-white">${selected.priceUsd.replace(".00", "")}</span>
-        <span className="text-[13px] text-white/50">one-time</span>
+        <span className="text-[13px] text-white/50">one-time —</span>
+        <span className="text-[13px] leading-relaxed text-white/60">
+          {selected.credits.toLocaleString()} scan credits, valid for 3 months. No subscription — buy another pack anytime.
+        </span>
       </div>
-      <p className="mb-4 text-[13px] leading-relaxed text-white/60">
-        {selected.credits.toLocaleString()} scan credits, valid for 3 months. No subscription — buy another pack anytime.
-      </p>
 
       <div className="mb-5 grid grid-cols-4 gap-1.5">
         {CREDIT_TIERS.map(tier => {

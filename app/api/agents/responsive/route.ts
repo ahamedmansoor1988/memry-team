@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkDailyLimit, clientIp } from "@/lib/rate-limit";
+import { createClient as createAuthClient } from "@/lib/supabase/server";
+import { gateScanByCredits } from "@/lib/scan-gate";
 
 export const maxDuration = 30;
-
-const FREE_SCANS_PER_DAY = 10;
 
 type ViewportName = "mobile" | "tablet" | "desktop";
 
@@ -167,12 +166,13 @@ export async function POST(req: NextRequest) {
   const url = body?.url ? normalizeUrl(body.url) : null;
   if (!url) return NextResponse.json({ error: "A valid http(s) URL is required." }, { status: 400 });
 
-  const limit = await checkDailyLimit(`ip:${clientIp(req)}`, "scan", FREE_SCANS_PER_DAY);
-  if (!limit.allowed) {
-    return NextResponse.json(
-      { error: `Daily free scan limit reached (${FREE_SCANS_PER_DAY}/day). Come back tomorrow.` },
-      { status: 429 }
-    );
+  const supabase = await createAuthClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Sign in to run a scan." }, { status: 401 });
+
+  const gate = await gateScanByCredits(user.id, "responsive");
+  if (!gate.allowed) {
+    return NextResponse.json({ error: gate.error }, { status: 402 });
   }
 
   const requested = new Set(body?.viewports ?? DEFAULT_VIEWPORTS.map(v => v.name));

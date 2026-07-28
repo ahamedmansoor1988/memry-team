@@ -3,7 +3,7 @@ import { Check, ArrowRight } from "lucide-react";
 import { CreditTierPicker } from "./CreditTierPicker";
 
 const FREE_FEATURES = [
-  "3 runs / day for 15 days",
+  "100 free credits — 14 days to use them",
   "Figma vs Live",
   "Brand Check",
   "Accessibility QA",
@@ -31,8 +31,8 @@ const FAQ = [
     a: "A run is one scan — a Figma vs Live comparison, a Brand Check, an Accessibility scan, or a Responsive Check. Every time you click run or the extension triggers a scan, that's one credit used.",
   },
   {
-    q: "What happens after the 15-day free trial?",
-    a: "Your account stays open, but scans pause until you buy a credit pack. Nothing you've already run gets deleted.",
+    q: "What happens after the 14-day free trial?",
+    a: "Your account stays open, but scans pause once your 100 free credits or the 14-day window run out, whichever comes first. Buy a credit pack to keep going — nothing you've already run gets deleted.",
   },
   {
     q: "Is this a subscription?",
@@ -40,7 +40,7 @@ const FAQ = [
   },
   {
     q: "Do credits expire?",
-    a: "Yes — each credit pack is valid for 3 months from the date you buy it. If you buy more than one pack, each has its own 3-month clock, and the credits closest to expiring are always used first.",
+    a: "Yes. Free trial credits are valid for 14 days from signup. Purchased credit packs are valid for 3 months from the date you buy them. If you have more than one batch, each has its own clock, and the credits closest to expiring are always used first.",
   },
   {
     q: "Do I need a Figma paid plan?",
@@ -82,7 +82,7 @@ export default function PricingPage() {
           Pay for what you ship,<br />not what you try
         </h1>
         <p className="text-[17px] text-[#4b5563] max-w-lg mx-auto">
-          Try every check free for 15 days. Buy a credit pack — one-time, no subscription — when you need more scans.
+          Start with 100 free credits for 14 days. Buy a credit pack — one-time, no subscription — when you need more scans.
         </p>
       </section>
 
@@ -97,10 +97,10 @@ export default function PricingPage() {
               </div>
               <div className="flex items-baseline gap-1 mb-2">
                 <span className="text-[38px] font-semibold tracking-tight text-[#0f0f0f]">$0</span>
-                <span className="text-[13px] text-[#71717a]">/ 15 days</span>
+                <span className="text-[13px] text-[#71717a]">/ 14 days</span>
               </div>
               <p className="text-[13px] leading-relaxed text-[#4b5563]">
-                For individuals trying it out. 3 runs per day.
+                100 free credits to try every check — no credit card needed.
               </p>
             </div>
 
@@ -161,7 +161,7 @@ export default function PricingPage() {
               </thead>
               <tbody>
                 {[
-                  ["Runs",                 "3 / day for 15 days", "100–1,000 credit packs"],
+                  ["Runs",                 "100 credits, 14 days", "100–1,000 credit packs"],
                   ["Figma vs Live",        "✓",                   "✓"],
                   ["Brand Check",          "✓",                   "✓"],
                   ["Accessibility QA",     "✓",                   "✓"],
@@ -204,7 +204,7 @@ export default function PricingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="rounded-2xl bg-[#0f0f0f] px-12 py-14 text-center">
             <h2 className="text-[28px] font-semibold text-white mb-3">Start for free today</h2>
-            <p className="text-[14px] text-[#71717a] mb-7">No credit card. 3 runs a day, free for 15 days.</p>
+            <p className="text-[14px] text-[#71717a] mb-7">No credit card. 100 free credits, 14 days to use them.</p>
             <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-[13px] font-semibold text-[#0f0f0f] hover:bg-[#f5f5f5] transition-colors">
               Get started free <ArrowRight size={13} />
             </Link>

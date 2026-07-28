@@ -1,5 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createClient as createAuthClient } from "@/lib/supabase/server";
+import { gateScanByCredits } from "@/lib/scan-gate";
 import { FIGMA_VISIBILITY_SNAPSHOT_CUTOFF, isRenderableFigmaNode, normalizeNodes } from "@/lib/figma-normalize";
 
 export const maxDuration = 120;
@@ -1014,6 +1016,15 @@ function extractTextNodes(node: any, frame: FrameInfo | null, results: TextNode[
 }
 
 export async function POST(req: NextRequest) {
+  const supabase = await createAuthClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Sign in to run a scan." }, { status: 401 });
+
+  const gate = await gateScanByCredits(user.id, "figma-compare");
+  if (!gate.allowed) {
+    return NextResponse.json({ error: gate.error }, { status: 402 });
+  }
+
   const {
     figmaNodes: prefetched, styleNameMap: prefetchedStyleMap,
     fileKey, nodeId, liveUrl, liveStyles, liveData,

@@ -2,7 +2,9 @@ import { randomBytes, createHash } from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
 const KEY_PREFIX = "loupe_sk_";
-const CREDIT_EXPIRY_MONTHS = 3;
+const PURCHASE_CREDIT_EXPIRY_MONTHS = 3;
+const TRIAL_CREDIT_EXPIRY_DAYS = 14;
+export const FREE_TRIAL_CREDITS = 100;
 
 function admin() {
   return createClient(
@@ -21,9 +23,13 @@ function generateRawKey(): string {
   return KEY_PREFIX + randomBytes(24).toString("hex");
 }
 
-function creditExpiryDate(): string {
+function creditExpiryDate(source: "purchase" | "trial" | "admin_grant"): string {
   const d = new Date();
-  d.setMonth(d.getMonth() + CREDIT_EXPIRY_MONTHS);
+  if (source === "trial") {
+    d.setDate(d.getDate() + TRIAL_CREDIT_EXPIRY_DAYS);
+  } else {
+    d.setMonth(d.getMonth() + PURCHASE_CREDIT_EXPIRY_MONTHS);
+  }
   return d.toISOString();
 }
 
@@ -51,11 +57,11 @@ export async function mintApiKey(userId: string, label?: string) {
 }
 
 /**
- * Grants a batch of credits that expires 3 months from now, independent of
- * any other batch on the same key. credits_remaining/credits_granted on
- * api_keys are updated too, but only as a rough display cache — they don't
- * know about expiry, so use availableCredits() for anything that needs to
- * be accurate.
+ * Grants a batch of credits — purchased/admin-granted credits expire 3
+ * months out, trial credits expire in 14 days — independent of any other
+ * batch on the same key. credits_remaining/credits_granted on api_keys are
+ * updated too, but only as a rough display cache — they don't know about
+ * expiry, so use availableCredits() for anything that needs to be accurate.
  */
 export async function grantCredits(apiKeyId: string, credits: number, source: "purchase" | "trial" | "admin_grant" = "purchase") {
   const db = admin();
@@ -63,7 +69,7 @@ export async function grantCredits(apiKeyId: string, credits: number, source: "p
     api_key_id: apiKeyId,
     credits,
     source,
-    expires_at: creditExpiryDate(),
+    expires_at: creditExpiryDate(source),
   });
   if (batchError) throw new Error(batchError.message);
 
@@ -107,6 +113,48 @@ export async function consumeApiCredit(rawKey: string, scanType: string): Promis
 
   if (!row.ok) return { ok: false, reason: (row.reason as ConsumeResult extends { ok: false } ? ConsumeResult["reason"] : never) ?? "invalid_key" };
   return { ok: true, userId: row.user_id!, creditsRemaining: row.credits_remaining };
+}
+
+/** Finds the user's oldest non-revoked key, or mints one — the implicit "wallet" behind interactive web-app scans. */
+export async function getOrCreatePrimaryKey(userId: string): Promise<string> {
+  const db = admin();
+  const { data: existing } = await db
+    .from("api_keys")
+    .select("id")
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) return existing.id;
+
+  const minted = await mintApiKey(userId, "Web app usage");
+  return minted.id;
+}
+
+/** Grants the one-time 100-credit free trial, but only if this key has never received any batch before. */
+export async function ensureFreeTrialGranted(apiKeyId: string) {
+  const db = admin();
+  const { count } = await db
+    .from("credit_batches")
+    .select("id", { count: "exact", head: true })
+    .eq("api_key_id", apiKeyId);
+
+  if (!count) await grantCredits(apiKeyId, FREE_TRIAL_CREDITS, "trial");
+}
+
+/** Consumes 1 credit for an already-authenticated web-app request (no raw API key involved). */
+export async function consumeCreditForKey(apiKeyId: string, scanType: string): Promise<ConsumeResult> {
+  const { data, error } = await admin()
+    .rpc("consume_api_credit_by_id", { p_api_key_id: apiKeyId, p_scan_type: scanType })
+    .single();
+
+  if (error || !data) return { ok: false, reason: "invalid_key" };
+  const row = data as { ok: boolean; credits_remaining: number; reason: string | null };
+
+  if (!row.ok) return { ok: false, reason: (row.reason as ConsumeResult extends { ok: false } ? ConsumeResult["reason"] : never) ?? "invalid_key" };
+  return { ok: true, userId: apiKeyId, creditsRemaining: row.credits_remaining };
 }
 
 export async function revokeApiKey(keyId: string) {
