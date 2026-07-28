@@ -35,14 +35,25 @@ export function BetaTag({ className = "" }: { className?: string }) {
 
 interface Props { userEmail: string; }
 
+interface CreditStatus { credits: number; nextExpiryAt: string | null; isTrialOnly: boolean; }
+
 export function Sidebar({ userEmail }: Props) {
   const pathname = usePathname();
   const [patWarning, setPatWarning] = useState<PatExpiryStatus | null>(null);
+  const [credits, setCredits] = useState<CreditStatus | null>(null);
 
   useEffect(() => {
     const status = storedPatExpiryStatus();
     if (status.state === "expiring" || status.state === "expired") setPatWarning(status);
   }, [pathname]);
+
+  useEffect(() => {
+    fetch("/api/credits/status").then(r => r.ok ? r.json() : null).then(setCredits).catch(() => {});
+  }, [pathname]);
+
+  const daysLeft = credits?.nextExpiryAt
+    ? Math.max(0, Math.ceil((new Date(credits.nextExpiryAt).getTime() - Date.now()) / 86_400_000))
+    : null;
 
   async function signOut() {
     const supabase = createClient();
@@ -105,12 +116,21 @@ export function Sidebar({ userEmail }: Props) {
         )}
         <Link
           href="/pricing"
-          className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
-            pathname.startsWith("/pricing") ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+          className={`mb-2 flex items-center gap-2.5 rounded-lg border px-2.5 py-2 transition-colors ${
+            credits && credits.credits <= 10
+              ? "border-red-200 bg-red-50 hover:bg-red-100"
+              : "border-black/[0.08] bg-[#fafafa] hover:bg-black/[0.03]"
           }`}
         >
-          <Zap size={14} strokeWidth={1.75} />
-          <span className="text-[13px] font-medium">Buy credits</span>
+          <Zap size={14} strokeWidth={1.75} className="shrink-0 text-[#4b5563]" />
+          <span className="flex-1 min-w-0">
+            <span className="block text-[13px] font-semibold text-[#0f0f0f]">
+              {credits ? `${credits.credits} credit${credits.credits === 1 ? "" : "s"} left` : "Buy credits"}
+            </span>
+            {credits?.isTrialOnly && daysLeft !== null && (
+              <span className="block text-[11px] text-[#71717a]">Free trial · {daysLeft} day{daysLeft === 1 ? "" : "s"} left</span>
+            )}
+          </span>
         </Link>
         <Link
           href="/agents/history"

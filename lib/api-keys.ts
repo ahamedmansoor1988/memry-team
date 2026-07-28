@@ -97,6 +97,32 @@ export async function availableCredits(apiKeyId: string): Promise<number> {
   return data as number;
 }
 
+export interface CreditStatus {
+  credits: number;
+  /** Earliest expires_at among batches with remaining credits — null if no active batches. */
+  nextExpiryAt: string | null;
+  /** True if every remaining batch is trial-sourced (used to label the balance "free trial"). */
+  isTrialOnly: boolean;
+}
+
+/** Balance plus the soonest expiry, for displaying trial/purchase status in the UI. */
+export async function creditStatus(apiKeyId: string): Promise<CreditStatus> {
+  const { data, error } = await admin()
+    .from("credit_batches")
+    .select("credits, credits_used, source, expires_at")
+    .eq("api_key_id", apiKeyId)
+    .gt("expires_at", new Date().toISOString())
+    .order("expires_at", { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const active = (data ?? []).filter(b => b.credits_used < b.credits);
+  const credits = active.reduce((sum, b) => sum + (b.credits - b.credits_used), 0);
+  const nextExpiryAt = active[0]?.expires_at ?? null;
+  const isTrialOnly = active.length > 0 && active.every(b => b.source === "trial");
+
+  return { credits, nextExpiryAt, isTrialOnly };
+}
+
 export type ConsumeResult =
   | { ok: true; userId: string; creditsRemaining: number }
   | { ok: false; reason: "invalid_key" | "revoked" | "insufficient_credits" };
