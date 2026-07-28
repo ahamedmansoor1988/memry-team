@@ -1,5 +1,6 @@
 const express = require("express");
 const { chromium } = require("playwright-core");
+const axeCore = require("axe-core");
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -695,6 +696,45 @@ app.post("/responsive", async (req, res) => {
   }
 });
 
+// Maps axe-core's impact levels onto our severity scale.
+const AXE_IMPACT_TO_SEVERITY = { critical: "high", serious: "high", moderate: "medium", minor: "low" };
+
+// Runs axe-core (the industry-standard WCAG 2.x rule engine) against the
+// live page — this is what makes findings traceable to a real WCAG success
+// criterion (via each rule's tags) instead of a hand-rolled heuristic.
+async function runAxe(page) {
+  await page.addScriptTag({ content: axeCore.source });
+  const results = await page.evaluate(() => window.axe.run(document, {
+    // Stable WCAG 2.0/2.1 rule sets only — 2.2 rules like target-size are
+    // left out since our custom small_tap_target check already covers that
+    // ground and running both would just double-report the same element.
+    runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] },
+    resultTypes: ["violations"],
+  }));
+
+  const issues = [];
+  for (const violation of results.violations) {
+    const severity = AXE_IMPACT_TO_SEVERITY[violation.impact] || "medium";
+    const wcagTags = violation.tags.filter(t => /^wcag\d/.test(t));
+    for (const node of violation.nodes) {
+      issues.push({
+        id: `axe-${issues.length + 1}`,
+        type: violation.id,
+        severity,
+        element: node.target.join(" ").slice(0, 120),
+        selector: node.target.join(" "),
+        details: node.failureSummary || violation.description,
+        metrics: {
+          wcagCriteria: wcagTags.join(", ") || null,
+          helpUrl: violation.helpUrl,
+          impact: violation.impact,
+        },
+      });
+    }
+  }
+  return issues;
+}
+
 async function inspectAccessibility(page) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(async () => {
@@ -703,9 +743,12 @@ async function inspectAccessibility(page) {
     await new Promise(r => setTimeout(r, 600));
   });
 
-  return page.evaluate(() => {
-    const VALID_ROLES = new Set(["alert","alertdialog","application","article","banner","button","cell","checkbox","columnheader","combobox","complementary","contentinfo","definition","dialog","directory","document","feed","figure","form","grid","gridcell","group","heading","img","link","list","listbox","listitem","log","main","marquee","math","menu","menubar","menuitem","menuitemcheckbox","menuitemradio","navigation","none","note","option","presentation","progressbar","radio","radiogroup","region","row","rowgroup","rowheader","scrollbar","search","searchbox","separator","slider","spinbutton","status","switch","tab","table","tablist","tabpanel","term","textbox","timer","toolbar","tooltip","tree","treegrid","treeitem"]);
+  const axeIssues = await runAxe(page);
 
+  // axe-core doesn't check actual rendered focus indicators (it can only see
+  // markup/CSS, not "did the outline visibly change on :focus"), so that one
+  // custom check stays — everything else axe covers with real WCAG rule IDs.
+  const customResult = await page.evaluate(() => {
     function isVisible(el) {
       const cs = window.getComputedStyle(el);
       const rect = el.getBoundingClientRect();
@@ -769,192 +812,7 @@ async function inspectAccessibility(page) {
       });
     }
 
-    // ---- Contrast helpers ----
-    function parseColor(str) {
-      const m = String(str).match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
-      if (!m) return null;
-      return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
-    }
-    function blend(fg, bg) {
-      const a = fg.a;
-      return { r: fg.r * a + bg.r * (1 - a), g: fg.g * a + bg.g * (1 - a), b: fg.b * a + bg.b * (1 - a), a: 1 };
-    }
-    function luminance(c) {
-      const f = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
-      return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
-    }
-    function contrastRatio(a, b) {
-      const l1 = luminance(a), l2 = luminance(b);
-      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-    }
-    // Reads the real paint-order stack at the element's own screen point
-    // (elementsFromPoint), not the DOM ancestor chain — the visible
-    // background is often painted by a sibling/absolute layer that isn't
-    // an ancestor at all (e.g. a full-bleed hero background section), and
-    // a plain ancestor walk can never see it. Layers with opacity:0 are
-    // skipped — decorative motion-effect/hover layers commonly carry a
-    // solid background-color in CSS that never actually paints.
-    function effectiveBackground(el) {
-      let rect = el.getBoundingClientRect();
-      // elementsFromPoint only sees what's currently in the viewport — for
-      // below/above-the-fold text (most of a long page, since we don't
-      // pre-scroll every element into view before this runs) rect.top/left
-      // land outside [0, innerWidth/Height] and the point sample comes back
-      // empty, which used to silently fall through to the white default.
-      if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
-        // behavior: "instant" matters — many sites set `scroll-behavior: smooth`
-        // on <html>, which makes the default scrollIntoView animate over time.
-        // Reading the rect right after the call would still see the pre-scroll
-        // position since the animation hasn't finished yet.
-        el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
-        rect = el.getBoundingClientRect();
-        // If it's still out of bounds (e.g. a JS-driven scroll library where
-        // window/document isn't the real scroll container), sampling a
-        // coordinate the element was never actually painted at would misjudge
-        // the background — bail (cannot judge) rather than guess white.
-        if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
-          return null;
-        }
-      }
-      const x = Math.min(Math.max(rect.left + rect.width / 2, 0), window.innerWidth - 1);
-      const y = Math.min(Math.max(rect.top + rect.height / 2, 0), window.innerHeight - 1);
-      const stack = document.elementsFromPoint(x, y);
-      for (const node of stack) {
-        // Elementor's hover/motion-effect "fill" layers carry a solid
-        // background-color that's purely decorative and toggles opacity via
-        // an animation timer — sampled at the wrong instant it reads as
-        // opacity:1 even though it never represents real page content.
-        if (String(node.className || "").includes("motion-effects-layer")) continue;
-        const cs = window.getComputedStyle(node);
-        if (parseFloat(cs.opacity) === 0) continue;
-        if (cs.backgroundImage && cs.backgroundImage !== "none") return null;
-        const bg = parseColor(cs.backgroundColor);
-        if (bg && bg.a >= 0.99) return bg;
-      }
-      return { r: 255, g: 255, b: 255, a: 1 };
-    }
-
-    // ---- 1. Low contrast text ----
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    const contrastChecked = new Set();
-    let node;
-    let textNodesChecked = 0;
-    while ((node = walker.nextNode()) && textNodesChecked < 1500) {
-      const text = node.textContent.trim();
-      if (text.length < 3) continue;
-      const el = node.parentElement;
-      if (!el || contrastChecked.has(el)) continue;
-      contrastChecked.add(el);
-      if (!isVisible(el) || isAssistiveHidden(el)) continue;
-      // Some widgets (hover/motion-effect buttons, sticky-header clones) keep
-      // a second copy of the same text stacked at the same coordinates — one
-      // is decorative and never actually painted on top. Skip a node if the
-      // element a user would actually see at its own center point isn't it
-      // (or doesn't contain it), so we don't judge contrast against a layer
-      // that's rendered behind something else.
-      const rect = el.getBoundingClientRect();
-      const topEl = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      if (topEl && !el.contains(topEl) && !topEl.contains(el)) continue;
-      textNodesChecked++;
-      const cs = window.getComputedStyle(el);
-      let color = parseColor(cs.color);
-      if (!color) continue;
-      const bg = effectiveBackground(el);
-      if (!bg) continue; // background image — cannot judge
-      if (color.a < 1) color = blend(color, bg);
-      const ratio = contrastRatio(color, bg);
-      const size = parseFloat(cs.fontSize);
-      const weight = parseInt(cs.fontWeight, 10) || 400;
-      const isLarge = size >= 24 || (size >= 18.66 && weight >= 700);
-      const required = isLarge ? 3 : 4.5;
-      if (ratio < required) {
-        add("low_contrast", ratio < 3 ? "high" : "medium", el, "Text contrast is below the WCAG AA minimum.", {
-          contrastRatio: Math.round(ratio * 100) / 100,
-          requiredRatio: required,
-          fontSize: `${size}px`,
-          textColor: cs.color,
-          sampleText: text.slice(0, 50),
-        });
-      }
-    }
-
-    // ---- 2. Images without alt ----
-    for (const img of document.querySelectorAll("img")) {
-      if (!isVisible(img) || isAssistiveHidden(img)) continue;
-      if (!img.hasAttribute("alt") && img.getAttribute("role") !== "presentation") {
-        add("missing_alt", "medium", img, "Image has no alt attribute, so screen readers announce the file name or nothing.", {
-          expected: "alt text (or alt=\"\" if decorative)",
-          measured: "no alt attribute",
-        });
-      }
-    }
-
-    // ---- 3. Buttons / links without an accessible name ----
-    for (const el of document.querySelectorAll("a[href], button, [role='button'], [role='link']")) {
-      if (!isVisible(el) || isAssistiveHidden(el)) continue;
-      const name = (el.innerText || "").trim() ||
-        el.getAttribute("aria-label") ||
-        el.getAttribute("title") ||
-        (el.getAttribute("aria-labelledby") && document.getElementById(el.getAttribute("aria-labelledby"))?.textContent?.trim()) ||
-        el.querySelector("img[alt]:not([alt=''])")?.getAttribute("alt") ||
-        el.querySelector("svg title")?.textContent?.trim();
-      if (!name) {
-        add("unlabeled_control", "high", el, "Interactive element has no accessible name — screen readers announce nothing useful.", {
-          expected: "visible text, aria-label, or labelled image",
-          measured: "no accessible name",
-        });
-      }
-    }
-
-    // ---- 4. Form inputs without labels ----
-    for (const input of document.querySelectorAll("input, select, textarea")) {
-      const type = (input.getAttribute("type") || "text").toLowerCase();
-      if (["hidden", "submit", "button", "image", "reset"].includes(type)) continue;
-      if (!isVisible(input) || isAssistiveHidden(input)) continue;
-      const hasLabel = (input.id && document.querySelector(`label[for="${CSS.escape(input.id)}"]`)) ||
-        input.closest("label") ||
-        input.getAttribute("aria-label") ||
-        input.getAttribute("aria-labelledby") ||
-        input.getAttribute("title");
-      if (!hasLabel) {
-        const placeholderOnly = Boolean(input.getAttribute("placeholder"));
-        add("input_missing_label", "high", input, placeholderOnly
-          ? "Input relies on placeholder text only — placeholders disappear on typing and are not reliable labels."
-          : "Form input has no label of any kind.", {
-          expected: "label element, aria-label, or aria-labelledby",
-          measured: placeholderOnly ? "placeholder only" : "no label",
-        });
-      }
-    }
-
-    // ---- 5. H1 usage + heading order ----
-    const headings = Array.from(document.querySelectorAll("h1, h2, h3, h4, h5, h6"))
-      .filter(h => isVisible(h) && !isAssistiveHidden(h));
-    const h1s = headings.filter(h => h.tagName === "H1");
-    if (h1s.length === 0) {
-      add("missing_h1", "medium", null, "Page has no visible H1 — screen reader users lose the main landmark for what the page is about.", {
-        expected: "exactly one H1",
-        measured: "no H1",
-      });
-    } else if (h1s.length > 1) {
-      add("multiple_h1", "low", h1s[1], "Page has more than one H1, which muddies the document outline.", {
-        expected: "exactly one H1",
-        measured: `${h1s.length} H1 elements`,
-      });
-    }
-    let prevLevel = 0;
-    for (const h of headings) {
-      const level = +h.tagName[1];
-      if (prevLevel > 0 && level > prevLevel + 1) {
-        add("heading_order_skip", "low", h, `Heading level jumps from H${prevLevel} to H${level}, skipping levels in the outline.`, {
-          expected: `H${prevLevel + 1} or lower`,
-          measured: `H${level} after H${prevLevel}`,
-        });
-      }
-      prevLevel = level;
-    }
-
-    // ---- 6. Small tap targets (WCAG 2.5.8 — 24px minimum) ----
+    // ---- Small tap targets (WCAG 2.5.8 — 24px minimum) ----
     for (const el of document.querySelectorAll("a[href], button, input, select, [role='button']")) {
       if (!isVisible(el) || isAssistiveHidden(el)) continue;
       const rect = el.getBoundingClientRect();
@@ -968,7 +826,7 @@ async function inspectAccessibility(page) {
       }
     }
 
-    // ---- 7. Missing focus styles (focus a sample and compare) ----
+    // ---- Missing focus styles (focus a sample and compare) ----
     const focusables = Array.from(document.querySelectorAll("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])"))
       .filter(el => isVisible(el) && !isAssistiveHidden(el))
       .slice(0, 60);
@@ -991,53 +849,26 @@ async function inspectAccessibility(page) {
     try { prevActive?.focus?.({ preventScroll: true }); } catch {}
     if (document.activeElement && document.activeElement !== prevActive) document.activeElement.blur?.();
 
-    // ---- 8. ARIA misuse ----
-    for (const el of document.querySelectorAll("[role]")) {
-      const role = el.getAttribute("role").trim().split(/\s+/)[0].toLowerCase();
-      if (role && !VALID_ROLES.has(role)) {
-        add("invalid_role", "medium", el, `role="${role}" is not a valid ARIA role, so assistive tech ignores it.`, {
-          expected: "a valid ARIA role",
-          measured: `role="${role}"`,
-        });
-      }
-    }
-    for (const el of document.querySelectorAll("[aria-hidden='true']")) {
-      const focusable = el.matches("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])")
-        ? el
-        : el.querySelector("a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])");
-      if (focusable && isVisible(focusable)) {
-        add("aria_hidden_focusable", "medium", focusable, "Element is focusable but inside aria-hidden — keyboard reaches it while screen readers cannot.", {
-          expected: "aria-hidden content should not contain focusable elements",
-          measured: "focusable element inside aria-hidden='true'",
-        });
-      }
-    }
-    for (const el of document.querySelectorAll("[aria-labelledby]")) {
-      const ids = el.getAttribute("aria-labelledby").trim().split(/\s+/);
-      const missing = ids.filter(id => !document.getElementById(id));
-      if (missing.length > 0 && isVisible(el)) {
-        add("broken_labelledby", "medium", el, "aria-labelledby points at an id that does not exist, so the element has no name.", {
-          expected: "aria-labelledby referencing existing element ids",
-          measured: `missing id: ${missing.join(", ")}`,
-        });
-      }
-    }
-
     const truncatedTypes = Object.entries(perType)
       .filter(([, count]) => count > PER_TYPE_CAP)
       .map(([type, count]) => ({ type, total: count, shown: PER_TYPE_CAP }));
 
     return {
-      issueCount: issues.length,
       issues,
       truncatedTypes,
       stats: {
-        textElementsChecked: textNodesChecked,
         focusablesSampled: focusables.length,
-        headings: headings.length,
       },
     };
   });
+
+  const issues = [...axeIssues, ...customResult.issues];
+  return {
+    issueCount: issues.length,
+    issues,
+    truncatedTypes: customResult.truncatedTypes,
+    stats: { ...customResult.stats, axeRulesRun: true },
+  };
 }
 
 // POST /accessibility — WCAG-style checks on the rendered page

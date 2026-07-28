@@ -14,6 +14,7 @@ import {
   Play,
   Share2,
   ShieldCheck,
+  Sparkles,
   Tags,
 } from "lucide-react";
 import { qaScore } from "@/lib/qa-score";
@@ -47,43 +48,76 @@ interface A11yResult {
 
 type ScannerStatus = "ready" | "not_configured" | "missing_endpoint" | "unreachable";
 
+// Types come from two sources: axe-core's real WCAG rule IDs (e.g.
+// "color-contrast", "image-alt") for everything axe checks, plus our own
+// custom checks (missing_focus_style, small_tap_target) for the couple of
+// things axe can't see on a rendered page. Anything not listed here still
+// shows up — it falls into the catch-all "Other WCAG issues" bucket below.
 const CATEGORIES: Array<{ id: string; label: string; icon: typeof Contrast; types: string[] }> = [
-  { id: "contrast", label: "Contrast", icon: Contrast, types: ["low_contrast"] },
-  { id: "labels", label: "Labels & alt text", icon: Tags, types: ["missing_alt", "unlabeled_control", "input_missing_label"] },
-  { id: "headings", label: "Headings", icon: Heading1, types: ["missing_h1", "multiple_h1", "heading_order_skip"] },
-  { id: "focus", label: "Focus & ARIA", icon: Keyboard, types: ["missing_focus_style", "invalid_role", "aria_hidden_focusable", "broken_labelledby"] },
-  { id: "touch", label: "Touch targets", icon: MousePointerClick, types: ["small_tap_target"] },
+  { id: "contrast", label: "Contrast", icon: Contrast, types: ["color-contrast", "color-contrast-enhanced"] },
+  {
+    id: "labels", label: "Labels & alt text", icon: Tags,
+    types: ["image-alt", "input-image-alt", "area-alt", "button-name", "link-name", "label", "select-name", "aria-command-name", "document-title", "frame-title", "html-has-lang", "html-lang-valid"],
+  },
+  { id: "headings", label: "Headings", icon: Heading1, types: ["page-has-heading-one", "heading-order", "empty-heading"] },
+  {
+    id: "focus", label: "Focus & ARIA", icon: Keyboard,
+    types: [
+      "missing_focus_style", "aria-hidden-focus", "focus-order-semantics", "tabindex",
+      "aria-allowed-role", "aria-valid-attr-value", "aria-valid-attr", "aria-required-attr",
+      "aria-required-children", "aria-required-parent", "aria-roles", "aria-allowed-attr", "duplicate-id-aria",
+    ],
+  },
+  { id: "touch", label: "Touch targets", icon: MousePointerClick, types: ["small_tap_target", "target-size"] },
 ];
 
 const TYPE_LABELS: Record<string, string> = {
-  low_contrast: "Low contrast",
-  missing_alt: "Missing alt text",
-  unlabeled_control: "Unlabeled control",
-  input_missing_label: "Input without label",
-  missing_h1: "Missing H1",
-  multiple_h1: "Multiple H1",
-  heading_order_skip: "Heading order",
+  "color-contrast": "Low contrast",
+  "color-contrast-enhanced": "Low contrast (AAA)",
+  "image-alt": "Missing alt text",
+  "input-image-alt": "Image input missing alt text",
+  "area-alt": "Image map area missing alt text",
+  "button-name": "Unlabeled button",
+  "link-name": "Unlabeled link",
+  "label": "Input without label",
+  "select-name": "Unlabeled dropdown",
+  "html-has-lang": "Missing page language",
+  "html-lang-valid": "Invalid page language code",
+  "aria-command-name": "Unlabeled ARIA control",
+  "document-title": "Missing page title",
+  "frame-title": "Untitled iframe",
+  "page-has-heading-one": "Missing H1",
+  "heading-order": "Heading order",
+  "empty-heading": "Empty heading",
   missing_focus_style: "No focus style",
-  invalid_role: "Invalid ARIA role",
-  aria_hidden_focusable: "Focusable but hidden",
-  broken_labelledby: "Broken aria-labelledby",
   small_tap_target: "Small tap target",
+  "target-size": "Small tap target",
 };
 
 const WHY_COPY: Record<string, string> = {
-  low_contrast: "Low-vision users may not be able to read this text.",
-  missing_alt: "Screen readers announce the file name or nothing at all.",
-  unlabeled_control: "Screen reader users hear \"button\" with no idea what it does.",
-  input_missing_label: "Users cannot tell what this field is for, and placeholders vanish on typing.",
-  missing_h1: "Screen reader users rely on the H1 to know what the page is about.",
-  multiple_h1: "Multiple H1s muddy the document outline for assistive tech.",
-  heading_order_skip: "Skipped heading levels break outline navigation for screen readers.",
+  "color-contrast": "Low-vision users may not be able to read this text.",
+  "color-contrast-enhanced": "Below the stricter AAA contrast threshold some users need.",
+  "image-alt": "Screen readers announce the file name or nothing at all.",
+  "input-image-alt": "Screen reader users get no description of what this image button does.",
+  "area-alt": "Screen reader users get no description of this clickable image region.",
+  "button-name": "Screen reader users hear \"button\" with no idea what it does.",
+  "link-name": "Screen reader users hear \"link\" with no idea where it goes.",
+  "label": "Users cannot tell what this field is for, and placeholders vanish on typing.",
+  "select-name": "Screen reader users hear a dropdown with no idea what it's choosing between.",
+  "html-has-lang": "Screen readers cannot auto-select the right pronunciation and voice without a declared page language.",
+  "html-lang-valid": "The declared page language code isn't valid, so assistive tech may mispronounce the content.",
+  "aria-command-name": "This ARIA control has no accessible name for assistive tech to announce.",
+  "document-title": "Screen reader users and browser tabs show no meaningful page title.",
+  "frame-title": "Screen reader users have no idea what this embedded frame contains.",
+  "page-has-heading-one": "Screen reader users rely on the H1 to know what the page is about.",
+  "heading-order": "Skipped heading levels break outline navigation for screen readers.",
+  "empty-heading": "An empty heading gives screen reader users no information at that outline level.",
   missing_focus_style: "Keyboard users cannot see which element they are on.",
-  invalid_role: "Assistive technology ignores roles it does not recognize.",
-  aria_hidden_focusable: "Keyboard reaches this element but screen readers stay silent on it.",
-  broken_labelledby: "The referenced label does not exist, so the element has no name.",
   small_tap_target: "Targets under 24px are hard to hit for users with motor impairments.",
+  "target-size": "Targets under 24px are hard to hit for users with motor impairments.",
 };
+
+const OTHER_CATEGORY: (typeof CATEGORIES)[number] = { id: "other", label: "Other WCAG issues", icon: ShieldCheck, types: [] };
 
 const SEVERITY_CLASS = {
   high: "border-red-200 bg-red-50 text-red-600",
@@ -170,7 +204,87 @@ function locationText(issue: A11yIssue) {
   return issue.selector && issue.selector !== "document" ? "Selector" : "Document";
 }
 
-function IssueCard({ issue, index, screenshot }: { issue: A11yIssue; index?: number; screenshot?: Screenshot }) {
+interface AiAnalysis {
+  rootCause: string;
+  fix: string;
+  cssSnippet: string;
+  confidence: number;
+}
+
+function AiExplainButton({ issue, url }: { issue: A11yIssue; url: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "error" | "done">("idle");
+  const [analysis, setAnalysis] = useState<AiAnalysis | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function explain() {
+    setState("loading");
+    setError(null);
+    try {
+      const res = await fetch("/api/agents/ai-fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          finding: {
+            type: issue.type,
+            element: issue.element,
+            selector: issue.selector,
+            details: issue.details,
+            metrics: issue.metrics,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "AI analysis failed.");
+      setAnalysis(data);
+      setState("done");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setState("error");
+    }
+  }
+
+  if (state === "idle") {
+    return (
+      <button
+        onClick={explain}
+        className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-black/[0.08] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#4b5563] transition-colors hover:border-black/20 hover:text-[#0f0f0f]"
+      >
+        <Sparkles size={12} /> Explain with AI
+      </button>
+    );
+  }
+  if (state === "loading") {
+    return (
+      <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-[#71717a]">
+        <Loader2 size={12} className="animate-spin" /> Thinking…
+      </p>
+    );
+  }
+  if (state === "error") {
+    return (
+      <p className="mt-3 text-[11px] text-red-600">
+        {error} <button onClick={explain} className="underline">Retry</button>
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 rounded-lg border border-purple-100 bg-purple-50/50 px-3 py-2.5">
+      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+        <Sparkles size={11} /> AI analysis · {analysis!.confidence}% confidence
+      </p>
+      <p className="mt-1.5 text-[12px] leading-relaxed text-[#17171c]">{analysis!.rootCause}</p>
+      <p className="mt-1.5 text-[12px] leading-relaxed text-[#3f3f46]">{analysis!.fix}</p>
+      {analysis!.cssSnippet && (
+        <pre className="mt-2 overflow-x-auto rounded-md bg-[#17171c] px-2.5 py-2 text-[11px] leading-relaxed text-white/90">
+          <code>{analysis!.cssSnippet}</code>
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function IssueCard({ issue, index, screenshot, url }: { issue: A11yIssue; index?: number; screenshot?: Screenshot; url?: string }) {
   return (
     <div className={`rounded-xl border border-l-4 border-black/[0.08] bg-white p-4 shadow-sm ${SEVERITY_ACCENT[issue.severity]}`}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -204,6 +318,7 @@ function IssueCard({ issue, index, screenshot }: { issue: A11yIssue; index?: num
           <p className="mt-2 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>
         )}
       </div>
+      {url && <AiExplainButton issue={issue} url={url} />}
     </div>
   );
 }
@@ -291,9 +406,13 @@ export default function AccessibilityAgentPage() {
 
   const issuesByCategory = useMemo(() => {
     const issues = result?.issues ?? [];
-    return CATEGORIES
+    const known = new Set(CATEGORIES.flatMap(c => c.types));
+    const groups = CATEGORIES
       .map(cat => ({ cat, issues: issues.filter(i => cat.types.includes(i.type)) }))
       .filter(g => g.issues.length > 0);
+    const other = issues.filter(i => !known.has(i.type));
+    if (other.length > 0) groups.push({ cat: OTHER_CATEGORY, issues: other });
+    return groups;
   }, [result]);
 
   const counts = useMemo(() => {
@@ -562,7 +681,7 @@ export default function AccessibilityAgentPage() {
                       </button>
                       {open && (
                         <div className="space-y-2 border-t border-black/[0.06] p-3">
-                          {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} screenshot={result.screenshot} />)}
+                          {issues.map(issue => <IssueCard key={issue.id} issue={issue} index={issueIndex.get(issue.id)} screenshot={result.screenshot} url={result.url} />)}
                         </div>
                       )}
                     </div>
