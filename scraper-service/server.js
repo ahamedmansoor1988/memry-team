@@ -721,13 +721,20 @@ async function runAxe(page) {
         id: `axe-${issues.length + 1}`,
         type: violation.id,
         severity,
-        element: node.target.join(" ").slice(0, 120),
+        element: (node.html || node.target.join(" ")).replace(/\s+/g, " ").trim().slice(0, 120),
         selector: node.target.join(" "),
-        details: node.failureSummary || violation.description,
+        // violation.help is the short one-line rule name ("Links must have
+        // discernible text") — the headline. failureSummary is a verbose
+        // "fix all/any of the following" checklist meant as guidance, not a
+        // headline, so it goes in metrics instead of overwriting details.
+        details: violation.help || violation.description,
         metrics: {
           wcagCriteria: wcagTags.join(", ") || null,
           helpUrl: violation.helpUrl,
           impact: violation.impact,
+          expected: violation.description,
+          measured: node.html ? node.html.slice(0, 200) : "—",
+          howToFix: node.failureSummary || null,
         },
       });
     }

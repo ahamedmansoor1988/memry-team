@@ -313,11 +313,17 @@ function IssueCard({ issue, index, screenshot, url }: { issue: A11yIssue; index?
       <div className="mt-2 rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">Where to inspect</p>
         <p className="mt-1 text-[11px] leading-snug text-[#17171c]">{locationText(issue)}</p>
-        <p className="mt-0.5 text-[11px] leading-snug text-[#71717a]">{issue.element}</p>
-        {issue.selector && issue.selector !== "document" && (
-          <p className="mt-2 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>
+        <p className="mt-0.5 truncate font-mono text-[11px] leading-snug text-[#71717a]">{issue.element}</p>
+        {issue.selector && issue.selector !== "document" && issue.selector !== issue.element && (
+          <p className="mt-1.5 truncate font-mono text-[10px] text-[#a1a1aa]">{issue.selector}</p>
         )}
       </div>
+      {typeof value(issue.metrics, "howToFix") === "string" && (
+        <details className="mt-2 rounded-lg border border-black/[0.06] bg-[#fafafa] px-3 py-2">
+          <summary className="cursor-pointer text-[10px] font-semibold uppercase tracking-wide text-[#71717a]">How to fix (from axe-core)</summary>
+          <p className="mt-1.5 whitespace-pre-line text-[11px] leading-relaxed text-[#3f3f46]">{value(issue.metrics, "howToFix") as string}</p>
+        </details>
+      )}
       {url && <AiExplainButton issue={issue} url={url} />}
     </div>
   );
