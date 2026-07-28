@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LogOut, History, Settings, ShieldCheck, AlertTriangle, Palette, MonitorCheck } from "lucide-react";
+import { ScanSearch, LogOut, History, Settings, ShieldCheck, AlertTriangle, Palette, MonitorCheck, Zap } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { storedPatExpiryStatus, type PatExpiryStatus } from "@/lib/pat-expiry";
 
@@ -103,6 +103,15 @@ export function Sidebar({ userEmail }: Props) {
             </span>
           </Link>
         )}
+        <Link
+          href="/pricing"
+          className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${
+            pathname.startsWith("/pricing") ? "bg-black/[0.06] text-[#0f0f0f]" : "text-[#4b5563] hover:bg-black/[0.03] hover:text-[#0f0f0f]"
+          }`}
+        >
+          <Zap size={14} strokeWidth={1.75} />
+          <span className="text-[13px] font-medium">Buy credits</span>
+        </Link>
         <Link
           href="/agents/history"
           className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors ${

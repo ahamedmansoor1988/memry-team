@@ -2,7 +2,7 @@ import { getOrCreatePrimaryKey, ensureFreeTrialGranted, consumeCreditForKey } fr
 
 export type ScanGateResult =
   | { allowed: true; creditsRemaining: number }
-  | { allowed: false; error: string };
+  | { allowed: false; error: string; code: "insufficient_credits" | "blocked" };
 
 /**
  * Gates a scan behind the user's credit balance — first-ever use grants the
@@ -15,10 +15,10 @@ export async function gateScanByCredits(userId: string, scanType: string): Promi
 
   const result = await consumeCreditForKey(apiKeyId, scanType);
   if (!result.ok) {
-    const error = result.reason === "insufficient_credits"
-      ? "You're out of credits. Buy a credit pack on the pricing page to keep scanning."
-      : "This account can't run scans right now.";
-    return { allowed: false, error };
+    if (result.reason === "insufficient_credits") {
+      return { allowed: false, code: "insufficient_credits", error: "You're out of credits." };
+    }
+    return { allowed: false, code: "blocked", error: "This account can't run scans right now." };
   }
 
   return { allowed: true, creditsRemaining: result.creditsRemaining };

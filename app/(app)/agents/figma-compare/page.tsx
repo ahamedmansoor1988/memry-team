@@ -440,6 +440,12 @@ export default function FigmaComparePage() {
         }),
       });
 
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        const link = d.code === "insufficient_credits" ? " Buy more credits: /pricing" : "";
+        addRun({ type: "error", text: `${d.error ?? `Request failed (${res.status})`}${link}` });
+        return;
+      }
       if (!res.body) throw new Error("No response body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();

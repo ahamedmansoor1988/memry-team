@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
 
   const gate = await gateScanByCredits(user.id, "responsive");
   if (!gate.allowed) {
-    return NextResponse.json({ error: gate.error }, { status: 402 });
+    return NextResponse.json({ error: gate.error, code: gate.code }, { status: 402 });
   }
 
   const requested = new Set(body?.viewports ?? DEFAULT_VIEWPORTS.map(v => v.name));

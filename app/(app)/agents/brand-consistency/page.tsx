@@ -230,6 +230,7 @@ export default function BrandConsistencyPage() {
   const [brandGuideText, setBrandGuideText] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [source, setSource] = useState<"figma" | "url">("figma");
   const [liveUrl, setLiveUrl] = useState("");
@@ -250,6 +251,7 @@ export default function BrandConsistencyPage() {
     if (!canRun) return;
     setRunning(true);
     setError(null);
+    setErrorCode(null);
     setResult(null);
     try {
       const body = source === "url"
@@ -261,7 +263,10 @@ export default function BrandConsistencyPage() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      if (!res.ok) {
+        setErrorCode(data.code ?? null);
+        throw new Error(data.error ?? `Request failed (${res.status})`);
+      }
       setResult(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -384,7 +389,12 @@ export default function BrandConsistencyPage() {
             {error && (
               <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
                 <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-500" />
-                <p className="text-[13px] text-red-600">{error}</p>
+                <p className="text-[13px] text-red-600">
+                  {error}
+                  {errorCode === "insufficient_credits" && (
+                    <> <a href="/pricing" className="font-semibold underline underline-offset-2">Buy more credits →</a></>
+                  )}
+                </p>
               </div>
             )}
 

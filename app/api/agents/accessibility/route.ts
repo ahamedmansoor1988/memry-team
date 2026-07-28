@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
 
   const gate = await gateScanByCredits(user.id, "accessibility");
   if (!gate.allowed) {
-    return NextResponse.json({ error: gate.error }, { status: 402 });
+    return NextResponse.json({ error: gate.error, code: gate.code }, { status: 402 });
   }
 
   try {

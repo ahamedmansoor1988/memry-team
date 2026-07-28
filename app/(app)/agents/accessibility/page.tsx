@@ -269,6 +269,7 @@ export default function AccessibilityAgentPage() {
   const [url, setUrl] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [result, setResult] = useState<A11yResult | null>(null);
   const [browserScannerConnected, setBrowserScannerConnected] = useState<boolean | null>(null);
   const [scannerStatus, setScannerStatus] = useState<ScannerStatus | null>(null);
@@ -397,6 +398,7 @@ export default function AccessibilityAgentPage() {
     if (!canRun) return;
     setRunning(true);
     setError(null);
+    setErrorCode(null);
     setResult(null);
     try {
       const normalizedUrl = normalizeUrl(url);
@@ -406,7 +408,10 @@ export default function AccessibilityAgentPage() {
         body: JSON.stringify({ url: normalizedUrl }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      if (!res.ok) {
+        setErrorCode(data.code ?? null);
+        throw new Error(data.error ?? `Request failed (${res.status})`);
+      }
       setResult(data);
       saveCachedScan(SCAN_CACHE_KEY, normalizedUrl, data);
     } catch (e) {
@@ -501,7 +506,12 @@ export default function AccessibilityAgentPage() {
             {error && (
               <div className="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
                 <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-500" />
-                <p className="text-[13px] text-red-600">{error}</p>
+                <p className="text-[13px] text-red-600">
+                  {error}
+                  {errorCode === "insufficient_credits" && (
+                    <> <a href="/pricing" className="font-semibold underline underline-offset-2">Buy more credits →</a></>
+                  )}
+                </p>
               </div>
             )}
 

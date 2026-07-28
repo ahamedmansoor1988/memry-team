@@ -40,8 +40,13 @@ export default function OnboardingPage() {
       {/* Left sidebar — timeline */}
       <div className="hidden md:flex w-[260px] shrink-0 flex-col border-r border-[#f0f0f0] px-8 py-10">
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-12">
+        <div className="flex items-center gap-2 mb-6">
           <img src="/loupe.svg" alt="Loupe" className="h-7 w-auto" />
+        </div>
+
+        <div className="mb-6 rounded-xl border border-[#e8e8ec] bg-[#fafafa] px-3 py-2.5">
+          <p className="text-[12px] font-semibold text-[#0f0f0f]">100 free credits</p>
+          <p className="text-[11px] text-[#71717a] mt-0.5">14 days to try every check — no card needed.</p>
         </div>
 
         {/* Steps */}
@@ -77,11 +82,12 @@ export default function OnboardingPage() {
         <div className="w-full max-w-md">
 
           {/* Mobile step indicator */}
-          <div className="flex items-center gap-1.5 mb-8 md:hidden">
+          <div className="flex items-center gap-1.5 mb-4 md:hidden">
             {STEPS.map((_, i) => (
               <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i <= step ? "bg-[#0f0f0f]" : "bg-[#f0f0f0]"}`} />
             ))}
           </div>
+          <p className="text-[11px] text-[#71717a] mb-8 md:hidden">100 free credits — 14 days to try every check.</p>
 
           {/* Step 0 — Name */}
           {step === 0 && (
