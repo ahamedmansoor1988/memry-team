@@ -1,5 +1,6 @@
 import { randomBytes, createHash } from "crypto";
 import { createClient } from "@supabase/supabase-js";
+import { checkLifetimeLimit } from "@/lib/rate-limit";
 
 const KEY_PREFIX = "loupe_sk_";
 const PURCHASE_CREDIT_EXPIRY_MONTHS = 3;
@@ -160,14 +161,28 @@ export async function getOrCreatePrimaryKey(userId: string): Promise<string> {
 }
 
 /** Grants the one-time 100-credit free trial, but only if this key has never received any batch before. */
-export async function ensureFreeTrialGranted(apiKeyId: string) {
+// Google sign-up itself is free and unlimited, so without this an abuser can
+// keep making new accounts from the same network to keep re-minting 100 free
+// scans (each a real Playwright page load we pay to run). Capping trial
+// grants per IP (not per account) is what actually bounds that cost — a
+// per-account check alone does nothing since accounts are the free resource.
+const MAX_TRIALS_PER_IP = 3;
+
+export async function ensureFreeTrialGranted(apiKeyId: string, ip?: string) {
   const db = admin();
   const { count } = await db
     .from("credit_batches")
     .select("id", { count: "exact", head: true })
     .eq("api_key_id", apiKeyId);
 
-  if (!count) await grantCredits(apiKeyId, FREE_TRIAL_CREDITS, "trial");
+  if (count) return;
+
+  if (ip && ip !== "unknown") {
+    const { allowed } = await checkLifetimeLimit(ip, "trial-grant", MAX_TRIALS_PER_IP);
+    if (!allowed) return; // silently withhold the trial — scan will fail with insufficient_credits
+  }
+
+  await grantCredits(apiKeyId, FREE_TRIAL_CREDITS, "trial");
 }
 
 /** Consumes 1 credit for an already-authenticated web-app request (no raw API key involved). */

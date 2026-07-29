@@ -9,9 +9,9 @@ export type ScanGateResult =
  * 100-credit free trial automatically, then every scan (across all 4 tools)
  * consumes 1 credit. Requires a logged-in user; there is no anonymous path.
  */
-export async function gateScanByCredits(userId: string, scanType: string): Promise<ScanGateResult> {
+export async function gateScanByCredits(userId: string, scanType: string, ip?: string): Promise<ScanGateResult> {
   const apiKeyId = await getOrCreatePrimaryKey(userId);
-  await ensureFreeTrialGranted(apiKeyId);
+  await ensureFreeTrialGranted(apiKeyId, ip);
 
   const result = await consumeCreditForKey(apiKeyId, scanType);
   if (!result.ok) {

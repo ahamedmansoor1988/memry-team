@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
 import { gateScanByCredits } from "@/lib/scan-gate";
+import { clientIp } from "@/lib/rate-limit";
 import { FIGMA_VISIBILITY_SNAPSHOT_CUTOFF, isRenderableFigmaNode, normalizeNodes } from "@/lib/figma-normalize";
 
 export const maxDuration = 120;
@@ -1020,7 +1021,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in to run a scan." }, { status: 401 });
 
-  const gate = await gateScanByCredits(user.id, "figma-compare");
+  const gate = await gateScanByCredits(user.id, "figma-compare", clientIp(req));
   if (!gate.allowed) {
     return NextResponse.json({ error: gate.error, code: gate.code }, { status: 402 });
   }

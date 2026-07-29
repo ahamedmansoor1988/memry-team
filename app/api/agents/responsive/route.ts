@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
 import { gateScanByCredits } from "@/lib/scan-gate";
+import { clientIp } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in to run a scan." }, { status: 401 });
 
-  const gate = await gateScanByCredits(user.id, "responsive");
+  const gate = await gateScanByCredits(user.id, "responsive", clientIp(req));
   if (!gate.allowed) {
     return NextResponse.json({ error: gate.error, code: gate.code }, { status: 402 });
   }

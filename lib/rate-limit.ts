@@ -50,6 +50,39 @@ export async function checkDailyLimit(key: string, kind: string, limit: number):
   }
 }
 
+/**
+ * Same storage-backed counter as checkDailyLimit, but never resets — for
+ * capping something for good (like free-trial grants per IP) rather than
+ * per calendar day. Also fails open.
+ */
+export async function checkLifetimeLimit(key: string, kind: string, limit: number): Promise<{ allowed: boolean; remaining: number }> {
+  try {
+    const client = admin();
+    const hashed = createHash("sha256").update(key).digest("hex").slice(0, 20);
+    const path = `${kind}/lifetime/${hashed}.json`;
+
+    let count = 0;
+    const { data } = await client.storage.from(BUCKET).download(path);
+    if (data) {
+      try { count = Number(JSON.parse(await data.text()).count) || 0; } catch {}
+    }
+    if (count >= limit) return { allowed: false, remaining: 0 };
+
+    const { error } = await client.storage.from(BUCKET).upload(
+      path,
+      JSON.stringify({ count: count + 1 }),
+      { contentType: "application/json", upsert: true }
+    );
+    if (error && /bucket not found/i.test(error.message)) {
+      await ensureBucket(client);
+      await client.storage.from(BUCKET).upload(path, JSON.stringify({ count: count + 1 }), { contentType: "application/json", upsert: true });
+    }
+    return { allowed: true, remaining: limit - count - 1 };
+  } catch {
+    return { allowed: true, remaining: limit };
+  }
+}
+
 export function clientIp(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
