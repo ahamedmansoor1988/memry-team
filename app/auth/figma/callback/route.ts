@@ -35,26 +35,19 @@ export async function GET(req: NextRequest) {
     email: string;
   };
 
-  // Save token to workspace
   const admin = createAdminClient();
-  const { data: member } = await admin
-    .from("workspace_members")
-    .select("workspace_id")
-    .eq("user_id", state)
-    .maybeSingle();
-
-  if (!member?.workspace_id) {
-    return NextResponse.redirect(`${origin}/agents?error=no_workspace`);
+  const { error: upsertError } = await admin.from("figma_connections").upsert({
+    user_id:           state,
+    access_token:      token.access_token,
+    refresh_token:     token.refresh_token,
+    expires_at:        new Date(Date.now() + token.expires_in * 1000).toISOString(),
+    figma_user_id:     token.user_id,
+    figma_user_email:  token.email,
+    connected_at:      new Date().toISOString(),
+  });
+  if (upsertError) {
+    return NextResponse.redirect(`${origin}/agents/settings?error=figma_save_failed`);
   }
 
-  await admin.from("workspaces").update({
-    figma_access_token:    token.access_token,
-    figma_refresh_token:   token.refresh_token,
-    figma_token_expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString(),
-    figma_user_id:         token.user_id,
-    figma_user_email:      token.email,
-    figma_connected_at:    new Date().toISOString(),
-  }).eq("id", member.workspace_id);
-
-  return NextResponse.redirect(`${origin}/agents/figma-compare?figma_connected=1`);
+  return NextResponse.redirect(`${origin}/agents/settings?figma_connected=1`);
 }

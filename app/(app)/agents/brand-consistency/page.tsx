@@ -234,6 +234,9 @@ export default function BrandConsistencyPage() {
   const [result, setResult] = useState<CheckResult | null>(null);
   const [source, setSource] = useState<"figma" | "url">("figma");
   const [liveUrl, setLiveUrl] = useState("");
+  const [watchState, setWatchState] = useState<"idle" | "saving" | "watching" | "error">("idle");
+  const [watchError, setWatchError] = useState<string | null>(null);
+  const [watchErrorCode, setWatchErrorCode] = useState<string | null>(null);
 
   useEffect(() => {
     setPat(localStorage.getItem("loupe_pat") ?? "");
@@ -246,6 +249,29 @@ export default function BrandConsistencyPage() {
     brandGuideText.trim() && !running &&
     (source === "figma" ? parsed && pat.trim() : isUsableUrl(liveUrl))
   );
+
+  async function watchFile() {
+    if (!parsed || !brandGuideText.trim()) return;
+    setWatchState("saving");
+    setWatchError(null);
+    setWatchErrorCode(null);
+    try {
+      const res = await fetch("/api/brand-watch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey: parsed.fileKey, nodeId: parsed.nodeId, brandGuideText }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setWatchErrorCode(data.code ?? null);
+        throw new Error(data.error ?? "Could not start watching this file.");
+      }
+      setWatchState("watching");
+    } catch (e) {
+      setWatchError(e instanceof Error ? e.message : String(e));
+      setWatchState("error");
+    }
+  }
 
   async function run() {
     if (!canRun) return;
@@ -374,6 +400,37 @@ export default function BrandConsistencyPage() {
               <p className="mt-2 flex items-center gap-1 text-[11px] text-[#71717a]">
                 Shared for the whole org. <a href="/agents/settings" className="inline-flex items-center gap-0.5 text-[#0f0f0f] underline underline-offset-2">Manage in Settings <ExternalLink size={10} /></a>
               </p>
+
+              {source === "figma" && parsed && brandGuideText.trim() && (
+                <div className="mt-3 rounded-xl border border-black/[0.08] bg-[#fafafa] px-4 py-3">
+                  {watchState === "watching" ? (
+                    <p className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-700">
+                      <Check size={13} /> Watching — Loupe re-checks this file nightly and comments on new issues directly in Figma.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[12px] leading-relaxed text-[#71717a]">
+                        Have Loupe re-check this file every night on its own, and post new issues as Figma comments.
+                      </p>
+                      <button
+                        onClick={watchFile}
+                        disabled={watchState === "saving"}
+                        className="shrink-0 rounded-lg border border-black/[0.1] bg-white px-3 py-1.5 text-[12px] font-medium text-[#0f0f0f] transition-colors hover:border-black/30 disabled:opacity-50"
+                      >
+                        {watchState === "saving" ? "Starting…" : "Watch this file"}
+                      </button>
+                    </div>
+                  )}
+                  {watchState === "error" && (
+                    <p className="mt-1.5 text-[11px] text-red-600">
+                      {watchError}
+                      {watchErrorCode === "figma_not_connected" && (
+                        <> <a href="/agents/settings" className="underline">Go to Settings →</a></>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={run}

@@ -57,6 +57,9 @@ export default function PrivacyPage() {
               </table>
             </div>
             <p className="text-[#4b5563]">We do <strong className="text-[#0f0f0f]">not</strong> collect your Figma personal access token — it is stored only in your browser&apos;s localStorage and never sent to our servers.</p>
+            <p className="text-[#4b5563]">
+              Separately, you can opt in to a scoped Figma OAuth connection (Settings → &quot;Figma Connection&quot;) so Loupe can re-check a watched file and post comments on its own, without a browser tab open. Unlike the PAT above, this token is stored server-side — scoped to read files and post comments only, revocable anytime from Settings.
+            </p>
           </section>
 
           <section className="space-y-3">

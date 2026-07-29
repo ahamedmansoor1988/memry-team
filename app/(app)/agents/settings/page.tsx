@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User, Loader2, AlertTriangle, Palette, FileText, UploadCloud, X } from "lucide-react";
+import { Eye, EyeOff, Check, KeyRound, Globe, ExternalLink, User, Loader2, AlertTriangle, Palette, FileText, UploadCloud, X, RadioTower, Unlink } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { patExpiryStatus } from "@/lib/pat-expiry";
 
@@ -17,6 +17,31 @@ export default function SettingsPage() {
   const [brandGuideText, setBrandGuideText] = useState("");
   const [brandGuideSaved, setBrandGuideSaved] = useState(false);
   const brandFileInputRef = useRef<HTMLInputElement>(null);
+  const [figmaConnected, setFigmaConnected] = useState<boolean | null>(null);
+  const [figmaConnectedEmail, setFigmaConnectedEmail] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/figma-connection")
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        setFigmaConnected(Boolean(data.connected));
+        setFigmaConnectedEmail(data.figmaUserEmail ?? null);
+      })
+      .catch(() => setFigmaConnected(false));
+  }, []);
+
+  async function disconnectFigmaOAuth() {
+    setDisconnecting(true);
+    try {
+      await fetch("/api/figma-connection", { method: "DELETE" });
+      setFigmaConnected(false);
+      setFigmaConnectedEmail(null);
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   useEffect(() => {
     // Load PAT from localStorage
@@ -182,6 +207,40 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
+        </div>
+
+        {/* Figma OAuth connection — for unattended watch/auto-comment, separate from the PAT above */}
+        <div className="rounded-2xl border border-[#f0f0f0] bg-white p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <RadioTower size={13} className="text-[#71717a]" />
+            <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-widest">Figma Connection (auto re-checks)</p>
+          </div>
+          <p className="text-[12px] text-[#71717a] mb-4 leading-relaxed">
+            A separate, scoped OAuth connection (not your PAT above) that lets Loupe re-check a watched file on its own and post comments directly on Figma — even when you're not here. Revoke anytime.
+          </p>
+          {figmaConnected === null ? (
+            <p className="text-[12px] text-[#a1a1aa]">Checking connection…</p>
+          ) : figmaConnected ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[12px] font-medium text-emerald-700">
+                <Check size={13} /> Connected{figmaConnectedEmail ? ` as ${figmaConnectedEmail}` : ""}
+              </span>
+              <button
+                onClick={disconnectFigmaOAuth}
+                disabled={disconnecting}
+                className="flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-3 py-1.5 text-[12px] font-medium text-[#0f0f0f] transition-colors hover:border-red-300 hover:text-red-600 disabled:opacity-50"
+              >
+                {disconnecting ? <Loader2 size={12} className="animate-spin" /> : <Unlink size={12} />} Disconnect
+              </button>
+            </div>
+          ) : (
+            <a
+              href="/auth/figma"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-[#1a1a1a]"
+            >
+              Connect Figma
+            </a>
+          )}
         </div>
 
         {/* Brand Guide */}
