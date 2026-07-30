@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, EyeOff, ArrowRight, Check, ExternalLink, AlertTriangle, Globe } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Check, ExternalLink, Globe } from "lucide-react";
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -239,25 +239,16 @@ export default function OnboardingPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-[13px] font-semibold text-[#0f0f0f] mb-0.5">Loupe Chrome Extension</p>
                     <p className="text-[12px] text-[#71717a] leading-relaxed mb-3">
-                      Captures live computed styles (fonts, colors) from the page you're testing. Required for accurate comparison.
+                      Captures live computed styles (fonts, colors) from the page you're testing. Required for accurate comparison. Only runs when you actively use Loupe.
                     </p>
 
-                    {/* Not reviewed warning */}
-                    <div className="flex items-start gap-2 rounded-lg bg-[#fffbeb] border border-[#fde68a] px-3 py-2 mb-3">
-                      <AlertTriangle size={12} className="text-[#d97706] mt-0.5 shrink-0" />
-                      <p className="text-[11px] text-[#92400e] leading-relaxed">
-                        Not yet reviewed on the Chrome Web Store. Install manually via the link below.
-                        The extension only runs when you actively use Loupe.
-                      </p>
-                    </div>
-
                     <a
-                      href="https://github.com/ahamedmansoor1988/memry-team/tree/main/loupe-extension"
+                      href="https://chromewebstore.google.com/detail/kmhioponjbpkdapokmnlkhlhjmnjgidg"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f0f0f] px-3 py-1.5 text-[12px] font-medium text-white hover:bg-[#1a1a1a] transition-colors"
                     >
-                      <Globe size={11} /> View install instructions
+                      <Globe size={11} /> Add to Chrome
                     </a>
                   </div>
                 </div>

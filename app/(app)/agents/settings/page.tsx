@@ -293,26 +293,15 @@ export default function SettingsPage() {
             <p className="text-[11px] font-semibold text-[#71717a] uppercase tracking-widest">Chrome Extension</p>
           </div>
           <p className="text-[12px] text-[#71717a] mb-4 leading-relaxed">
-            Captures real computed styles from live pages for accurate comparison. Load it manually in Chrome.
+            Captures real computed styles from live pages for accurate comparison. Only activates when you run a Loupe comparison.
           </p>
-          <div className="rounded-xl bg-[#fffbeb] border border-[#fde68a] px-4 py-3 mb-4">
-            <p className="text-[12px] text-[#92400e] leading-relaxed">
-              Not yet reviewed on the Chrome Web Store. Install manually — the extension only activates when you run a Loupe comparison.
-            </p>
-          </div>
-          <div className="text-[12px] text-[#3f3f46] space-y-1.5 mb-4">
-            <p>1. Download the extension source from GitHub</p>
-            <p>2. Go to <span className="font-mono bg-[#f5f5f7] px-1.5 py-0.5 rounded text-[11px]">chrome://extensions</span></p>
-            <p>3. Enable <strong>Developer mode</strong> (top right)</p>
-            <p>4. Click <strong>Load unpacked</strong> → select the <span className="font-mono bg-[#f5f5f7] px-1.5 py-0.5 rounded text-[11px]">loupe-extension</span> folder</p>
-          </div>
           <a
-            href="https://github.com/ahamedmansoor1988/memry-team/tree/main/loupe-extension"
+            href="https://chromewebstore.google.com/detail/kmhioponjbpkdapokmnlkhlhjmnjgidg"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e8ec] px-4 py-2 text-[13px] font-medium text-[#0f0f0f] hover:border-[#0f0f0f] transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0f0f0f] px-4 py-2 text-[13px] font-medium text-white hover:bg-[#1a1a1a] transition-colors"
           >
-            <ExternalLink size={12} /> View on GitHub
+            <ExternalLink size={12} /> Add to Chrome
           </a>
         </div>
 
