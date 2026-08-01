@@ -37,6 +37,17 @@ chrome.storage.local.get(["figmaUrl", "checks", "figmaPatStatus", "patExpired"],
 
 refreshCurrentTab();
 
+// The side panel stays open across tab switches/navigation, but "activeTab"
+// only grants URL visibility for the tab that was active at launch — without
+// these listeners (plus the "tabs" permission) the display goes stale the
+// moment you switch tabs or navigate, showing "No active page detected"
+// even though a real page is right there.
+chrome.tabs.onActivated.addListener(refreshCurrentTab);
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  if (changeInfo.status === "complete" || changeInfo.url) refreshCurrentTab();
+});
+chrome.windows?.onFocusChanged?.addListener(refreshCurrentTab);
+
 agentButtons.forEach(button => {
   button.addEventListener("click", () => {
     openAgent(button.dataset.agent);
