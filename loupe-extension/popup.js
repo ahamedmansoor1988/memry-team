@@ -15,6 +15,20 @@ const agentButtons = document.querySelectorAll("[data-agent]");
 
 let activeTabCache = null;
 
+// Chrome refuses to inject into its own surfaces regardless of what the user
+// grants, so prompting for these origins asks for something we could never
+// use. Detected by host rather than scheme because these are ordinary https
+// URLs — only the Web Store's specialness makes them off limits.
+const CHROME_BLOCKED_HOSTS = ["chrome.google.com", "chromewebstore.google.com"];
+
+function isRestrictedPage(url) {
+  try {
+    return CHROME_BLOCKED_HOSTS.includes(new URL(url).hostname);
+  } catch {
+    return true;
+  }
+}
+
 const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
 const CHECK_MAP = {
   missing: "missing_elements",
@@ -91,6 +105,10 @@ btn.addEventListener("click", async () => {
   const cachedUrl = activeTabCache?.url ?? "";
   if (!cachedUrl.startsWith("http") || isLoupeUrl(cachedUrl)) {
     setStatus("Open the live site tab first.", "error");
+    return;
+  }
+  if (isRestrictedPage(cachedUrl)) {
+    setStatus("Chrome blocks extensions on this page. Open a regular website.", "error");
     return;
   }
   const granted = await ensureHostAccess(cachedUrl);
@@ -197,6 +215,10 @@ async function refreshCurrentTab() {
   }
   if (isLoupeUrl(tabUrl)) {
     currentUrl.textContent = "Open the live site tab, not Loupe";
+    return;
+  }
+  if (isRestrictedPage(tabUrl)) {
+    currentUrl.textContent = "Chrome blocks extensions on this page";
     return;
   }
   currentUrl.textContent = tabUrl.replace(/^https?:\/\//, "");
