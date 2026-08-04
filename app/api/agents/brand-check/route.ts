@@ -4,7 +4,7 @@ import { parseBrandGuide } from "@/lib/brand-guide";
 import { checkBrandConsistency } from "@/lib/brand-check";
 import { createClient as createAuthClient } from "@/lib/supabase/server";
 import { gateScanByCredits } from "@/lib/scan-gate";
-import { clientIp } from "@/lib/rate-limit";
+import { requestContext } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sign in to run a scan." }, { status: 401 });
 
-  const gate = await gateScanByCredits(user.id, "brand-check", clientIp(req));
+  const gate = await gateScanByCredits(user.id, "brand-check", requestContext(req));
   if (!gate.allowed) {
     return NextResponse.json({ error: gate.error, code: gate.code }, { status: 402 });
   }

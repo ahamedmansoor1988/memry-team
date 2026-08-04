@@ -129,10 +129,15 @@ export type ConsumeResult =
   | { ok: false; reason: "invalid_key" | "revoked" | "insufficient_credits" };
 
 /** Atomically validates the key, decrements one credit (from the soonest-expiring batch), and logs usage. */
-export async function consumeApiCredit(rawKey: string, scanType: string): Promise<ConsumeResult> {
+export async function consumeApiCredit(rawKey: string, scanType: string, ctx?: RequestContext): Promise<ConsumeResult> {
   const keyHash = hashKey(rawKey);
   const { data, error } = await admin()
-    .rpc("consume_api_credit", { p_key_hash: keyHash, p_scan_type: scanType })
+    .rpc("consume_api_credit", {
+      p_key_hash: keyHash,
+      p_scan_type: scanType,
+      p_ip: ipOf(ctx),
+      p_user_agent: uaOf(ctx),
+    })
     .single();
 
   if (error || !data) return { ok: false, reason: "invalid_key" };
@@ -185,10 +190,36 @@ export async function ensureFreeTrialGranted(apiKeyId: string, ip?: string) {
   await grantCredits(apiKeyId, FREE_TRIAL_CREDITS, "trial");
 }
 
+/**
+ * Where the scan came from. Recorded per scan purely as dispute evidence —
+ * if a customer's bank claims a charge was fraudulent, this is what shows
+ * the credits were actually used, from where, and on what.
+ */
+export interface RequestContext {
+  ip?: string;
+  userAgent?: string;
+}
+
+// User agents are unbounded in principle; keep rows from growing without limit.
+const MAX_UA_LENGTH = 400;
+
+function uaOf(ctx?: RequestContext): string | null {
+  return ctx?.userAgent?.slice(0, MAX_UA_LENGTH) ?? null;
+}
+
+function ipOf(ctx?: RequestContext): string | null {
+  return ctx?.ip && ctx.ip !== "unknown" ? ctx.ip : null;
+}
+
 /** Consumes 1 credit for an already-authenticated web-app request (no raw API key involved). */
-export async function consumeCreditForKey(apiKeyId: string, scanType: string): Promise<ConsumeResult> {
+export async function consumeCreditForKey(apiKeyId: string, scanType: string, ctx?: RequestContext): Promise<ConsumeResult> {
   const { data, error } = await admin()
-    .rpc("consume_api_credit_by_id", { p_api_key_id: apiKeyId, p_scan_type: scanType })
+    .rpc("consume_api_credit_by_id", {
+      p_api_key_id: apiKeyId,
+      p_scan_type: scanType,
+      p_ip: ipOf(ctx),
+      p_user_agent: uaOf(ctx),
+    })
     .single();
 
   if (error || !data) return { ok: false, reason: "invalid_key" };

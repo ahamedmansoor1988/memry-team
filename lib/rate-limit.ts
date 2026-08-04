@@ -87,3 +87,8 @@ export function clientIp(req: Request): string {
   const fwd = req.headers.get("x-forwarded-for");
   return fwd?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
 }
+
+/** IP + user agent for a request, as the scan gate wants them. */
+export function requestContext(req: Request): { ip: string; userAgent: string | undefined } {
+  return { ip: clientIp(req), userAgent: req.headers.get("user-agent") ?? undefined };
+}

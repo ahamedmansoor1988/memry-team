@@ -47,6 +47,7 @@ export default function PrivacyPage() {
                     ["Scan results (issues found)", "To show run history and share links"],
                     ["Figma design node data", "Cached to avoid repeated Figma API calls"],
                     ["Live page styles", "Captured by the Chrome extension for comparison"],
+                    ["IP address and browser user agent", "Recorded with each scan, as proof of use if a payment is disputed"],
                   ].map(([data, why]) => (
                     <tr key={data} className="border-b border-[#f7f7f8] last:border-0">
                       <td className="px-4 py-2.5 font-medium text-[#17171c]">{data}</td>
@@ -70,6 +71,7 @@ export default function PrivacyPage() {
               <li>To generate shareable public report links</li>
               <li>To send transactional emails (account, billing)</li>
               <li>To respond to support requests</li>
+              <li>To evidence that a purchase was genuinely used, if a payment is disputed or charged back</li>
             </ul>
             <p>We do not use your data for advertising. We do not sell or share your data with third parties except as described below.</p>
           </section>
