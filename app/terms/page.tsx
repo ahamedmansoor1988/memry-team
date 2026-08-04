@@ -65,7 +65,7 @@ export default function TermsPage() {
 
           <section className="space-y-3">
             <h2 className="text-[17px] font-semibold text-[#0f0f0f]">6. Plans and billing</h2>
-            <p>New accounts get 100 free scan credits, valid for 14 days from signup, at no cost. Additional usage is available as a one-time credit pack (100 to 1,000 scan credits, priced at $0.02/credit) — this is a single purchase, not a subscription. Purchased credits are valid for 3 months from the date of purchase; free trial credits are valid for 14 days from signup; unused credits past those points expire. There is no auto-renewal and nothing is billed recurringly.</p>
+            <p>New accounts get 100 free scan credits, valid for 14 days from signup, at no cost. Additional usage is available as a one-time credit pack (250 to 5,000 scan credits; larger packs carry a lower per-credit rate) — this is a single purchase, not a subscription. Purchased credits are valid for 3 months from the date of purchase; free trial credits are valid for 14 days from signup; unused credits past those points expire. There is no auto-renewal and nothing is billed recurringly.</p>
             <p>Credit pack purchases are handled by a third-party payment provider. If a purchase isn&apos;t right for you, email <a href="mailto:hello@useloupe.io" className="text-[#0f0f0f] underline underline-offset-2">hello@useloupe.io</a> within 14 days and we will refund any credits you have not spent — no explanation needed. Credits already used on completed scans are not refundable, as those scans have already run.</p>
             <p>We reserve the right to change pricing at any time; the price shown at checkout is the price you pay for that purchase.</p>
           </section>

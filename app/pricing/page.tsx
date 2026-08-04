@@ -165,7 +165,7 @@ export default function PricingPage() {
               </thead>
               <tbody>
                 {[
-                  ["Runs",                 "100 credits, 14 days", "100–1,000 credit packs"],
+                  ["Runs",                 "100 credits, 14 days", "250–5,000 credit packs"],
                   ["Figma vs Live",        "✓",                   "✓"],
                   ["Brand Check",          "✓",                   "✓"],
                   ["Accessibility QA",     "✓",                   "✓"],
