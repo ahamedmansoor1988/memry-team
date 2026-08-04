@@ -38,6 +38,13 @@ export function CreditTierPicker() {
       </div>
 
       <StartProButton credits={selected.credits} />
+
+      {/* Deliberately surfaced at the point of purchase, not buried in Terms —
+          someone who knows refunds are easy emails us instead of going
+          straight to their bank, which costs a fraction as much to resolve. */}
+      <p className="mt-3 text-center text-[11px] leading-relaxed text-white/40">
+        Changed your mind? Email us within 14 days for a refund on unused credits.
+      </p>
     </>
   );
 }

@@ -43,6 +43,10 @@ const FAQ = [
     a: "Yes. Free trial credits are valid for 14 days from signup. Purchased credit packs are valid for 3 months from the date you buy them. If you have more than one batch, each has its own clock, and the credits closest to expiring are always used first.",
   },
   {
+    q: "What if I change my mind?",
+    a: "Email hello@useloupe.io within 14 days of buying and we'll refund any credits you haven't spent — no explanation needed. Credits you've already used on scans aren't refundable, since those scans have already run.",
+  },
+  {
     q: "Do I need a Figma paid plan?",
     a: "No. Loupe works with any Figma account including the free tier. You just need a personal access token, which any Figma account can generate.",
   },

@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Loupe",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "description": "Compare Figma designs against live websites, plus brand, accessibility, and responsive checks.",
   "homepage_url": "https://getloupe.vercel.app",
   "author": "Loupe",
   "permissions": ["activeTab", "tabs", "scripting", "storage", "sidePanel"],
   "host_permissions": ["https://getloupe.vercel.app/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },

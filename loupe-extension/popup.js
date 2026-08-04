@@ -13,6 +13,8 @@ const patWarning = document.getElementById("patWarning");
 const patSettingsBtn = document.getElementById("patSettingsBtn");
 const agentButtons = document.querySelectorAll("[data-agent]");
 
+let activeTabCache = null;
+
 const CHECK_IDS = ["family", "size", "weight", "color", "missing"];
 const CHECK_MAP = {
   missing: "missing_elements",
@@ -58,12 +60,44 @@ patSettingsBtn.addEventListener("click", () => {
   openOrFocusLoupe(SETTINGS_APP, `${SETTINGS_APP}*`);
 });
 
+// "activeTab" only covers the tab that was focused when the extension was
+// invoked, so once the panel has been open across a navigation, injecting
+// into the current page is denied. Rather than ship a blanket <all_urls>
+// grant (a scary install prompt and a much harder store review), we ask for
+// just the origin being scanned, the first time it is scanned.
+async function ensureHostAccess(tabUrl) {
+  let origin;
+  try {
+    origin = `${new URL(tabUrl).origin}/*`;
+  } catch {
+    return false;
+  }
+  if (await chrome.permissions.contains({ origins: [origin] })) return true;
+  try {
+    return await chrome.permissions.request({ origins: [origin] });
+  } catch {
+    return false;
+  }
+}
+
 btn.addEventListener("click", async () => {
   const figmaUrl = figmaInput.value.trim();
   if (!figmaUrl) { setStatus("Enter a Figma URL first.", "error"); return; }
   const checks = CHECK_IDS.filter(id => document.getElementById(`chk-${id}`)?.checked);
   if (checks.length === 0) { setStatus("Choose at least one check.", "error"); return; }
   const checkKeys = checks.map(id => CHECK_MAP[id]);
+
+  // Must run before any await so the click still counts as a user gesture.
+  const cachedUrl = activeTabCache?.url ?? "";
+  if (!cachedUrl.startsWith("http") || isLoupeUrl(cachedUrl)) {
+    setStatus("Open the live site tab first.", "error");
+    return;
+  }
+  const granted = await ensureHostAccess(cachedUrl);
+  if (!granted) {
+    setStatus("Loupe needs permission to read this page. Click again and choose Allow.", "error");
+    return;
+  }
 
   chrome.storage.local.set({ figmaUrl, checks });
   btn.disabled = true;
@@ -85,7 +119,10 @@ btn.addEventListener("click", async () => {
   } catch (err) {
     const msg = err?.message ?? String(err);
     if (msg.includes("Cannot access") || msg.includes("chrome://") || msg.includes("extension://")) {
-      setStatus("Can't run on this page. Navigate to the live site first.", "error");
+      // Permission was granted above, so this is a page Chrome blocks outright
+      // (chrome:// internals, the Web Store, other extensions' pages) — no
+      // amount of granting permission makes those injectable.
+      setStatus("Chrome blocks extensions on this page. Try a regular website.", "error");
     } else {
       setStatus("Reload the page and try again.", "error");
     }
@@ -145,6 +182,10 @@ async function openAgent(agent) {
 
 async function refreshCurrentTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  // Cached so the capture handler can request host access without awaiting
+  // first — chrome.permissions.request() needs an unconsumed user gesture,
+  // and an await before it can invalidate that.
+  activeTabCache = tab ?? null;
   const tabUrl = tab?.url ?? "";
   if (!tabUrl) {
     currentUrl.textContent = "No active page detected";
